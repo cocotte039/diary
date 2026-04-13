@@ -1,0 +1,27 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!--
+  アイコンソース（SVG）。
+  別PCで下記のようにPNGを生成する:
+    magick convert -background '#1c1c20' icon.svg -resize 192x192 icon-192x192.png
+    magick convert -background '#1c1c20' icon.svg -resize 512x512 icon-512x512.png
+    magick convert -background '#1c1c20' icon.svg -resize 180x180 apple-touch-icon.png
+    magick convert -background '#1c1c20' icon.svg -resize 32x32   favicon.ico
+  HANDOFF.md の「アイコン/スプラッシュ生成」節を参照。
+-->
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 512 512">
+  <rect width="512" height="512" fill="#1c1c20"/>
+  <!-- ノートの表紙 -->
+  <rect x="96" y="80" width="320" height="352" rx="8" ry="8"
+        fill="#3a3545" stroke="#e8e0d4" stroke-opacity="0.4" stroke-width="2"/>
+  <!-- 折った右上角 -->
+  <polygon points="384,80 416,80 416,112"
+           fill="#1c1c20" stroke="#e8e0d4" stroke-opacity="0.4" stroke-width="2"/>
+  <!-- 罫線 -->
+  <g stroke="#e8e0d4" stroke-opacity="0.5" stroke-width="2">
+    <line x1="140" y1="176" x2="372" y2="176"/>
+    <line x1="140" y1="224" x2="372" y2="224"/>
+    <line x1="140" y1="272" x2="372" y2="272"/>
+    <line x1="140" y1="320" x2="372" y2="320"/>
+    <line x1="140" y1="368" x2="372" y2="368"/>
+  </g>
+</svg>

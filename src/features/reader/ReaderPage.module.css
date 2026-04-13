@@ -1,0 +1,37 @@
+.root {
+  position: fixed;
+  inset: 0;
+  display: flex;
+  flex-direction: column;
+  background: var(--color-bg);
+}
+
+.top {
+  position: fixed;
+  top: max(0.5rem, env(safe-area-inset-top));
+  left: max(0.5rem, env(safe-area-inset-left));
+  right: max(0.5rem, env(safe-area-inset-right));
+  display: flex;
+  justify-content: space-between;
+  font-family: var(--font-family-ui);
+  font-size: 0.75rem;
+  opacity: 0.3;
+  z-index: 2;
+}
+.top a,
+.top button {
+  opacity: 1;
+  padding: 0.25rem 0.5rem;
+}
+
+.surface {
+  flex: 1 1 auto;
+  min-height: 0;
+  padding-left: max(var(--padding-page), env(safe-area-inset-left));
+  padding-right: max(var(--padding-page), env(safe-area-inset-right));
+  transition: var(--transition-soft);
+}
+
+.fading {
+  opacity: 0;
+}

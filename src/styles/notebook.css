@@ -1,0 +1,60 @@
+/* =========================================================================
+ * notebook.css — ノート風共通スタイル（罫線・ページ区切り線）
+ * 書く画面と読み返し画面で共有する。
+ *
+ * 罫線の実装:
+ *   repeating-linear-gradient で line-height に等しい周期の横線を描く。
+ *   background-size と line-height を同期させることで、テキストの各行と
+ *   罫線を一致させる。変更する場合は必ず両方を同期すること。
+ * ========================================================================= */
+
+.notebook-surface {
+  font-family: var(--font-family);
+  font-size: var(--font-size);
+  line-height: var(--line-height);
+  letter-spacing: var(--letter-spacing);
+  color: var(--color-text);
+  background-color: var(--color-bg);
+
+  /* 罫線: 1行ごとに下線を1px */
+  background-image: repeating-linear-gradient(
+    to bottom,
+    transparent 0,
+    transparent calc(var(--line-height-px) - 1px),
+    var(--color-rule) calc(var(--line-height-px) - 1px),
+    var(--color-rule) var(--line-height-px)
+  );
+  background-size: 100% var(--line-height-px);
+  /* テキストのベースラインと罫線を合わせるため、上下 padding は
+     line-height の整数倍にする。左右はノート余白を演出。 */
+  padding: 0 var(--padding-page);
+  /* 1行目の罫線の直上にテキスト下端がくるよう微調整。
+     Klee One は ascent/descent のバランスが良く、追加オフセットは不要な想定。 */
+  background-position: 0 0;
+}
+
+.notebook-textarea {
+  border: none;
+  outline: none;
+  resize: none;
+  width: 100%;
+  height: 100%;
+  caret-color: var(--color-text);
+  white-space: pre-wrap;
+  word-break: break-word;
+}
+
+.notebook-reader {
+  white-space: pre-wrap;
+  word-break: break-word;
+  width: 100%;
+  height: 100%;
+  overflow-y: auto;
+  user-select: text;
+}
+
+/* 冊の終盤（ページ46-50相当）: 区切り線の色味を微妙に暖色に
+   具体的な描画はコンポーネント側でクラス付与して制御する。 */
+.notebook-surface.is-ending .page-divider-overlay {
+  --color-page-divider-active: var(--color-page-divider-end);
+}

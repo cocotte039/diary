@@ -1,0 +1,123 @@
+.root {
+  position: fixed;
+  inset: 0;
+  width: 100vw;
+  height: 100%;
+  height: 100dvh;
+  display: flex;
+  flex-direction: column;
+}
+
+.textarea {
+  /* notebook-surface と textarea の共通プロパティは notebook.css 側で付与 */
+  flex: 1 1 auto;
+  min-height: 0;
+  padding-top: 0;
+  padding-bottom: 0;
+  /* safe-area 対応（iOS ノッチ） */
+  padding-left: max(var(--padding-page), env(safe-area-inset-left));
+  padding-right: max(var(--padding-page), env(safe-area-inset-right));
+  /* 内部スクロール */
+  overflow-y: auto;
+}
+
+/* ページ区切り線オーバーレイ: 30行×LINE_HEIGHT_PX = 864px 間隔 */
+.dividerOverlay {
+  pointer-events: none;
+  position: absolute;
+  inset: 0;
+  background-image: repeating-linear-gradient(
+    to bottom,
+    transparent 0,
+    transparent calc(30 * var(--line-height-px) - 2px),
+    var(--color-page-divider) calc(30 * var(--line-height-px) - 2px),
+    var(--color-page-divider) calc(30 * var(--line-height-px))
+  );
+  background-size: 100% calc(30 * var(--line-height-px));
+  mix-blend-mode: normal;
+}
+.dividerOverlay.ending {
+  background-image: repeating-linear-gradient(
+    to bottom,
+    transparent 0,
+    transparent calc(30 * var(--line-height-px) - 2px),
+    var(--color-page-divider-end) calc(30 * var(--line-height-px) - 2px),
+    var(--color-page-divider-end) calc(30 * var(--line-height-px))
+  );
+}
+
+.pageIndicator {
+  position: fixed;
+  right: max(0.75rem, env(safe-area-inset-right));
+  bottom: max(1rem, env(safe-area-inset-bottom));
+  opacity: 0.3;
+  font-size: 0.75rem;
+  font-family: var(--font-family-ui);
+  pointer-events: none;
+  user-select: none;
+}
+
+.dateButton {
+  position: fixed;
+  left: 50%;
+  transform: translateX(-50%);
+  bottom: max(1rem, env(safe-area-inset-bottom));
+  width: 32px;
+  height: 32px;
+  border-radius: 50%;
+  background-color: var(--color-accent);
+  color: var(--color-text);
+  opacity: 0.25;
+  transition: var(--transition-soft);
+  font-size: 0.75rem;
+  display: grid;
+  place-items: center;
+}
+.dateButton:active {
+  opacity: 0.5;
+}
+
+.topNav {
+  position: fixed;
+  top: max(0.5rem, env(safe-area-inset-top));
+  left: max(0.5rem, env(safe-area-inset-left));
+  right: max(0.5rem, env(safe-area-inset-right));
+  display: flex;
+  justify-content: space-between;
+  pointer-events: none;
+  z-index: 2;
+}
+.topNav a,
+.topNav button {
+  pointer-events: auto;
+  opacity: 0.3;
+  padding: 0.25rem 0.5rem;
+  font-size: 0.75rem;
+  font-family: var(--font-family-ui);
+  transition: var(--transition-soft);
+}
+.topNav a:active,
+.topNav button:active {
+  opacity: 0.6;
+}
+
+.banner {
+  position: fixed;
+  left: 0.5rem;
+  right: 0.5rem;
+  bottom: max(3.5rem, env(safe-area-inset-bottom));
+  padding: 0.6rem 0.75rem;
+  background: rgba(58, 53, 69, 0.85);
+  color: var(--color-text);
+  border-radius: 6px;
+  font-size: 0.75rem;
+  font-family: var(--font-family-ui);
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  opacity: 0.9;
+}
+.bannerDismiss {
+  opacity: 0.6;
+  padding: 0 0.5rem;
+}
