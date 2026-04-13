@@ -11,10 +11,7 @@ import styles from './WritePage.module.css';
 import { useWrite } from './useWrite';
 import { useAutoSave } from '../../hooks/useAutoSave';
 import { useCursorRestore } from '../../hooks/useCursorRestore';
-import {
-  PAGES_PER_VOLUME,
-  VOLUME_END_WARNING_START_PAGE,
-} from '../../lib/constants';
+import { PAGES_PER_VOLUME } from '../../lib/constants';
 import { countPages, getPageNumber } from '../../lib/pagination';
 import {
   dismissA2HSBanner,
@@ -22,9 +19,12 @@ import {
 } from '../../lib/pwa';
 import { registerOnlineSync } from '../../lib/github';
 
+const WEEKDAYS_JA = ['日', '月', '火', '水', '木', '金', '土'] as const;
+
 function formatToday(): string {
   const d = new Date();
-  return `${d.getFullYear()}年${d.getMonth() + 1}月${d.getDate()}日\n`;
+  const w = WEEKDAYS_JA[d.getDay()];
+  return `${d.getFullYear()}年${d.getMonth() + 1}月${d.getDate()}日(${w})\n`;
 }
 
 /**
@@ -55,7 +55,6 @@ export default function WritePage() {
     [cursorPos, text]
   );
   const totalPages = useMemo(() => countPages(text), [text]);
-  const isEnding = currentPage >= VOLUME_END_WARNING_START_PAGE;
 
   const handleChange = useCallback(
     (e: ChangeEvent<HTMLTextAreaElement>) => {
@@ -130,10 +129,7 @@ export default function WritePage() {
       />
 
       {/* ページ区切り線オーバーレイ（pointer-events: none） */}
-      <div
-        aria-hidden
-        className={`${styles.dividerOverlay} ${isEnding ? styles.ending : ''}`}
-      />
+      <div aria-hidden className={styles.dividerOverlay} />
 
       <div className={styles.pageIndicator} aria-live="off">
         {currentPage} / {Math.max(totalPages, PAGES_PER_VOLUME)}

@@ -36,14 +36,18 @@
   background-size: 100% calc(30 * var(--line-height-px));
   mix-blend-mode: normal;
 }
-.dividerOverlay.ending {
-  background-image: repeating-linear-gradient(
-    to bottom,
-    transparent 0,
-    transparent calc(30 * var(--line-height-px) - 2px),
-    var(--color-page-divider-end) calc(30 * var(--line-height-px) - 2px),
-    var(--color-page-divider-end) calc(30 * var(--line-height-px))
-  );
+
+/* 最後のページ(50ページ目)の上端=49ページと50ページの境界だけ暖色。
+   冊の終わりを静かに告げる1本線。常時表示。 */
+.dividerOverlay::after {
+  content: '';
+  position: absolute;
+  left: 0;
+  right: 0;
+  top: calc(49 * 30 * var(--line-height-px) - 2px);
+  height: 2px;
+  background-color: var(--color-page-divider-end);
+  pointer-events: none;
 }
 
 .pageIndicator {

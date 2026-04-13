@@ -30,12 +30,6 @@ export const CURSOR_SAVE_DEBOUNCE_MS = 1000;
 /** スワイプでページ送りとみなす閾値 (px) */
 export const SWIPE_THRESHOLD_PX = 50;
 
-/** ページ区切り線の暖色化が始まるページ番号 */
-export const VOLUME_END_WARNING_START_PAGE = 46;
-
-/** 余白が狭くなり始めるページ番号（冊終わりの物理的感覚） */
-export const VOLUME_END_NARROW_START_PAGE = 49;
-
 /** IndexedDB 名 */
 export const DB_NAME = 'diary';
 export const DB_VERSION = 1;

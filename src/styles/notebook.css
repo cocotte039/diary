@@ -53,8 +53,3 @@
   user-select: text;
 }
 
-/* 冊の終盤（ページ46-50相当）: 区切り線の色味を微妙に暖色に
-   具体的な描画はコンポーネント側でクラス付与して制御する。 */
-.notebook-surface.is-ending .page-divider-overlay {
-  --color-page-divider-active: var(--color-page-divider-end);
-}
