@@ -1,5 +1,10 @@
+import { useRef, type PointerEvent as ReactPointerEvent } from 'react';
 import { Link } from 'react-router-dom';
 import type { Page, Volume } from '../../types';
+import {
+  LONG_PRESS_MOVE_TOLERANCE_PX,
+  LONG_PRESS_MS,
+} from '../../lib/constants';
 import styles from './BookshelfPage.module.css';
 
 interface Props {
@@ -7,6 +12,11 @@ interface Props {
   pages: Page[];
   /** カードタップ時に開くページ番号（lastOpenedPage or 最終更新ページ or 1） */
   initialPage: number;
+  /**
+   * 長押し削除が確定したときに呼ばれる。volumeId を受け取り、
+   * 呼び出し側で DB の deleteVolume と再ロードを担当する。
+   */
+  onDelete: (volumeId: string) => void | Promise<void>;
 }
 
 function formatRange(pages: Page[]): string {
@@ -21,14 +31,92 @@ function formatRange(pages: Page[]): string {
   return `${fmt(first)} - ${fmt(last)}`;
 }
 
-export default function VolumeCard({ volume, pages, initialPage }: Props) {
+export default function VolumeCard({
+  volume,
+  pages,
+  initialPage,
+  onDelete,
+}: Props) {
   const range = formatRange(pages);
   const isActive = volume.status === 'active';
+
+  // 長押し検知用の ref 群。レンダーを伴わないので state ではなく ref。
+  const longPressTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const longPressFiredRef = useRef(false);
+  const startXRef = useRef(0);
+  const startYRef = useRef(0);
+
+  const clearLongPressTimer = () => {
+    if (longPressTimerRef.current !== null) {
+      clearTimeout(longPressTimerRef.current);
+      longPressTimerRef.current = null;
+    }
+  };
+
+  const handleLongPress = async () => {
+    const n = pages.length;
+    const firstMsg =
+      n === 0
+        ? 'この冊を削除します。よろしいですか？'
+        : `この冊と全 ${n} ページを削除します。よろしいですか？`;
+    const firstOk = window.confirm(firstMsg);
+    if (!firstOk) return;
+    if (n >= 1) {
+      const secondOk = window.confirm(
+        '本当に削除しますか？この操作は取り消せません。'
+      );
+      if (!secondOk) return;
+    }
+    await onDelete(volume.id);
+  };
+
+  const handlePointerDown = (e: ReactPointerEvent<HTMLAnchorElement>) => {
+    longPressFiredRef.current = false;
+    startXRef.current = e.clientX;
+    startYRef.current = e.clientY;
+    clearLongPressTimer();
+    longPressTimerRef.current = setTimeout(() => {
+      longPressFiredRef.current = true;
+      longPressTimerRef.current = null;
+      // 非同期の confirm / onDelete を発火（await は不要）
+      void handleLongPress();
+    }, LONG_PRESS_MS);
+  };
+
+  const handlePointerMove = (e: ReactPointerEvent<HTMLAnchorElement>) => {
+    if (longPressTimerRef.current === null) return;
+    const dx = e.clientX - startXRef.current;
+    const dy = e.clientY - startYRef.current;
+    if (Math.hypot(dx, dy) > LONG_PRESS_MOVE_TOLERANCE_PX) {
+      clearLongPressTimer();
+    }
+  };
+
+  const handlePointerEnd = () => {
+    clearLongPressTimer();
+  };
+
+  const handleClick = (e: React.MouseEvent<HTMLAnchorElement>) => {
+    if (longPressFiredRef.current) {
+      // 長押しが成立した直後の click は Link 遷移させない
+      e.preventDefault();
+      e.stopPropagation();
+      longPressFiredRef.current = false;
+    }
+  };
+
   return (
     <Link
       to={`/book/${volume.id}/${initialPage}`}
       className={`${styles.card} ${isActive ? styles.cardActive : ''}`}
       aria-label={`第${volume.ordinal}冊 ${range}`}
+      onPointerDown={handlePointerDown}
+      onPointerMove={handlePointerMove}
+      onPointerUp={handlePointerEnd}
+      onPointerCancel={handlePointerEnd}
+      onPointerLeave={handlePointerEnd}
+      onClick={handleClick}
+      onContextMenu={(e) => e.preventDefault()}
     >
       <div className={styles.cardOrdinal}>第{volume.ordinal}冊</div>
       <div className={styles.cardRange}>{range || '　'}</div>

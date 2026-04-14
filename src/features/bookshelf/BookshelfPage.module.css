@@ -58,6 +58,9 @@
   justify-content: flex-end;
   color: var(--color-text);
   transition: transform 200ms ease, box-shadow 200ms ease;
+  /* 長押し削除時に iOS のコールアウト/選択ハイライトを抑止する (M8-4-T8-4.2) */
+  -webkit-touch-callout: none;
+  user-select: none;
 }
 .cardActive {
   transform: translateY(-4px);

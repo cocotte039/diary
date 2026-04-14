@@ -296,3 +296,26 @@ npm run preview      # ビルド結果のプレビュー
 - **🟡 margin-bottom: 1.5rem の削除**: `.header` は `position: fixed` になったため
   フローから外れ margin-bottom は効かない。代わりに `.root` の `padding-top` で
   ヘッダー＋1rem の逃げを確保する（spec 準拠）。
+
+### M8-4（2026-04-14）
+
+- **🟡 VolumeCard の Pointer Events 実装範囲**: `onPointerDown/Move/Up/Cancel/Leave`
+  の 5 点を `<Link>` に直接配線。`onContextMenu={(e) => e.preventDefault()}` も
+  併用して mouse 右クリック・iOS の長押しコールアウト両方を抑止。
+- **🟡 confirm 文言**: 1 段階目は pages.length 0 / 1+ で分岐
+  (`この冊を削除します。よろしいですか？` / `この冊と全 N ページを削除します。よろしいですか？`)。
+  2 段階目（1+ のときのみ）は固定で `本当に削除しますか？この操作は取り消せません。`。
+  静けさ原則に沿って感嘆符・トーストは使わず `window.confirm` 2 段で十分。
+- **🟡 テストは実時間待ち 600ms**: `vi.useFakeTimers` は fake-indexeddb と干渉する
+  ので使わず、`setTimeout(r, LONG_PRESS_MS + 100)` で実時間待機。テスト数は少ないので
+  合計 4 秒程度の追加で許容範囲。
+- **🟡 JSDOM の `fireEvent.pointerXxx` は clientX/clientY を渡さない**:
+  `createEvent.pointerMove(el, {clientX, clientY})` でイベントを作り、さらに
+  `Object.defineProperty(ev, 'clientX', {get: () => X})` で強制セットしてから
+  `fireEvent(el, ev)` する `firePointer` ヘルパを BookshelfPage.test.tsx に定義。
+- **🟡 0 ページ冊の E2E テストは `replaceAllData` で直接状態を作る**:
+  `ensureActiveVolume` / `rotateVolume` は共に page 1 を自動生成するため、
+  「ページ 0 枚の冊」を再現するには DB を直接書き換える必要がある。
+- **🟡 longPressFiredRef を onClick で reset**: 長押し成立後の click で
+  `preventDefault + stopPropagation` してから ref を false に戻す。
+  この reset を忘れると次のタップが常に抑止される。

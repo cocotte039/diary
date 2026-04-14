@@ -1,14 +1,21 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
-import { render, screen, waitFor } from '@testing-library/react';
+import {
+  createEvent,
+  fireEvent,
+  render,
+  screen,
+  waitFor,
+} from '@testing-library/react';
 import { MemoryRouter } from 'react-router-dom';
 import {
   _resetDBForTests,
   ensureActiveVolume,
   replaceAllData,
+  rotateVolume,
   savePage,
   updateVolumeLastOpenedPage,
 } from '../../lib/db';
-import { DB_NAME } from '../../lib/constants';
+import { DB_NAME, LONG_PRESS_MS } from '../../lib/constants';
 import BookshelfPage from './BookshelfPage';
 import type { Page, Volume } from '../../types';
 
@@ -163,6 +170,198 @@ describe('BookshelfPage new volume card (M6-T5)', () => {
     expect(confirmSpy).toHaveBeenCalledWith(
       expect.stringContaining('現在の冊は 3 / 50 ページです')
     );
+    confirmSpy.mockRestore();
+  });
+});
+
+/**
+ * M8-4-T8-4.2 / T8-4.3: 長押し削除の統合テスト。
+ * fake-indexeddb と vi.useFakeTimers は干渉するので実時間で待つ。
+ * LONG_PRESS_MS (500ms) + 余裕 100ms = 600ms 待機を目安とする。
+ */
+describe('BookshelfPage long-press delete (M8-4)', () => {
+  async function fireLongPress(el: Element) {
+    firePointer(el, 'pointerDown', 0, 0);
+    await new Promise((r) => setTimeout(r, LONG_PRESS_MS + 100));
+    firePointer(el, 'pointerUp', 0, 0);
+  }
+
+  /**
+   * JSDOM の fireEvent.pointerXxx では init の clientX/clientY が渡らない
+   * 既知の問題があるため、createEvent でイベントを作って defineProperty で
+   * 強制的に clientX/clientY を設定してから dispatch する。
+   */
+  function firePointer(
+    el: Element,
+    kind: 'pointerDown' | 'pointerMove' | 'pointerUp',
+    clientX: number,
+    clientY: number
+  ) {
+    const ev = createEvent[kind](el, { clientX, clientY });
+    Object.defineProperty(ev, 'clientX', { get: () => clientX });
+    Object.defineProperty(ev, 'clientY', { get: () => clientY });
+    fireEvent(el, ev);
+  }
+
+  it('短いタップでは Link 遷移を妨げない（長押し不成立）', async () => {
+    const v = await ensureActiveVolume();
+    await savePage(v.id, 1, 'a');
+    const confirmSpy = vi.spyOn(window, 'confirm').mockReturnValue(true);
+    renderPage();
+    const link = await screen.findByRole('link', {
+      name: new RegExp(`第${v.ordinal}冊`),
+    });
+    firePointer(link, 'pointerDown', 0, 0);
+    firePointer(link, 'pointerUp', 0, 0);
+    // 短いタップでは confirm は呼ばれない
+    expect(confirmSpy).not.toHaveBeenCalled();
+    confirmSpy.mockRestore();
+  });
+
+  it('500ms 長押しで confirm が 1 回目に呼ばれる', async () => {
+    const v = await ensureActiveVolume();
+    await savePage(v.id, 1, 'a');
+    const confirmSpy = vi.spyOn(window, 'confirm').mockReturnValue(false);
+    renderPage();
+    const link = await screen.findByRole('link', {
+      name: new RegExp(`第${v.ordinal}冊`),
+    });
+    await fireLongPress(link);
+    await waitFor(() => expect(confirmSpy).toHaveBeenCalled());
+    // 1 段階目の文言: 全 N ページを…
+    expect(confirmSpy).toHaveBeenNthCalledWith(
+      1,
+      expect.stringContaining('全 1 ページ')
+    );
+    confirmSpy.mockRestore();
+  });
+
+  it('pointerMove で 15px 超えると confirm は呼ばれない（キャンセル）', async () => {
+    const v = await ensureActiveVolume();
+    const confirmSpy = vi.spyOn(window, 'confirm').mockReturnValue(true);
+    renderPage();
+    const link = await screen.findByRole('link', {
+      name: new RegExp(`第${v.ordinal}冊`),
+    });
+    firePointer(link, 'pointerDown', 0, 0);
+    firePointer(link, 'pointerMove', 15, 0);
+    await new Promise((r) => setTimeout(r, LONG_PRESS_MS + 100));
+    firePointer(link, 'pointerUp', 15, 0);
+    expect(confirmSpy).not.toHaveBeenCalled();
+    confirmSpy.mockRestore();
+  });
+
+  it('1 回目キャンセルで削除されない', async () => {
+    const v = await ensureActiveVolume();
+    await savePage(v.id, 1, 'a');
+    const confirmSpy = vi.spyOn(window, 'confirm').mockReturnValue(false);
+    renderPage();
+    const link = await screen.findByRole('link', {
+      name: new RegExp(`第${v.ordinal}冊`),
+    });
+    await fireLongPress(link);
+    await waitFor(() => expect(confirmSpy).toHaveBeenCalledTimes(1));
+    // 削除されていないのでまだ同じ冊がある
+    await new Promise((r) => setTimeout(r, 200));
+    expect(
+      screen.getByRole('link', { name: new RegExp(`第${v.ordinal}冊`) })
+    ).toBeInTheDocument();
+    confirmSpy.mockRestore();
+  });
+
+  it('1 回目 OK → 2 回目キャンセルで削除されない', async () => {
+    const v = await ensureActiveVolume();
+    await savePage(v.id, 1, 'a');
+    // 1 回目 true, 2 回目 false
+    const confirmSpy = vi
+      .spyOn(window, 'confirm')
+      .mockReturnValueOnce(true)
+      .mockReturnValueOnce(false);
+    renderPage();
+    const link = await screen.findByRole('link', {
+      name: new RegExp(`第${v.ordinal}冊`),
+    });
+    await fireLongPress(link);
+    await waitFor(() => expect(confirmSpy).toHaveBeenCalledTimes(2));
+    // まだ残っている
+    await new Promise((r) => setTimeout(r, 200));
+    expect(
+      screen.getByRole('link', { name: new RegExp(`第${v.ordinal}冊`) })
+    ).toBeInTheDocument();
+    confirmSpy.mockRestore();
+  });
+
+  it('ページ 0 枚の冊は 1 段階 confirm で削除（2 冊 → 1 冊になる E2E）', async () => {
+    // replaceAllData で直接 0 ページ冊を含む状態を作る
+    // (ensureActiveVolume / rotateVolume は page 1 を自動生成するため使えない)
+    const volumes: Volume[] = [
+      {
+        id: 'v-keep',
+        ordinal: 1,
+        status: 'completed',
+        createdAt: '2025-01-01T00:00:00.000Z',
+      },
+      {
+        id: 'v-empty',
+        ordinal: 2,
+        status: 'active',
+        createdAt: '2025-02-01T00:00:00.000Z',
+      },
+    ];
+    const pages: Page[] = [
+      {
+        id: 'p1',
+        volumeId: 'v-keep',
+        pageNumber: 1,
+        content: 'keep',
+        createdAt: '2025-01-01T00:00:00.000Z',
+        updatedAt: '2025-01-01T00:00:00.000Z',
+        syncStatus: 'pending',
+      },
+    ];
+    await replaceAllData(volumes, pages);
+    const confirmSpy = vi.spyOn(window, 'confirm').mockReturnValue(true);
+    renderPage();
+    await waitFor(() => {
+      expect(screen.getAllByRole('link', { name: /第\d+冊/ }).length).toBe(2);
+    });
+    // 第2冊（active・0 ページ）を長押し削除
+    const link2 = screen.getByRole('link', { name: /第2冊/ });
+    await fireLongPress(link2);
+    await waitFor(() =>
+      expect(screen.getAllByRole('link', { name: /第\d+冊/ }).length).toBe(1)
+    );
+    // 1 段階のみ
+    expect(confirmSpy).toHaveBeenCalledTimes(1);
+    expect(confirmSpy).toHaveBeenCalledWith(
+      'この冊を削除します。よろしいですか？'
+    );
+    confirmSpy.mockRestore();
+  });
+
+  it('2 冊 → 1 冊長押し削除 → 残 1 冊 (E2E)', async () => {
+    const first = await ensureActiveVolume();
+    await savePage(first.id, 1, 'keep');
+    await savePage(first.id, 2, 'keep2');
+    await rotateVolume(first.id); // 第2冊（active）
+    // 第2冊にもページを足す
+    const confirmSpy = vi.spyOn(window, 'confirm').mockReturnValue(true);
+    renderPage();
+    await waitFor(() => {
+      expect(screen.getAllByRole('link', { name: /第\d+冊/ }).length).toBe(2);
+    });
+    // 第1冊を削除（2 ページある → 2 段階 confirm）
+    const link1 = screen.getByRole('link', { name: /第1冊/ });
+    await fireLongPress(link1);
+    await waitFor(() =>
+      expect(screen.getAllByRole('link', { name: /第\d+冊/ }).length).toBe(1)
+    );
+    expect(
+      screen.queryByRole('link', { name: /第1冊/ })
+    ).not.toBeInTheDocument();
+    expect(screen.getByRole('link', { name: /第2冊/ })).toBeInTheDocument();
+    // 2 段階呼ばれている
+    expect(confirmSpy).toHaveBeenCalledTimes(2);
     confirmSpy.mockRestore();
   });
 });
