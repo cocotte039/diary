@@ -5,6 +5,8 @@ import styles from './BookshelfPage.module.css';
 interface Props {
   volume: Volume;
   pages: Page[];
+  /** カードタップ時に開くページ番号（lastOpenedPage or 最終更新ページ or 1） */
+  initialPage: number;
 }
 
 function formatRange(pages: Page[]): string {
@@ -19,12 +21,12 @@ function formatRange(pages: Page[]): string {
   return `${fmt(first)} - ${fmt(last)}`;
 }
 
-export default function VolumeCard({ volume, pages }: Props) {
+export default function VolumeCard({ volume, pages, initialPage }: Props) {
   const range = formatRange(pages);
   const isActive = volume.status === 'active';
   return (
     <Link
-      to={`/read/${volume.id}/1`}
+      to={`/book/${volume.id}/${initialPage}`}
       className={`${styles.card} ${isActive ? styles.cardActive : ''}`}
       aria-label={`第${volume.ordinal}冊 ${range}`}
     >
