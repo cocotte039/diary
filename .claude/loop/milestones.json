@@ -32,10 +32,10 @@
       "id": "M8-3",
       "name": "deleteVolume (DB 層)",
       "goal": "db.ts に deleteVolume を実装し、volume + pages を原子的に削除、active 削除時は残存最大 ordinal を昇格",
-      "status": "pending",
+      "status": "completed",
       "verification": "npm test -- src/lib/db.test.ts && grep -rn \"deleteVolume\" src/",
       "tasks": [
-        { "id": "T8-3.1", "name": "db.ts に deleteVolume 実装 + テスト", "spec": "specs/m8-3-t1.md", "wave": 1, "status": "pending", "assignee": "build" }
+        { "id": "T8-3.1", "name": "db.ts に deleteVolume 実装 + テスト", "spec": "specs/m8-3-t1.md", "wave": 1, "status": "completed", "assignee": "build" }
       ]
     },
     {
