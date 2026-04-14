@@ -1,75 +1,60 @@
 {
   "version": "2.0",
   "project": {
-    "name": "diary-ux-overhaul",
-    "description": "PWA日記アプリのUX刷新: メイン画面を本棚に、ページ単位の独立UIへ"
+    "name": "diary UX refinement (M8)",
+    "description": "5 つの UX 課題を一括解消: textarea 上スワイプ / 3 画面ヘッダー固定統一 / 端パディング 1rem / 冊削除長押し UX / 本棚縦スクロール"
   },
   "milestones": [
     {
-      "id": "M4",
-      "name": "ルート再編と最小EditorPage",
-      "goal": "本棚から冊を開き、新しい編集画面で日記を書ける。旧URLはリダイレクト互換。",
+      "id": "M8-1",
+      "name": "本棚スクロール修正 + 3 画面ヘッダー統一",
+      "goal": "global.css に .app-header を導入、3 画面ヘッダーを固定化・余白統一、本棚の縦スクロールを有効化",
       "status": "completed",
-      "verification": "npm run lint && npm run test:run",
+      "verification": "npm test && grep -rn \"app-header\" src/",
       "tasks": [
-        { "id": "T4.1", "name": "ルーター変更とリダイレクト", "spec": "specs/m4-t1.md", "wave": 1, "status": "completed", "assignee": "build" },
-        { "id": "T4.2", "name": "Volume型拡張とDB v2マイグレーション", "spec": "specs/m4-t2.md", "wave": 1, "status": "completed", "assignee": "build" },
-        { "id": "T4.3", "name": "最小EditorPage新規作成", "spec": "specs/m4-t3.md", "wave": 2, "status": "completed", "assignee": "build" },
-        { "id": "T4.4", "name": "ページ単位autosave", "spec": "specs/m4-t4.md", "wave": 2, "status": "completed", "assignee": "build" },
-        { "id": "T4.5", "name": "BookshelfPageのリンク先変更", "spec": "specs/m4-t5.md", "wave": 2, "status": "completed", "assignee": "build" },
-        { "id": "T4.6", "name": "書くリンク削除と初回自動冊作成", "spec": "specs/m4-t6.md", "wave": 3, "status": "completed", "assignee": "build" }
+        { "id": "T8-1.1", "name": "global.css に .app-header 追加", "spec": "specs/m8-1-t1.md", "wave": 1, "status": "completed", "assignee": "build" },
+        { "id": "T8-1.2", "name": "EditorPage ヘッダーを .app-header に置換", "spec": "specs/m8-1-t2.md", "wave": 1, "status": "completed", "assignee": "build" },
+        { "id": "T8-1.3", "name": "BookshelfPage ヘッダー固定 + 縦スクロール修正", "spec": "specs/m8-1-t3.md", "wave": 2, "status": "completed", "assignee": "build" },
+        { "id": "T8-1.4", "name": "SettingsPage ヘッダー固定 + 縦スクロール", "spec": "specs/m8-1-t4.md", "wave": 2, "status": "completed", "assignee": "build" }
       ]
     },
     {
-      "id": "M5",
-      "name": "ページめくりUIとページ単位保存",
-      "goal": "左右ボタン/スワイプ/キーでページをめくり、180msフェードで連続編集できる。",
-      "status": "completed",
-      "verification": "npm run lint && npm run test:run",
+      "id": "M8-2",
+      "name": "textarea 上スワイプ対応 (B 案)",
+      "goal": "isFromTextarea ガードを撤廃し textarea 上の水平優位スワイプでページめくり、IME ガードも追加",
+      "status": "pending",
+      "verification": "npm test -- src/features/editor/EditorPage.test.tsx",
       "tasks": [
-        { "id": "T5.1", "name": "ページ遷移UI(ボタン)とflush保存", "spec": "specs/m5-t1.md", "wave": 1, "status": "completed", "assignee": "build" },
-        { "id": "T5.2", "name": "180msフェードトランジション", "spec": "specs/m5-t2.md", "wave": 1, "status": "completed", "assignee": "build" },
-        { "id": "T5.3", "name": "左右スワイプ対応(領域限定)", "spec": "specs/m5-t3.md", "wave": 1, "status": "completed", "assignee": "build" },
-        { "id": "T5.4", "name": "カーソル復元のページ単位化", "spec": "specs/m5-t4.md", "wave": 2, "status": "completed", "assignee": "build" },
-        { "id": "T5.5", "name": "PageUp/PageDownキーでの遷移", "spec": "specs/m5-t5.md", "wave": 2, "status": "completed", "assignee": "build" }
+        { "id": "T8-2.1", "name": "EditorPage スワイプ B 案化", "spec": "specs/m8-2-t1.md", "wave": 1, "status": "pending", "assignee": "build" }
       ]
     },
     {
-      "id": "M6",
-      "name": "30行境界・50ページロック・新冊作成",
-      "goal": "30行で自動遷移、IMEガード付き、50ページで入力ロック、新冊は本棚からのみ。",
-      "status": "completed",
-      "verification": "npm run lint && npm run test:run",
+      "id": "M8-3",
+      "name": "deleteVolume (DB 層)",
+      "goal": "db.ts に deleteVolume を実装し、volume + pages を原子的に削除、active 削除時は残存最大 ordinal を昇格",
+      "status": "pending",
+      "verification": "npm test -- src/lib/db.test.ts && grep -rn \"deleteVolume\" src/",
       "tasks": [
-        { "id": "T6.1", "name": "splitAtLine30純関数追加", "spec": "specs/m6-t1.md", "wave": 1, "status": "completed", "assignee": "build" },
-        { "id": "T6.2", "name": "IME(composition)ガード", "spec": "specs/m6-t2.md", "wave": 1, "status": "completed", "assignee": "build" },
-        { "id": "T6.3", "name": "30行到達時の自動次ページ遷移", "spec": "specs/m6-t3.md", "wave": 2, "status": "completed", "assignee": "build" },
-        { "id": "T6.4", "name": "50ページ目末尾ロック", "spec": "specs/m6-t4.md", "wave": 2, "status": "completed", "assignee": "build" },
-        { "id": "T6.5", "name": "本棚に新しい冊ボタン追加", "spec": "specs/m6-t5.md", "wave": 3, "status": "completed", "assignee": "build" },
-        { "id": "T6.6", "name": "WritePageの新しいノートボタン削除", "spec": "specs/m6-t6.md", "wave": 3, "status": "completed", "assignee": "build" }
+        { "id": "T8-3.1", "name": "db.ts に deleteVolume 実装 + テスト", "spec": "specs/m8-3-t1.md", "wave": 1, "status": "pending", "assignee": "build" }
       ]
     },
     {
-      "id": "M7",
-      "name": "ヘッダー整合・日付アイコン・旧画面削除",
-      "goal": "UIが整い、旧画面の残骸がなくなる。全テスト・ビルドが通る。",
-      "status": "completed",
-      "verification": "npm run lint && npm run test:run && npm run build",
+      "id": "M8-4",
+      "name": "VolumeCard 長押し削除 UI",
+      "goal": "本棚カードを 500ms 長押しで 2 段階 confirm → 冊削除、ページ 0 枚は 1 段階",
+      "status": "pending",
+      "verification": "npm test -- src/features/bookshelf && grep -rn \"LONG_PRESS_MS\\|deleteVolume\" src/",
       "tasks": [
-        { "id": "T7.1", "name": "--header-height CSS変数追加", "spec": "specs/m7-t1.md", "wave": 1, "status": "completed", "assignee": "build" },
-        { "id": "T7.2", "name": "EditorPage本文と罫線の整合", "spec": "specs/m7-t2.md", "wave": 1, "status": "completed", "assignee": "build" },
-        { "id": "T7.3", "name": "日付アイコンSVGコンポーネント", "spec": "specs/m7-t3.md", "wave": 1, "status": "completed", "assignee": "build" },
-        { "id": "T7.4", "name": "insertDateをEditorPageへ移植", "spec": "specs/m7-t4.md", "wave": 2, "status": "completed", "assignee": "build" },
-        { "id": "T7.5", "name": "WritePage/ReaderPage削除", "spec": "specs/m7-t5.md", "wave": 2, "status": "completed", "assignee": "build" },
-        { "id": "T7.6", "name": "ヘッダー視覚統一", "spec": "specs/m7-t6.md", "wave": 2, "status": "completed", "assignee": "build" },
-        { "id": "T7.7", "name": "リグレッションテスト一式", "spec": "specs/m7-t7.md", "wave": 3, "status": "completed", "assignee": "build" }
+        { "id": "T8-4.1", "name": "constants.ts に LONG_PRESS_MS 等追加", "spec": "specs/m8-4-t1.md", "wave": 1, "status": "pending", "assignee": "build" },
+        { "id": "T8-4.2", "name": "VolumeCard 長押し削除配線", "spec": "specs/m8-4-t2.md", "wave": 2, "status": "pending", "assignee": "build" },
+        { "id": "T8-4.3", "name": "BookshelfPage から deleteVolume 配線", "spec": "specs/m8-4-t3.md", "wave": 2, "status": "pending", "assignee": "build" }
       ]
     }
   ],
   "fix_queue": [],
   "metadata": {
     "created_at": "2026-04-14T00:00:00Z",
-    "last_updated": "2026-04-14T22:50:00Z",
+    "last_updated": "2026-04-14T00:00:00Z",
     "current_iteration": 0,
     "total_iterations": 0
   }

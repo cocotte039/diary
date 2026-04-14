@@ -248,3 +248,21 @@ npm run preview      # ビルド結果のプレビュー
 - アイコン PNG 生成（ImageMagick 等が必要）
 - 実機確認（iOS Safari での PWA 追加、罫線の位置合わせ、スワイプ動作）
 - Lighthouse PWA 監査
+
+## 自律判断ログ
+
+### M8-1（2026-04-14）
+
+- **🟡 EditorPage.module.css の .header は空のクラスとして残置**: JSX 側で
+  `styles.header` を参照しているため、クラスごと削除すると CSS Modules が
+  undefined を返して `className` が `app-header undefined` になる。空クラスのまま
+  残し、共通プロパティは `.app-header` に集約する方針。
+- **🟡 BookshelfPage.header の `font-family: var(--font-family-ui)` は削除**:
+  `.app-header` が同じフォントを指定しているため冗長。`align-items: baseline`
+  のみ残して h1 と Link のベースラインを揃える。
+- **🟡 `.header button` の副次スタイルは残置**: `.app-header` 側に移さない。
+  BookshelfPage 特有のカレンダートグル以外のボタン装飾なので、
+  ヘッダーローカルの責務として module.css に残す。
+- **🟡 margin-bottom: 1.5rem の削除**: `.header` は `position: fixed` になったため
+  フローから外れ margin-bottom は効かない。代わりに `.root` の `padding-top` で
+  ヘッダー＋1rem の逃げを確保する（spec 準拠）。
