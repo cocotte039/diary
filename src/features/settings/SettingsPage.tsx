@@ -8,7 +8,12 @@ import {
   getPendingPages,
   setGitHubSettings,
 } from '../../lib/db';
-import { syncPendingPages, testConnection } from '../../lib/github';
+import {
+  importFromGitHub,
+  syncPendingPages,
+  testConnection,
+  type ImportProgress,
+} from '../../lib/github';
 import type { GitHubSettings } from '../../types';
 
 /**
@@ -22,6 +27,10 @@ export default function SettingsPage() {
   );
   const [pending, setPending] = useState<number>(0);
   const [loaded, setLoaded] = useState(false);
+  const [importing, setImporting] = useState(false);
+  const [importProgress, setImportProgress] = useState<ImportProgress | null>(
+    null
+  );
 
   useEffect(() => {
     (async () => {
@@ -92,6 +101,43 @@ export default function SettingsPage() {
     setStatus({ msg: '設定を削除しました' });
   };
 
+  const onImport = async () => {
+    const ok = window.confirm(
+      'GitHub からインポートすると、現在のローカルデータ（すべての冊とページ）は置き換えられます。続行しますか？'
+    );
+    if (!ok) return;
+    setImporting(true);
+    setStatus({ msg: 'インポートを開始します…' });
+    setImportProgress({ phase: 'preparing', current: 0, total: 0 });
+    try {
+      const res = await importFromGitHub((p) => setImportProgress(p));
+      setStatus({
+        msg: `インポート完了: ${res.volumes}冊 / ${res.pages}ページ を復元しました`,
+      });
+      const p = await getPendingPages();
+      setPending(p.length);
+    } catch (err) {
+      const msg = err instanceof Error ? err.message : String(err);
+      setStatus({ msg: `インポート失敗: ${msg}`, error: true });
+    } finally {
+      setImporting(false);
+      setImportProgress(null);
+    }
+  };
+
+  const progressText = (p: ImportProgress): string => {
+    switch (p.phase) {
+      case 'preparing':
+        return 'ファイル一覧を取得中…';
+      case 'fetching':
+        return `ページ取得中… ${p.current} / ${p.total}`;
+      case 'writing':
+        return 'ローカルに書き込み中…';
+      case 'done':
+        return '完了';
+    }
+  };
+
   if (!loaded) return null;
 
   return (
@@ -150,6 +196,27 @@ export default function SettingsPage() {
           設定を削除
         </button>
         <div className={styles.status}>未同期ページ: {pending}件</div>
+      </section>
+
+      <section className={styles.section}>
+        <h2 className={styles.sectionTitle}>GitHubから復元</h2>
+        <p className={styles.status}>
+          別端末やデータ消失時に、GitHub
+          に保存したバックアップから全データを復元します。現在のローカルデータは置き換えられます。
+        </p>
+        <button
+          type="button"
+          className={styles.button}
+          onClick={onImport}
+          disabled={importing}
+        >
+          {importing ? 'インポート中…' : 'GitHub からインポート'}
+        </button>
+        {importProgress && (
+          <div className={styles.status} role="status">
+            {progressText(importProgress)}
+          </div>
+        )}
       </section>
 
       {status && (

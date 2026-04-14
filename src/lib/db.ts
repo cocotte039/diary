@@ -438,3 +438,26 @@ export async function getAllPages(): Promise<Page[]> {
   const db = await getDB();
   return db.getAll('pages');
 }
+
+// =============================================================================
+// 置換インポート用 (GitHub → ローカル復元)
+// =============================================================================
+
+/**
+ * ローカルの volumes / pages を全消去し、渡された配列で置き換える。
+ * 1トランザクションでアトミックに処理。meta(GitHub設定) は保持する。
+ */
+export async function replaceAllData(
+  volumes: Volume[],
+  pages: Page[]
+): Promise<void> {
+  const db = await getDB();
+  const tx = db.transaction(['volumes', 'pages'], 'readwrite');
+  const vStore = tx.objectStore('volumes');
+  const pStore = tx.objectStore('pages');
+  await vStore.clear();
+  await pStore.clear();
+  for (const v of volumes) await vStore.put(v);
+  for (const p of pages) await pStore.put(p);
+  await tx.done;
+}

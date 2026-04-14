@@ -2,14 +2,17 @@ import { afterEach, beforeEach, describe, expect, it } from 'vitest';
 import {
   _resetDBForTests,
   ensureActiveVolume,
+  getAllPages,
   getAllVolumes,
   getPagesByVolume,
   loadVolumeText,
+  replaceAllData,
   rotateVolume,
   saveVolumeText,
   findPageByDate,
 } from './db';
 import { DB_NAME } from './constants';
+import type { Page, Volume } from '../types';
 
 // 各テスト前に DB を捨てる
 async function wipeDB() {
@@ -118,5 +121,67 @@ describe('db.findPageByDate', () => {
     const hit = await findPageByDate(today);
     expect(hit).not.toBeNull();
     expect(hit!.volumeId).toBe(v.id);
+  });
+});
+
+describe('db.replaceAllData', () => {
+  it('clears existing volumes/pages and inserts new ones atomically', async () => {
+    // 既存データを作成
+    const v = await ensureActiveVolume();
+    await saveVolumeText(v.id, 'old content');
+    expect((await getAllVolumes()).length).toBe(1);
+    expect((await getAllPages()).length).toBeGreaterThan(0);
+
+    const newVolumes: Volume[] = [
+      {
+        id: 'vol-1',
+        ordinal: 1,
+        status: 'completed',
+        createdAt: '2025-01-01T00:00:00.000Z',
+      },
+      {
+        id: 'vol-2',
+        ordinal: 2,
+        status: 'active',
+        createdAt: '2025-02-01T00:00:00.000Z',
+      },
+    ];
+    const newPages: Page[] = [
+      {
+        id: 'p-1',
+        volumeId: 'vol-1',
+        pageNumber: 1,
+        content: 'imported-1',
+        createdAt: '2025-01-01T00:00:00.000Z',
+        updatedAt: '2025-01-01T00:00:00.000Z',
+        syncStatus: 'synced',
+      },
+      {
+        id: 'p-2',
+        volumeId: 'vol-2',
+        pageNumber: 1,
+        content: 'imported-2',
+        createdAt: '2025-02-01T00:00:00.000Z',
+        updatedAt: '2025-02-01T00:00:00.000Z',
+        syncStatus: 'synced',
+      },
+    ];
+
+    await replaceAllData(newVolumes, newPages);
+
+    const vs = await getAllVolumes();
+    expect(vs.length).toBe(2);
+    expect(vs.map((v) => v.id).sort()).toEqual(['vol-1', 'vol-2']);
+    const ps = await getAllPages();
+    expect(ps.length).toBe(2);
+    expect(ps.find((p) => p.id === 'p-1')?.content).toBe('imported-1');
+  });
+
+  it('handles empty arrays (clears everything)', async () => {
+    const v = await ensureActiveVolume();
+    await saveVolumeText(v.id, 'some');
+    await replaceAllData([], []);
+    expect((await getAllVolumes()).length).toBe(0);
+    expect((await getAllPages()).length).toBe(0);
   });
 });
