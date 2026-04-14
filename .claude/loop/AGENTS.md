@@ -251,6 +251,21 @@ npm run preview      # ビルド結果のプレビュー
 
 ## 自律判断ログ
 
+### M8-3（2026-04-14）
+
+- **🟡 active 昇格時の ordinal タイブレーク**: `all.sort((a, b) => b.ordinal - a.ordinal)` の
+  stable 比較に任せ、同 ordinal の場合は配列先頭（IndexedDB の挿入順に依存）を採用する。
+  運用上 ordinal は `ensureActiveVolume` / `rotateVolume` で単調増加採番されるため衝突しない想定。
+  万一衝突しても「どちらか 1 冊が active になる」だけで整合性は保たれる。
+- **🟡 no-op 時も `await tx.done` を待つ**: `target` が `undefined` でも readwrite tx を
+  開いた以上は commit を待機してから return。idb のドキュメント通りの安全側実装。
+  実害は無いが「トランザクション開いたら必ず閉じる」規約の一貫性を優先。
+- **🟡 削除テストでの「2 冊構成」作成は rotateVolume 経由**: 直接 `put` で作ると
+  既存 ensureActiveVolume が先に active を作ってしまい冊が 3 つになる。`ensureActiveVolume` →
+  `rotateVolume` で v1=completed(ord=1) / v2=active(ord=2) という素直な状態を作るのが最短。
+- **🟡 配線検証は grep 出力目視**: M8-4 で UI 呼び出しが入るまで db.ts の export と
+  test の import だけで足りる。UI から未呼び出しでも dead-code 警告は TS 側で出ないため許容。
+
 ### M8-2（2026-04-15）
 
 - **🟡 textarea 上スワイプテストの fireEvent target 指定**: `fireEvent.touchStart/touchEnd` に

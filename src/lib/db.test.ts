@@ -1,7 +1,9 @@
 import { afterEach, beforeEach, describe, expect, it } from 'vitest';
 import {
   _resetDBForTests,
+  deleteVolume,
   ensureActiveVolume,
+  getActiveVolume,
   getAllPages,
   getAllVolumes,
   getLatestUpdatedPageNumber,
@@ -111,6 +113,92 @@ describe('db.rotateVolume', () => {
     const newPages = await getPagesByVolume(b.id);
     expect(newPages.length).toBe(1);
     expect(newPages[0].pageNumber).toBe(1);
+  });
+});
+
+describe('db.deleteVolume (M8-3-T8-3.1)', () => {
+  it('deleteVolume 後に getVolume(id) が undefined を返す', async () => {
+    const v = await ensureActiveVolume();
+    await savePage(v.id, 1, 'p1');
+    await savePage(v.id, 2, 'p2');
+    await savePage(v.id, 3, 'p3');
+
+    await deleteVolume(v.id);
+
+    expect(await getVolume(v.id)).toBeUndefined();
+  });
+
+  it('deleteVolume 後に getPagesByVolume(id) が [] を返す', async () => {
+    const v = await ensureActiveVolume();
+    await savePage(v.id, 1, 'p1');
+    await savePage(v.id, 2, 'p2');
+    await savePage(v.id, 3, 'p3');
+    expect((await getPagesByVolume(v.id)).length).toBe(3);
+
+    await deleteVolume(v.id);
+
+    expect(await getPagesByVolume(v.id)).toEqual([]);
+  });
+
+  it('他 volume のデータに影響しない', async () => {
+    // 冊 A: active
+    const a = await ensureActiveVolume();
+    await savePage(a.id, 1, 'a1');
+    await savePage(a.id, 2, 'a2');
+    // 冊 B: rotateVolume で新しい active を作成、A は completed になる
+    const b = await rotateVolume(a.id);
+    await savePage(b.id, 1, 'b1');
+    await savePage(b.id, 2, 'b2');
+
+    await deleteVolume(a.id);
+
+    expect(await getVolume(a.id)).toBeUndefined();
+    expect((await getPagesByVolume(a.id)).length).toBe(0);
+
+    // 冊 B は残る
+    const bv = await getVolume(b.id);
+    expect(bv).toBeTruthy();
+    const bPages = await getPagesByVolume(b.id);
+    expect(bPages.length).toBe(2);
+    expect(bPages.find((p) => p.pageNumber === 1)?.content).toBe('b1');
+    expect(bPages.find((p) => p.pageNumber === 2)?.content).toBe('b2');
+  });
+
+  it('存在しない id は no-op', async () => {
+    await expect(deleteVolume('nonexistent-id')).resolves.toBeUndefined();
+  });
+
+  it('active 冊削除時は最大 ordinal の completed が active に昇格', async () => {
+    // 冊1: active → rotate で completed になり、冊2: active が新規作成
+    const v1 = await ensureActiveVolume();
+    const v2 = await rotateVolume(v1.id);
+    expect(v1.ordinal).toBe(1);
+    expect(v2.ordinal).toBe(2);
+
+    // この時点で v1=completed(ord=1), v2=active(ord=2)
+    const before1 = await getVolume(v1.id);
+    const before2 = await getVolume(v2.id);
+    expect(before1?.status).toBe('completed');
+    expect(before2?.status).toBe('active');
+
+    // active (v2) を削除 → v1 が active に昇格
+    await deleteVolume(v2.id);
+
+    const promoted = await getActiveVolume();
+    expect(promoted?.id).toBe(v1.id);
+    expect(promoted?.status).toBe('active');
+
+    const all = await getAllVolumes();
+    expect(all.length).toBe(1);
+    expect(all[0].id).toBe(v1.id);
+    expect(all[0].status).toBe('active');
+  });
+
+  it('最後の 1 冊削除で volumes が空になる', async () => {
+    const v = await ensureActiveVolume();
+    await deleteVolume(v.id);
+    expect(await getAllVolumes()).toEqual([]);
+    expect(await getAllPages()).toEqual([]);
   });
 });
 

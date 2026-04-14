@@ -415,6 +415,49 @@ export async function rotateVolume(
   return newVolume;
 }
 
+/**
+ * 指定 volume とその配下の全 pages をアトミックに削除する。
+ * - 存在しない id の場合は no-op（throw しない）
+ * - 削除対象が active だった場合、残存冊のうち最大 ordinal の冊を active に昇格させる。
+ *   全削除の場合は何もしない（BookshelfPage 初期ロード時に ensureActiveVolume で復旧）。
+ */
+export async function deleteVolume(volumeId: string): Promise<void> {
+  const db = await getDB();
+  const tx = db.transaction(['volumes', 'pages'], 'readwrite');
+  const vStore = tx.objectStore('volumes');
+  const pStore = tx.objectStore('pages');
+
+  const target = await vStore.get(volumeId);
+  if (!target) {
+    await tx.done;
+    return; // no-op
+  }
+
+  // 関連 pages を by-volume index で収集し削除
+  const pagesIdx = pStore.index('by-volume');
+  let cursor = await pagesIdx.openCursor(volumeId);
+  while (cursor) {
+    await pStore.delete(cursor.primaryKey);
+    cursor = await cursor.continue();
+  }
+
+  // volume 削除
+  await vStore.delete(volumeId);
+
+  // active 削除時のリカバリ: 残存最大 ordinal を active に昇格
+  if (target.status === 'active') {
+    const all = await vStore.getAll();
+    if (all.length > 0) {
+      all.sort((a, b) => b.ordinal - a.ordinal);
+      const promoted: Volume = { ...all[0], status: 'active' };
+      await vStore.put(promoted);
+    }
+    // 全削除の場合は ensureActiveVolume が BookshelfPage 初期ロード時に復旧
+  }
+
+  await tx.done;
+}
+
 // =============================================================================
 // 日付検索（T2.4）
 // =============================================================================
