@@ -22,10 +22,10 @@
       "id": "M8-2",
       "name": "textarea 上スワイプ対応 (B 案)",
       "goal": "isFromTextarea ガードを撤廃し textarea 上の水平優位スワイプでページめくり、IME ガードも追加",
-      "status": "pending",
+      "status": "completed",
       "verification": "npm test -- src/features/editor/EditorPage.test.tsx",
       "tasks": [
-        { "id": "T8-2.1", "name": "EditorPage スワイプ B 案化", "spec": "specs/m8-2-t1.md", "wave": 1, "status": "pending", "assignee": "build" }
+        { "id": "T8-2.1", "name": "EditorPage スワイプ B 案化", "spec": "specs/m8-2-t1.md", "wave": 1, "status": "completed", "assignee": "build" }
       ]
     },
     {

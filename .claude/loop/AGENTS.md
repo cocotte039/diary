@@ -251,6 +251,21 @@ npm run preview      # ビルド結果のプレビュー
 
 ## 自律判断ログ
 
+### M8-2（2026-04-15）
+
+- **🟡 textarea 上スワイプテストの fireEvent target 指定**: `fireEvent.touchStart/touchEnd` に
+  textarea 要素を直接渡す方式を採用。既存の `swipe(el, from, to)` ヘルパを流用し、
+  第1引数を `root` から `textarea` に差し替えるだけで B 案の配線を検証できる。
+  バブリングの挙動は React onTouchStart/onTouchEnd が root 上で発火するため問題なし。
+- **🟡 水平優位テストの座標選択 (dx=60/dy=20)**: |dx|=60 > |dy|*2=40 を満たしつつ
+  閾値 50px も超える最小構成。実機で親指 1 本を斜め 20deg 振った場合の近似。
+- **🟡 縦優位テストの座標選択 (dx=30/dy=60)**: B 案で navigate しないことを確認するため
+  `Math.abs(dx) <= Math.abs(dy) * 2` (30 <= 120) を明確に満たす組み合わせ。
+  ついでに閾値 50px 未満もカバーする（二重の防御ラインを同時確認）。
+- **🟡 既存「root 余白縦スクロール」テストの座標は不変で通過**: dx=-30/dy=80 は
+  `|dx| < SWIPE_THRESHOLD_PX` で先に弾かれるため、2:1 判定より手前で終了する。
+  B 案の厳格化後も挙動が変わらず、リグレッションテストとして有効。
+
 ### M8-1（2026-04-14）
 
 - **🟡 EditorPage.module.css の .header は空のクラスとして残置**: JSX 側で
