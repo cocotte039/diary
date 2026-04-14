@@ -51,6 +51,29 @@
   opacity: 0.6;
 }
 
+/*
+ * M8-1-T1: 3 画面共通ヘッダー。
+ * EditorPage / BookshelfPage / SettingsPage のヘッダー要素に付与し、
+ * 位置・高さ・背景・左右パディングを統一する。module.css 側で重複する
+ * プロパティは削除し、個別装飾のみ残す。
+ */
+.app-header {
+  position: fixed;
+  top: 0;
+  left: 0;
+  right: 0;
+  height: calc(var(--header-height) + env(safe-area-inset-top, 0px));
+  padding-top: env(safe-area-inset-top, 0px);
+  padding-left: max(1rem, env(safe-area-inset-left));
+  padding-right: max(1rem, env(safe-area-inset-right));
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  z-index: 2;
+  background-color: var(--color-bg);
+  font-family: var(--font-family-ui);
+}
+
 * {
   box-sizing: border-box;
 }
