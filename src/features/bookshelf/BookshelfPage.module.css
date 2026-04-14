@@ -71,6 +71,32 @@
   font-family: var(--font-family-ui);
 }
 
+/* M6-T5: 新しい冊カード（A案・破線境界）。既存 .card と視覚的に区別する */
+.newCard {
+  background: transparent;
+  border: 1px dashed var(--color-rule);
+  opacity: 0.5;
+  color: var(--color-text);
+  justify-content: center;
+  align-items: center;
+  gap: 0.25rem;
+  transition: opacity 200ms ease;
+  cursor: pointer;
+}
+.newCard:hover,
+.newCard:focus-visible {
+  opacity: 0.75;
+}
+.newCardGlyph {
+  font-family: var(--font-family);
+  font-size: 2rem;
+  line-height: 1;
+}
+.newCardLabel {
+  font-family: var(--font-family-ui);
+  font-size: 0.75rem;
+}
+
 .empty {
   opacity: 0.5;
   text-align: center;

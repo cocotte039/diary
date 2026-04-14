@@ -1,14 +1,19 @@
-import { useEffect, useState } from 'react';
+import { useCallback, useEffect, useState } from 'react';
 import { Link } from 'react-router-dom';
 import styles from './BookshelfPage.module.css';
 import {
   ensureActiveVolume,
+  getActiveVolume,
   getAllPages,
   getAllVolumes,
   getLatestUpdatedPageNumber,
+  getPagesByVolume,
+  rotateVolume,
 } from '../../lib/db';
+import { PAGES_PER_VOLUME } from '../../lib/constants';
 import type { Page, Volume } from '../../types';
 import VolumeCard from './VolumeCard';
+import NewVolumeCard from './NewVolumeCard';
 import Calendar from './Calendar';
 
 /**
@@ -21,6 +26,8 @@ export default function BookshelfPage() {
     () => new Map()
   );
   const [showCalendar, setShowCalendar] = useState(false);
+  // reload 時にトリガーするカウンタ（新冊作成後の再読み込み用）
+  const [reloadKey, setReloadKey] = useState(0);
 
   useEffect(() => {
     let cancelled = false;
@@ -57,6 +64,25 @@ export default function BookshelfPage() {
     return () => {
       cancelled = true;
     };
+  }, [reloadKey]);
+
+  /**
+   * M6-T5: 新しい冊を作る。
+   * 現在 active 冊のページ数を確認ダイアログに含めて confirm し、
+   * OK なら rotateVolume → 本棚を再ロードする。
+   * 静けさ原則として、確認後は追加の視覚フィードバック無し（カード増加で伝わる）。
+   */
+  const handleCreateNew = useCallback(async () => {
+    const active = await getActiveVolume();
+    if (!active) return;
+    const ap = await getPagesByVolume(active.id);
+    const count = ap.length;
+    const ok = window.confirm(
+      `現在の冊は ${count} / ${PAGES_PER_VOLUME} ページです。新しい冊を作りますか？`
+    );
+    if (!ok) return;
+    await rotateVolume(active.id);
+    setReloadKey((k) => k + 1);
   }, []);
 
   const pagesByVolume = new Map<string, Page[]>();
@@ -87,6 +113,8 @@ export default function BookshelfPage() {
               initialPage={initialPages.get(v.id) ?? 1}
             />
           ))}
+          {/* M6-T5: グリッド末尾に新しい冊カード（冊0件時は非表示） */}
+          <NewVolumeCard onCreate={handleCreateNew} />
         </div>
       )}
 

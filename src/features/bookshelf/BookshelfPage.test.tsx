@@ -99,6 +99,74 @@ describe('BookshelfPage link targets (M4-T5)', () => {
   });
 });
 
+describe('BookshelfPage new volume card (M6-T5)', () => {
+  it('冊が 1 件以上あると「新しい冊」ボタンが表示される', async () => {
+    await ensureActiveVolume();
+    renderPage();
+    await screen.findByRole('link', { name: /第1冊/ });
+    expect(
+      screen.getByRole('button', { name: '新しい冊を作る' })
+    ).toBeInTheDocument();
+  });
+
+  it('冊 0 件 → 自動作成後に「新しい冊」ボタンが表示される（1 件以上になったため）', async () => {
+    // DB は wipe 済み。自動作成ロジックが走り、1 冊目ができた後にカードが出る。
+    renderPage();
+    await screen.findByRole('link', { name: /第1冊/ });
+    expect(
+      screen.getByRole('button', { name: '新しい冊を作る' })
+    ).toBeInTheDocument();
+  });
+
+  it('confirm で OK すると rotateVolume が実行され、冊が 2 件になる', async () => {
+    const v = await ensureActiveVolume();
+    await savePage(v.id, 1, 'a');
+    await savePage(v.id, 2, 'b');
+    const confirmSpy = vi.spyOn(window, 'confirm').mockReturnValue(true);
+    renderPage();
+    await screen.findByRole('link', { name: /第1冊/ });
+    const btn = screen.getByRole('button', { name: '新しい冊を作る' });
+    btn.click();
+    await waitFor(() => {
+      expect(screen.getAllByRole('link', { name: /第\d+冊/ }).length).toBe(2);
+    });
+    // confirm メッセージにページ数が含まれる
+    expect(confirmSpy).toHaveBeenCalledWith(
+      expect.stringMatching(/2 \/ 50/)
+    );
+    confirmSpy.mockRestore();
+  });
+
+  it('confirm で Cancel すると rotateVolume は実行されない', async () => {
+    const v = await ensureActiveVolume();
+    const confirmSpy = vi.spyOn(window, 'confirm').mockReturnValue(false);
+    renderPage();
+    await screen.findByRole('link', { name: new RegExp(`第${v.ordinal}冊`) });
+    const btn = screen.getByRole('button', { name: '新しい冊を作る' });
+    btn.click();
+    // 十分待っても冊は増えない
+    await new Promise((r) => setTimeout(r, 200));
+    expect(screen.getAllByRole('link', { name: /第\d+冊/ }).length).toBe(1);
+    confirmSpy.mockRestore();
+  });
+
+  it('confirm のメッセージに「現在の冊は X / 50 ページです」と含まれる', async () => {
+    const v = await ensureActiveVolume();
+    await savePage(v.id, 1, 'a');
+    await savePage(v.id, 2, 'b');
+    await savePage(v.id, 3, 'c');
+    const confirmSpy = vi.spyOn(window, 'confirm').mockReturnValue(false);
+    renderPage();
+    await screen.findByRole('link', { name: new RegExp(`第${v.ordinal}冊`) });
+    screen.getByRole('button', { name: '新しい冊を作る' }).click();
+    await waitFor(() => expect(confirmSpy).toHaveBeenCalled());
+    expect(confirmSpy).toHaveBeenCalledWith(
+      expect.stringContaining('現在の冊は 3 / 50 ページです')
+    );
+    confirmSpy.mockRestore();
+  });
+});
+
 describe('BookshelfPage auto-create & header (M4-T6)', () => {
   it('does not render the old 書く header link', async () => {
     await ensureActiveVolume();
