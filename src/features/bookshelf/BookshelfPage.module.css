@@ -1,16 +1,20 @@
+/*
+ * M8-1-T3: ヘッダーを .app-header で固定化し、.root をスクロールコンテナ化。
+ * height: 100dvh + overflow-y: auto でカード数が増えても縦スクロールで全件見られる。
+ * padding-top でヘッダー分の逃げを確保（第1冊カードが隠れないように）。
+ */
 .root {
-  min-height: 100dvh;
-  padding: max(1rem, env(safe-area-inset-top)) var(--padding-page)
-    max(1rem, env(safe-area-inset-bottom));
+  height: 100dvh;
+  padding-top: calc(var(--header-height) + env(safe-area-inset-top, 0px) + 1rem);
+  padding-left: var(--padding-page);
+  padding-right: var(--padding-page);
+  padding-bottom: max(1rem, env(safe-area-inset-bottom));
   overflow-y: auto;
 }
 
 .header {
-  display: flex;
-  justify-content: space-between;
+  /* 共通プロパティは .app-header に集約。ベースライン揃えのみ残す。 */
   align-items: baseline;
-  margin-bottom: 1.5rem;
-  font-family: var(--font-family-ui);
 }
 /*
  * ヘッダー内のリンク・ボタンは global.css の .app-header-link に寄せた (M7-T6)。
