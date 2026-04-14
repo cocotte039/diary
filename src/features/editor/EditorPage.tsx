@@ -20,6 +20,20 @@ import {
 import { splitAtLine30 } from '../../lib/pagination';
 import { useEditorAutoSave } from './useEditorAutoSave';
 import { useEditorCursor } from '../../hooks/useEditorCursor';
+import DateIcon from './DateIcon';
+
+/** 曜日の日本語表記（日=0 … 土=6 に対応）。WritePage から踏襲。 */
+const WEEKDAYS_JA = ['日', '月', '火', '水', '木', '金', '土'] as const;
+
+/**
+ * 今日の日付を `YYYY年M月D日(曜)\n` 形式でフォーマットする。
+ * WritePage.formatToday() の完全踏襲（丸括弧は半角、末尾改行を含む）。
+ */
+function formatToday(): string {
+  const d = new Date();
+  const w = WEEKDAYS_JA[d.getDay()];
+  return `${d.getFullYear()}年${d.getMonth() + 1}月${d.getDate()}日(${w})\n`;
+}
 
 /** ページめくりフェードの所要時間 (ms)。global.css の --transition-page と同期させる。 */
 const PAGE_FADE_MS = 180;
@@ -302,6 +316,36 @@ export default function EditorPage() {
     [volumeId, current, flush, navigate]
   );
 
+  /**
+   * M7-T4: カーソル位置に今日の日付スタンプを挿入する。
+   * - 挿入後は textarea の selectionRange をスタンプ末尾に移動
+   * - state も即時に更新（onChange と同じ経路で IME ガード・自動遷移と協調）
+   * - 挿入で 30 行を超えた場合は T6.3 の自動次ページ遷移ロジック
+   *   (`checkOverflowAndNavigate`) を発火させる。
+   */
+  const insertDate = useCallback(() => {
+    const el = textareaRef.current;
+    if (!el) return;
+    const stamp = formatToday();
+    const start = el.selectionStart ?? el.value.length;
+    const end = el.selectionEnd ?? el.value.length;
+    const nextValue = el.value.slice(0, start) + stamp + el.value.slice(end);
+    setText(nextValue);
+    const nextPos = start + stamp.length;
+    // DOM 反映後にカーソル位置を復元（React 19 でも rAF 1 フレーム必要）
+    requestAnimationFrame(() => {
+      const cur = textareaRef.current;
+      if (!cur) return;
+      cur.focus();
+      const clamped = Math.max(0, Math.min(nextPos, cur.value.length));
+      cur.setSelectionRange(clamped, clamped);
+    });
+    onSelectionChange(nextPos);
+    // IME 変換中の日付挿入は想定外だが、compositionEnd での再判定に任せる。
+    if (isComposingRef.current) return;
+    checkOverflowAndNavigate(nextValue);
+  }, [onSelectionChange, checkOverflowAndNavigate]);
+
   const canGoPrev = current > 1;
   const canGoNext = current < PAGES_PER_VOLUME;
 
@@ -363,7 +407,7 @@ export default function EditorPage() {
       onTouchEnd={onTouchEnd}
     >
       <header className={styles.header}>
-        <Link to="/" aria-label="本棚に戻る">本棚</Link>
+        <Link to="/" aria-label="本棚に戻る" className="app-header-link">本棚</Link>
         <div className={styles.pageCluster}>
           <button
             type="button"
@@ -387,7 +431,17 @@ export default function EditorPage() {
             ›
           </button>
         </div>
-        <Link to="/settings" aria-label="設定">設定</Link>
+        <div style={{ display: 'flex', alignItems: 'center', gap: '0.25rem' }}>
+          <button
+            type="button"
+            className={styles.headerDateButton}
+            aria-label="今日の日付を挿入"
+            onClick={insertDate}
+          >
+            <DateIcon />
+          </button>
+          <Link to="/settings" aria-label="設定" className="app-header-link">設定</Link>
+        </div>
       </header>
 
       <div
