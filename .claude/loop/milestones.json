@@ -42,19 +42,19 @@
       "id": "M8-4",
       "name": "VolumeCard 長押し削除 UI",
       "goal": "本棚カードを 500ms 長押しで 2 段階 confirm → 冊削除、ページ 0 枚は 1 段階",
-      "status": "pending",
+      "status": "completed",
       "verification": "npm test -- src/features/bookshelf && grep -rn \"LONG_PRESS_MS\\|deleteVolume\" src/",
       "tasks": [
-        { "id": "T8-4.1", "name": "constants.ts に LONG_PRESS_MS 等追加", "spec": "specs/m8-4-t1.md", "wave": 1, "status": "pending", "assignee": "build" },
-        { "id": "T8-4.2", "name": "VolumeCard 長押し削除配線", "spec": "specs/m8-4-t2.md", "wave": 2, "status": "pending", "assignee": "build" },
-        { "id": "T8-4.3", "name": "BookshelfPage から deleteVolume 配線", "spec": "specs/m8-4-t3.md", "wave": 2, "status": "pending", "assignee": "build" }
+        { "id": "T8-4.1", "name": "constants.ts に LONG_PRESS_MS 等追加", "spec": "specs/m8-4-t1.md", "wave": 1, "status": "completed", "assignee": "build" },
+        { "id": "T8-4.2", "name": "VolumeCard 長押し削除配線", "spec": "specs/m8-4-t2.md", "wave": 2, "status": "completed", "assignee": "build" },
+        { "id": "T8-4.3", "name": "BookshelfPage から deleteVolume 配線", "spec": "specs/m8-4-t3.md", "wave": 2, "status": "completed", "assignee": "build" }
       ]
     }
   ],
   "fix_queue": [],
   "metadata": {
     "created_at": "2026-04-14T00:00:00Z",
-    "last_updated": "2026-04-14T00:00:00Z",
+    "last_updated": "2026-04-14T00:10:00Z",
     "current_iteration": 0,
     "total_iterations": 0
   }
