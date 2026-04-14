@@ -31,7 +31,9 @@ function formatToday(): string {
  * 書く画面。単一 textarea + 罫線背景 + ページ区切りオーバーレイ。
  */
 export default function WritePage() {
-  const { volume, text, setText, rotateNow, ready } = useWrite();
+  // M6-T6: 新冊作成は本棚からのみになったため rotateNow は UI から参照しない。
+  // useWrite 側の rotateNow エクスポートは M7 の WritePage 削除時に合わせて整理する。
+  const { volume, text, setText, ready } = useWrite();
   const textareaRef = useRef<HTMLTextAreaElement | null>(null);
   const [cursorPos, setCursorPos] = useState(0);
   const [showBanner, setShowBanner] = useState(false);
@@ -91,11 +93,6 @@ export default function WritePage() {
     });
   }, [text, setText]);
 
-  const handleRotate = useCallback(() => {
-    // 確認なし（実物ノートに合わせる）。静けさ方針。
-    void rotateNow();
-  }, [rotateNow]);
-
   const dismissBanner = () => {
     dismissA2HSBanner();
     setShowBanner(false);
@@ -106,9 +103,6 @@ export default function WritePage() {
       <nav className={styles.topNav} aria-label="navigation">
         <Link to="/bookshelf" aria-label="本棚">本棚</Link>
         <div style={{ display: 'flex', gap: '0.5rem' }}>
-          <button type="button" onClick={handleRotate} aria-label="新しいノート">
-            新しいノート
-          </button>
           <Link to="/settings" aria-label="設定">設定</Link>
         </div>
       </nav>
