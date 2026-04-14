@@ -1,0 +1,76 @@
+{
+  "version": "2.0",
+  "project": {
+    "name": "diary-ux-overhaul",
+    "description": "PWA日記アプリのUX刷新: メイン画面を本棚に、ページ単位の独立UIへ"
+  },
+  "milestones": [
+    {
+      "id": "M4",
+      "name": "ルート再編と最小EditorPage",
+      "goal": "本棚から冊を開き、新しい編集画面で日記を書ける。旧URLはリダイレクト互換。",
+      "status": "completed",
+      "verification": "npm run lint && npm run test:run",
+      "tasks": [
+        { "id": "T4.1", "name": "ルーター変更とリダイレクト", "spec": "specs/m4-t1.md", "wave": 1, "status": "completed", "assignee": "build" },
+        { "id": "T4.2", "name": "Volume型拡張とDB v2マイグレーション", "spec": "specs/m4-t2.md", "wave": 1, "status": "completed", "assignee": "build" },
+        { "id": "T4.3", "name": "最小EditorPage新規作成", "spec": "specs/m4-t3.md", "wave": 2, "status": "completed", "assignee": "build" },
+        { "id": "T4.4", "name": "ページ単位autosave", "spec": "specs/m4-t4.md", "wave": 2, "status": "completed", "assignee": "build" },
+        { "id": "T4.5", "name": "BookshelfPageのリンク先変更", "spec": "specs/m4-t5.md", "wave": 2, "status": "completed", "assignee": "build" },
+        { "id": "T4.6", "name": "書くリンク削除と初回自動冊作成", "spec": "specs/m4-t6.md", "wave": 3, "status": "completed", "assignee": "build" }
+      ]
+    },
+    {
+      "id": "M5",
+      "name": "ページめくりUIとページ単位保存",
+      "goal": "左右ボタン/スワイプ/キーでページをめくり、180msフェードで連続編集できる。",
+      "status": "completed",
+      "verification": "npm run lint && npm run test:run",
+      "tasks": [
+        { "id": "T5.1", "name": "ページ遷移UI(ボタン)とflush保存", "spec": "specs/m5-t1.md", "wave": 1, "status": "completed", "assignee": "build" },
+        { "id": "T5.2", "name": "180msフェードトランジション", "spec": "specs/m5-t2.md", "wave": 1, "status": "completed", "assignee": "build" },
+        { "id": "T5.3", "name": "左右スワイプ対応(領域限定)", "spec": "specs/m5-t3.md", "wave": 1, "status": "completed", "assignee": "build" },
+        { "id": "T5.4", "name": "カーソル復元のページ単位化", "spec": "specs/m5-t4.md", "wave": 2, "status": "completed", "assignee": "build" },
+        { "id": "T5.5", "name": "PageUp/PageDownキーでの遷移", "spec": "specs/m5-t5.md", "wave": 2, "status": "completed", "assignee": "build" }
+      ]
+    },
+    {
+      "id": "M6",
+      "name": "30行境界・50ページロック・新冊作成",
+      "goal": "30行で自動遷移、IMEガード付き、50ページで入力ロック、新冊は本棚からのみ。",
+      "status": "completed",
+      "verification": "npm run lint && npm run test:run",
+      "tasks": [
+        { "id": "T6.1", "name": "splitAtLine30純関数追加", "spec": "specs/m6-t1.md", "wave": 1, "status": "completed", "assignee": "build" },
+        { "id": "T6.2", "name": "IME(composition)ガード", "spec": "specs/m6-t2.md", "wave": 1, "status": "completed", "assignee": "build" },
+        { "id": "T6.3", "name": "30行到達時の自動次ページ遷移", "spec": "specs/m6-t3.md", "wave": 2, "status": "completed", "assignee": "build" },
+        { "id": "T6.4", "name": "50ページ目末尾ロック", "spec": "specs/m6-t4.md", "wave": 2, "status": "completed", "assignee": "build" },
+        { "id": "T6.5", "name": "本棚に新しい冊ボタン追加", "spec": "specs/m6-t5.md", "wave": 3, "status": "completed", "assignee": "build" },
+        { "id": "T6.6", "name": "WritePageの新しいノートボタン削除", "spec": "specs/m6-t6.md", "wave": 3, "status": "completed", "assignee": "build" }
+      ]
+    },
+    {
+      "id": "M7",
+      "name": "ヘッダー整合・日付アイコン・旧画面削除",
+      "goal": "UIが整い、旧画面の残骸がなくなる。全テスト・ビルドが通る。",
+      "status": "completed",
+      "verification": "npm run lint && npm run test:run && npm run build",
+      "tasks": [
+        { "id": "T7.1", "name": "--header-height CSS変数追加", "spec": "specs/m7-t1.md", "wave": 1, "status": "completed", "assignee": "build" },
+        { "id": "T7.2", "name": "EditorPage本文と罫線の整合", "spec": "specs/m7-t2.md", "wave": 1, "status": "completed", "assignee": "build" },
+        { "id": "T7.3", "name": "日付アイコンSVGコンポーネント", "spec": "specs/m7-t3.md", "wave": 1, "status": "completed", "assignee": "build" },
+        { "id": "T7.4", "name": "insertDateをEditorPageへ移植", "spec": "specs/m7-t4.md", "wave": 2, "status": "completed", "assignee": "build" },
+        { "id": "T7.5", "name": "WritePage/ReaderPage削除", "spec": "specs/m7-t5.md", "wave": 2, "status": "completed", "assignee": "build" },
+        { "id": "T7.6", "name": "ヘッダー視覚統一", "spec": "specs/m7-t6.md", "wave": 2, "status": "completed", "assignee": "build" },
+        { "id": "T7.7", "name": "リグレッションテスト一式", "spec": "specs/m7-t7.md", "wave": 3, "status": "completed", "assignee": "build" }
+      ]
+    }
+  ],
+  "fix_queue": [],
+  "metadata": {
+    "created_at": "2026-04-14T00:00:00Z",
+    "last_updated": "2026-04-14T22:50:00Z",
+    "current_iteration": 0,
+    "total_iterations": 0
+  }
+}

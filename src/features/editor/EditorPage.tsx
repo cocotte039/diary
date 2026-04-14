@@ -46,7 +46,7 @@ const PAGE_FADE_MS = 180;
  * - 保存: useEditorAutoSave(volumeId, current, text) で 2 秒 debounce + flush
  * - ヘッダー: 左「本棚」/ 中央「‹ n / 50 ›」/ 右「設定」
  * - ページ遷移 (M5-T1/T2/T3/T5): 左右ボタン + 180ms フェード (--transition-page)
- *   + 左右スワイプ（textarea 外の余白領域のみ反応, A 案）
+ *   + 左右スワイプ（B 案: textarea 上でも水平優位 2:1 のスワイプで反応, M8-2）
  *   + PageUp/PageDown キー（textarea にフォーカスがある時のみ）。
  *   遷移前に autosave flush + lastOpenedPage 更新。
  *
@@ -349,21 +349,16 @@ export default function EditorPage() {
   const canGoPrev = current > 1;
   const canGoNext = current < PAGES_PER_VOLUME;
 
-  // --- スワイプ (M5-T3): textarea 外の領域のみ反応（A 案） ---
-  // 実機検証で textarea 上でも反応させたい場合は B 案へ切替可能:
-  //   1) isFromTextarea チェックを外す
-  //   2) 水平判定を Math.abs(dx) > Math.abs(dy) * 2 に強化する
-  const isFromTextarea = (target: EventTarget | null): boolean =>
-    target instanceof HTMLTextAreaElement;
-
+  // --- スワイプ (M5-T3 → M8-2 B 案) ---
+  // B 案: textarea 上でも発火させ、水平優位 (|dx| > |dy| * 2) を必須にして
+  // 縦スクロール・改行入力との干渉を避ける。IME 変換中は onTouchEnd 側で発火させない。
   const onTouchStart = (e: ReactTouchEvent<HTMLDivElement>) => {
-    if (isFromTextarea(e.target)) {
+    const t = e.touches[0];
+    if (!t) {
       touchStartXRef.current = null;
       touchStartYRef.current = null;
       return;
     }
-    const t = e.touches[0];
-    if (!t) return;
     touchStartXRef.current = t.clientX;
     touchStartYRef.current = t.clientY;
   };
@@ -383,18 +378,18 @@ export default function EditorPage() {
   };
 
   const onTouchEnd = (e: ReactTouchEvent<HTMLDivElement>) => {
-    if (isFromTextarea(e.target)) return;
     const startX = touchStartXRef.current;
     const startY = touchStartYRef.current;
     touchStartXRef.current = null;
     touchStartYRef.current = null;
     if (startX == null || startY == null) return;
+    if (isComposingRef.current) return; // IME 変換中は発火しない
     const t = e.changedTouches[0];
     if (!t) return;
     const dx = t.clientX - startX;
     const dy = t.clientY - startY;
     if (Math.abs(dx) < SWIPE_THRESHOLD_PX) return;
-    if (Math.abs(dx) <= Math.abs(dy)) return; // 縦方向優位はスクロール扱い
+    if (Math.abs(dx) <= Math.abs(dy) * 2) return; // 水平優位 2:1
     if (dx < 0) goPage(1); // 左スワイプ → 次
     else goPage(-1); // 右スワイプ → 前
   };

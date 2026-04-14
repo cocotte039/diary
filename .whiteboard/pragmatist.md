@@ -1,68 +1,60 @@
-# Pragmatist 分析 — 実用性・最短経路・シンプルさ
+# Pragmatist — 実用性・最短経路分析
 
-## 視点の要約
-- 「WritePage → EditorPage」の名称変更ではなく、**1ページ=1 textarea** へ根本転換する必要がある。ここが最大の構造変化。
-- 既存資産の再利用: `notebook-surface` / `notebook-textarea` / 罫線背景 / `splitIntoPages` / autosave / `useCursorRestore` は設計継続できる。
-- 本棚ページはほぼそのまま使える。VolumeCard のリンク先を `/book/:id/:page` に変えるだけ。
-- ReaderPage のロジック（スワイプ、180ms フェード、ページ境界表示）は EditorPage にほぼ流用可能。
+## 視点
+最短の変更量で 5 つのユーザー要望を満たす。既存アーキテクチャ（EditorPage の fade + goPage 配線、global.css の `.app-header-link` / `--header-height`）は完成度が高いので、同じパターンをコピペで横展開するのが最速。
 
-## 既存アーキテクチャの実態
+## 各要望の最短解
 
-### 1. 現行 WritePage は「1冊=1 textarea」モデル
-- `useWrite` は冊全体の text を1本の string で保持 → autosave で `splitIntoPages()` → 複数 Page レコードに展開
-- **新仕様は「1ページ=1 textarea」** なので `useWrite` は根本的に書き換え不要・むしろ捨てるのが妥当
+### 1. textarea 上でもスワイプでページめくり
+- 現行 `onTouchStart` / `onTouchEnd` は `isFromTextarea` で textarea 内のタッチを無視している。
+- **最短**: `isFromTextarea` 判定を撤廃し、水平優位判定 `|dx| > |dy|*2` に変更するだけ。
+- textarea 内での横スクロール発生を防ぐため CSS `overflow-x: hidden` を確認（notebook-textarea に既に適用されていれば OK）。
+- 実装行数: 約 10 行削減 + 判定強化 1 行。
 
-### 2. データ保存の最小変更
-- `saveVolumeText(volumeId, text)` は「冊全文を受けてページに分割保存」→ 新モデルでは使わない
-- 代わりに `savePage(volumeId, pageNumber, content)` のような個別ページ保存関数が必要（既存 `saveVolumeText` を残しつつ新関数を追加）
-- **既存データ互換**: `loadVolumeText` → `splitIntoPages` → ページ単位にすれば既存の冊でも表示・編集可能
+### 2. BookshelfPage / SettingsPage ヘッダー固定
+- EditorPage のパターン（position:fixed、height = --header-height + safe-area-inset-top、padding-top で本文を逃がす）がすでに完成。
+- **最短**: 同じ CSS ブロックを BookshelfPage.module.css / SettingsPage.module.css の `.header` にコピペし、`.root` の `padding-top` を `calc(var(--header-height) + env(safe-area-inset-top, 0px) + 1rem)` に差し替える。
+- 既存 `.root` は `min-height:100dvh` だが、ヘッダー fixed 化後も既存 padding を維持する必要あり。本文マージン 1rem は既存の `max(1rem, env(safe-area-inset-top))` を padding-top の中に吸収する。
 
-### 3. `splitAtLine30(text)` の追加
-- 仕様: 「テキストを受けて、30行までの `keep` と超過分の `overflow` に分割」
-- 純関数なので Vitest で単体テストしやすい
-- IME 対策は textarea 側で compositionEnd 監視し、その後に splitAtLine30 を走らせる
+### 3. ヘッダー端からの距離を少し内側に
+- 現在 EditorPage の header は `padding-left/right: max(0.5rem, env(safe-area-inset-*))`。
+- **合意済み**: `max(1rem, env(safe-area-inset-*))` に統一。
+- EditorPage / BookshelfPage / SettingsPage 3 か所を同時に修正。
+- 1rem = 16px は "端から 16px" = 静けさを壊さない控えめな内側化。
 
-## 最短経路の提案
+### 4. 余分なノートの削除手段
+- **最短配線**: `deleteVolume(volumeId)` を db.ts に追加 → VolumeCard で長押し検知 → `window.confirm` 2 段階で OK → deleteVolume → reloadKey++。
+- 長押しは **Pointer Events** 推奨（touch と mouse を一本化できる。setTimeout で 500ms 計測、pointermove で閾値超え / pointerup でキャンセル）。
+- 2 段階 confirm（ページ 1 枚以上ある冊のみ）:
+  1. 「第N冊（Mページ記入済み）を削除しますか？」
+  2. 「本当に削除？ この操作は取り消せません。」
+- ページ 0 枚（まっさら active 新冊など）なら 1 段階確認のみで良い。
+- active/最終冊ロックなし = ユーザー選択どおり。ただし削除後 volume 0 件になる場合は `ensureActiveVolume` が次回 useEffect で自動 1 冊作成するので自然復旧。
 
-### 実装順序（Pragmatist 推奨）
-1. **ルート切替だけ先行**: `/` を BookshelfPage に、WritePage を `/book/:volumeId/:pageNumber` にマウント（中身は据え置き）→ 動作確認
-2. **EditorPage 新設（単一ページモード）**: 新しい独立コンポーネントとして作る。WritePage と並存させて段階移行
-3. **ページめくりUI**: ReaderPage の左右スワイプ・フェードロジックを EditorPage に移植
-4. **30行境界ロジック**: `splitAtLine30` を pagination.ts に追加、EditorPage で onChange に仕込む
-5. **Volume.lastOpenedPage**: DB v1 → v2 マイグレーション。`onbeforeunload` もしくは移動時に書き込み
-6. **WritePage / ReaderPage 削除**: 最後に残骸を除去
+### 5. 本棚ページの上下スクロール
+- 根本原因: `global.css` に `body { overflow: hidden }` がある。これは EditorPage の全画面 textarea のための設定。
+- BookshelfPage `.root` は `min-height:100dvh; overflow-y:auto` なので、`.root` に高さ制約がないと body の overflow:hidden が勝ってスクロールしない。
+- **最短**: BookshelfPage `.root` を `height: 100dvh; overflow-y: auto` に変更（`min-height` → `height`）。SettingsPage も同様に。
+- これだけで `.root` 内部のスクロールが働く。body の overflow:hidden には触れない（EditorPage の副作用防止）。
 
-### 「書く」リンク削除
-- BookshelfPage の `<Link to="/">書く</Link>` を削除
-- SettingsPage の `<Link to="/">書く</Link>` は `<Link to="/">本棚</Link>` に置換
-- WritePage の `新しいノート` ボタンは本棚に移動
+## 推奨実装順序（依存最小）
 
-## 変更ファイル見積もり（Pragmatist 視点）
+1. **db.ts: deleteVolume 追加** — 独立、テスト容易
+2. **共通ヘッダー CSS の規格化** — global.css に `.app-header` 共通クラスを足す案もあるが、既存 3 ページの CSS Module 内で同じパターンをコピペする方が副作用なく最短
+3. **BookshelfPage / SettingsPage ヘッダー固定化 + スクロール修正**（CSS のみ）
+4. **EditorPage スワイプ B 案化**（TSX 10 行変更）
+5. **VolumeCard 長押し削除 UI**（新規 50〜80 行 + テスト）
 
-| ファイル | 変更規模 | 内容 |
-|---|---|---|
-| `src/App.tsx` | 小 (+10行) | `/` の対応先切替、新ルート追加、redirect 追加 |
-| `src/features/editor/EditorPage.tsx` | 新規 (200行前後) | 単一ページ textarea + ページめくり |
-| `src/features/editor/EditorPage.module.css` | 新規 (80行前後) | `--header-height` 使用、罫線整合 |
-| `src/features/editor/useEditor.ts` | 新規 (100行前後) | ページ単位の load/save、next/prev |
-| `src/features/editor/DateIcon.tsx` | 新規 (20行) | SVG コンポーネント |
-| `src/features/bookshelf/BookshelfPage.tsx` | 中 (+40行) | 新冊作成ボタン、確認ダイアログ、リンク先変更 |
-| `src/features/bookshelf/VolumeCard.tsx` | 小 (-1/+1) | リンク先を `/book/:id/:page` に（lastOpenedPage 参照） |
-| `src/lib/pagination.ts` | 小 (+15行) | `splitAtLine30` 追加 |
-| `src/lib/db.ts` | 中 (+40行) | DB v2 upgrade、`updateVolumeLastOpenedPage`、`savePage` |
-| `src/lib/constants.ts` | 小 (+2行) | `DB_VERSION = 2`、`HEADER_HEIGHT_PX` |
-| `src/styles/global.css` | 小 (+3行) | `--header-height: calc(2 * var(--line-height-px))` |
-| `src/types/index.ts` | 小 (+1行) | `Volume.lastOpenedPage?: number` |
-| 削除 | - | `src/features/write/*`、`src/features/reader/*` |
+## 設定分離
+- 長押し時間: `LONG_PRESS_MS = 500` を `src/lib/constants.ts` に追加
+- 長押しの移動許容: `LONG_PRESS_MOVE_TOLERANCE_PX = 10` を追加（指ブレでキャンセルされない）
+- これらを定数化しておくと実機調整が楽
 
-推定総差分: +500 / -300 行程度
+## 情報構造の提案
+- 削除メニュー UI は **モーダル回避** でカード上のオーバーレイ（「削除する／キャンセル」2 ボタン）を推奨。確認ダイアログで十分なら `window.confirm` 2 回でも OK（既存 rotateVolume のパターンと揃う）。
+- **推奨**: `window.confirm` 2 段階（モーダル実装が不要で配線が最短）。静けさ原則にも合致。
 
-## 判断: 見送り推奨
-- **MigrationError 時のロールバック機構** → 静けさ原則とスコープ外。純粋にスキーマ追加なので v1 → v2 は `onupgradeneeded` で lastOpenedPage のみ追加する最小変更で十分。
-- **ページ番号の URL 形式を zero-pad (`/book/:id/01`)** → 整数で十分。zero-pad は表示用途のみ。
-- **書き換え中の textarea 全置換時のカーソル位置管理**: React の制御コンポーネントで setSelectionRange すれば十分。専用フック不要。
-
-## Pragmatist の結論
-- マイルストーンは **M4: ルート再編 / M5: EditorPage 単一ページモード / M6: ページング詳細 + 本棚刷新 / M7: 日付アイコン + 整合・ポリッシュ** の4分割が最短・最小リスク。
-- WritePage と EditorPage を一時並存させ、段階的に移行する。並存期間は1〜2コミット程度に抑える。
-- M5 完了時点で「動く新UI」が得られる垂直スライス構造にできる。
+## スコープ外（やらない）
+- GitHub 側の volume 削除伝搬（`pendingDeletes` キュー等）→ ローカル削除のみ、GitHub 上のバックアップは残す（ユーザーが手動削除可能）
+- スワイプ追従アニメーション（既存 opacity フェード維持）
+- 全件削除（エクスポート経由で代替）

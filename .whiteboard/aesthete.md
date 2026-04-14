@@ -1,150 +1,119 @@
-# Aesthete 分析 — 視覚的美しさ・UX・認知負荷
+# Aesthete — 視覚・UX・認知負荷分析
 
-## 視点の要約
-- 「静けさ」という既存の強いデザイン哲学を壊さずに、「1ページ = 実物ノートの1ページ」という体験を深める改修。
-- 紙のノートのメタファを強化する機会: ページめくり、固定ヘッダー、余白、境界の表現。
-- 認知負荷を下げるための**ナビゲーションの階層化**: 本棚（冊を選ぶ）→ 編集（ページを開く）→ めくる（ページ遷移）。
+## 視点
+日記アプリは「静けさ」が正義。削除 UI や固定ヘッダー導入で視覚ノイズを増やさないこと、そして画面間でヘッダーのフォルムを完全に一致させて「同じ世界」の一貫性を保つことを重視する。
 
-## 紙のメタファとの整合
+## 各要望の UX 設計
 
-### 冊を開く = 本棚で冊をタップ
-- 良: 自然な物理メタファ。タップで「その冊を手に取る」
-- **重要**: 冊を開いた瞬間に **最後に開いたページ** に戻るのは紙の栞の体験と一致。UX的に価値が高い。
-- 視覚的: 冊カードタップ時に 200ms の soft fade in で EditorPage へ遷移すると「静か」
+### 1. textarea 上スワイプ (FR1)
+**体験設計**:
+- 紙のノートを捲る感覚を textarea 全面で受け止める → メタファが強化される。
+- 現状は textarea 外余白でしか反応せず、モバイルだと余白が狭く実用上スワイプできない。B 案への移行は UX 的に必須。
+- フェード 180ms は維持（既存の静かな遷移）。スワイプ追従アニメは導入しない（合意済み非目標）。
+- **認知負荷**: ユーザーは「指を横に動かすと次ページ」をすぐ学習する。水平優位 2:1 の強化で誤作動を感じさせない。
 
-### ページめくり = 独立した1ページ UI
-- 良: 「今このページを書いている」という感覚。スクロールよりも集中を促す
-- 180ms フェードは読み返しと一貫（ReaderPage 既存値）
-- 左右スワイプ + ボタンの二重UIは過剰にならないよう、ボタンは **30%opacity のモノクロアイコン** 程度に抑える
+### 2, 3. ヘッダー固定化 + パディング統一 (FR2, FR3)
+**視覚一貫性の要**:
+- 現状、EditorPage ヘッダーは固定で padding は 0.5rem、BookshelfPage / SettingsPage は static で padding は var(--padding-page)=1rem。
+- 3 画面で文字の左端位置が揃わず、ページ遷移時に微妙なズレとして認識される。
+- **統一仕様**:
+  - 高さ: `calc(var(--header-height) + env(safe-area-inset-top, 0px))` = 57.6px + ノッチ
+  - 左右 padding: `max(1rem, env(safe-area-inset-left/right))`
+  - 背景: `var(--color-bg)`（本体と同色でシームレス）
+  - position: fixed / top: 0 / left: 0 / right: 0 / z-index: 2
+- **余白感**: 1rem = 16px は「端からひと指分」。0.5rem は狭すぎて押しにくかった（ユーザー指摘の通り）。
 
-## ヘッダーのデザイン
+**垂直方向の調整**:
+- BookshelfPage: `.root` padding-top = `calc(var(--header-height) + env(safe-area-inset-top, 0px) + 1rem)`。
+  - +1rem は既存 `.header` の `margin-bottom: 1.5rem` を吸収（ヘッダー fixed 化で .header は flow から外れるため）。
+  - グリッド 1 行目のカード上端がヘッダー下から 1rem 離れる = 呼吸できる余白。
+- SettingsPage も同様。既存の section の margin 1.5rem と衝突しないよう、section:first-child の margin-top を 0 にしたい。ただし副作用回避のため padding-top で十分空いていればそのままで良い。
 
-### `--header-height = 2行分 = 57.6px` の妥当性
-- line-height 整数倍は罫線と整合する数学的に美しい選択
-- ただし 57.6px は iPhone のステータスバー(47pt)を考慮するとギリギリ → safe-area-inset-top を加える必要あり（Skeptic M4 と一致）
-- **提案**: `--header-height` は **本文に対する margin-top の値**であり、ヘッダー視覚領域は `--header-height + safe-area-inset-top` とする
+**構造**:
+- global.css に共通クラス `.app-header` を新設することを推奨（現状 CSS Module ごとにコピペすると 3 箇所バラバラに diverge しやすい）。ただし既存の `.app-header-link` が global.css にあるので、`.app-header` も global.css で管理する方が自然。
+- CSS Module 側は `className={\`\${styles.header} app-header\`}` の二重指定にするか、CSS Module を廃して global.css に寄せる。
+- **推奨**: global.css に `.app-header { ... }` を定義し、3 画面の header 要素で `className="app-header"`（または併用）。CSS Module の `.header` は移行期間用に残す。
 
-### ヘッダーの要素配置
+### 4. 削除機能 (FR4, FR5)
+**静けさ原則との両立**:
+- 削除は破壊的操作なので、目立つべきではないが見つけられなければならない。
+- **長押しアフォーダンス**: 長押しで発動、視覚的に「押し込まれる」フィードバック（transform: scale(0.98) or opacity 0.6）を 200〜500ms で徐々に変化させる。→ 「何かが起きそう」を伝え、500ms で confirm。
+- **メニュー vs confirm**:
+  - オーバーレイメニュー（削除する／キャンセル）: カード上にモダンな UI。実装コスト高、視覚ノイズあり。
+  - `window.confirm` 2 段階: ネイティブ、UI コードなし、既存 rotateVolume パターン踏襲。静けさ原則に忠実。
+  - **推奨**: **window.confirm 2 段階**。1 回目で誤長押しを弾き、2 回目でデータロス最終確認。
+- **メッセージ設計**（トーンを柔らかく、でも明確に）:
+  - 1 回目: `「第N冊（Mページ記入済み）を削除しますか？」`
+  - 2 回目: `「本当に削除しますか？ この操作は取り消せません。」`
+  - ページ 0 枚の冊（まだ書いていない）: 1 回目のみ `「まだ書いていない第N冊を削除しますか？」`
+- **削除後のフィードバック**: トーストなし。カードがフェード消去（200ms opacity）で静かに消える。これで十分。
+
+**長押しの視覚フィードバック**:
+- 500ms 経過直前に `cursorActive` (existing) と同等の「浮き上がり」解除 or opacity ドロップ。
+- 単純案: CSS `:active` で `transform: scale(0.98)` のみ。過度な演出はしない。
+
+### 5. 本棚スクロール (FR6)
+**視覚的影響**:
+- 冊が多くなると下に溢れる。カレンダー Toggle / カレンダー自体が縦に長いので、スクロールできないと実質カレンダーが使えない状態。現状はかなりユーザビリティが壊れている。
+- 修正後、スクロールバーは global.css で `::-webkit-scrollbar { width: 0 }` 済み = 静けさ保持。
+- **認知負荷**: 「スクロールすればカレンダーが出る」という気付きが必要。ヘッダー固定化＋スクロール可能化で「下に何かある」の期待が明確になる。
+
+## 視覚ヒエラルキーの整理
+
+### ヘッダー 3 画面共通
 ```
-[本棚] [ページX/50]        [日付アイコン] [設定]
-                  ← center
+[左] 本棚/戻るリンク（opacity 0.3, UI font 0.75rem）
+[中] (Editor のみ) ページ番号クラスタ
+[右] (Editor) 日付ボタン + 設定リンク / (Bookshelf) 設定リンク / (Settings) 本棚リンク
 ```
-- 左端: 本棚（← アイコン想定。「本棚」文字も許容）
-- 中央: 現在ページ番号 / 50（opacity 0.3）
-- 右端: 日付挿入アイコン / 設定
-- **全要素 opacity 0.3, active 時 0.6** で一貫
+→ 「左は戻る」「右は設定」の規則が全画面で統一される。
 
-### 日付アイコンのデザイン
-- モノクロ SVG 16x16、stroke-width 1.5、currentColor
-- **静けさの観点**: カレンダーアイコンは「枠＋日付部分の1本の横線」程度の極シンプルな線画が望ましい
-- 提案 SVG パス案:
-  ```
-  <svg viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.5">
-    <rect x="2.5" y="3.5" width="11" height="10" rx="1"/>
-    <line x1="2.5" y1="6.5" x2="13.5" y2="6.5"/>
-    <line x1="5.5" y1="2" x2="5.5" y2="5"/>
-    <line x1="10.5" y1="2" x2="10.5" y2="5"/>
-  </svg>
-  ```
-- タップ領域 44x44（Skeptic M3 と一致）。見た目の 16x16 はパディングで確保。
+### 本棚
+- ヘッダー下に h1「本棚」が出ていたが、現在 `styles.title` = 1.25rem で大きめ。ヘッダー固定化後、h1 title はヘッダー内に残す（既存通り）。
+  - 注: EditorPage はヘッダー内にタイトルなし（ページ番号表示）、BookshelfPage は h1「本棚」、SettingsPage は h1「設定」。 
+  - 一貫性のため、3 画面ともヘッダー内 h1 相当の視覚トーンを揃える。
+  - ただし EditorPage は「紙面の純度」を保つため h1 なし（現行通り）。
 
-## ページ遷移のアニメーション
+### 削除時の UI
+- 長押しカード: `:active` で `opacity: 0.6; transform: scale(0.98)`。その後 confirm。
+- 削除後: カードが 200ms フェードで消え、grid が flex で詰まる（transition で）。
 
-### 180ms フェードの一貫性
-- ReaderPage 既存: `opacity 200ms ease` → 180ms は若干短い
-- **提案**: CSS 変数 `--transition-page: opacity 180ms ease` を追加、ReaderPage/EditorPage で共有
-- もしくは既存の `--transition-soft: opacity 200ms ease` を使い 200ms に統一（静けさの観点）
-- **判断**: 要件は180msだが、一貫性のため**既存 `--transition-soft` に合わせて 200ms に揃える** ほうが静か。要件の180msは「概ね」と解釈可能 → 要確認事項。
+## 統一仕様（再掲）
 
-### 30行持ち越しの視覚体験
-- ユーザーが30行目末尾で改行 → 次ページに自動遷移
-- **悪い例**: 画面が突然差し替わり、ユーザーが混乱
-- **良い例**: 
-  - 現ページが180ms で fade out
-  - 次ページが fade in
-  - カーソルが自然に次ページ先頭に置かれる
-  - ページ番号表示が「3/50」→「4/50」に変わる（小さな安心感）
-- **静かな境界**: アニメーション中はめくり音を出さない（アプリ設計原則）
+### ヘッダー共通スタイル（global.css に `.app-header` 追加推奨）
+```css
+.app-header {
+  position: fixed;
+  top: 0;
+  left: 0;
+  right: 0;
+  height: calc(var(--header-height) + env(safe-area-inset-top, 0px));
+  padding-top: env(safe-area-inset-top, 0px);
+  padding-left: max(1rem, env(safe-area-inset-left));
+  padding-right: max(1rem, env(safe-area-inset-right));
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  z-index: 2;
+  background-color: var(--color-bg);
+  font-family: var(--font-family-ui);
+}
+```
 
-## 本棚ページのデザイン
+### .root ヘッダー分オフセット
+```css
+.root {
+  height: 100dvh;         /* was min-height */
+  padding-top: calc(var(--header-height) + env(safe-area-inset-top, 0px) + 1rem);
+  padding-left: var(--padding-page);
+  padding-right: var(--padding-page);
+  padding-bottom: max(1rem, env(safe-area-inset-bottom));
+  overflow-y: auto;
+}
+```
 
-### 「新しい冊」ボタンの位置
-- 現状は「カレンダー開く」ボタンのみ中央下部
-- 提案: 新冊作成ボタンはヘッダー右端、設定の隣 or カレンダー下部の「もう少し書きたい」エリア
-- **静けさ優先**: ヘッダーに「➕ 新しい冊」のようなアイコン型ではなく、本棚の最後（空カード or 控えめなテキストリンク）として配置
-- 案: `.grid` の最後に「＋ 新しい冊」カード（破線境界、opacity 0.5）を追加。これならカードの並びに溶け込み、タップミスも減る
-
-### 「書く」リンクの削除の余波
-- BookshelfPage ヘッダーが `[本棚タイトル]` `[設定] [書く]` → `[本棚タイトル]` `[設定]` のみになり右側が寂しい
-- 解決: SettingsPage は変わらず、ヘッダーは `[本棚] [設定]` の2要素で視覚的に十分
-- Settings → 本棚リンク（`/`）はそのままで OK
-
-## 罫線整合
-
-### 本文1行目と罫線の一致
-- 現状: textarea padding-top: 0 + 罫線 background-position: 0 0
-- 新UI: `margin-top: var(--header-height)` を本文に + 罫線 `background-position: 0 calc(-1 * var(--header-height))` ...ではなく、**padding-top を line-height 整数倍にして、背景も含めて下にシフト**
-- 正しい解:
-  ```css
-  .editorTextarea {
-    padding-top: var(--header-height); /* 2行分 */
-    background-position: 0 calc(-1 * var(--header-height));
-  }
-  ```
-  ...は罫線が2行分前倒しになって1行目と合う。もしくは**ヘッダー領域は `background-image` を出さず、textarea のコンテンツ領域にのみ罫線を描く**実装にする。
-- **提案**: `notebook-surface` のクラスに `--surface-top-offset` 変数を入れ、padding-top と罫線位置を一箇所で管理。
-
-### 冊終わりの色味変化（既存）
-- 現状: 49→50 ページ境界に `--color-page-divider-end`（暖色）の1本線
-- 新UI: 1ページ=1 textarea になるため、境界線の「場所」が変わる。**現ページが50なら textarea の上端に暖色の細線**を出す程度が静か。
-- もしくは50ページ目のみ `border-top: 2px solid var(--color-page-divider-end)` を付ける。
-
-## 認知負荷の低減
-
-### ページ番号の表示位置
-- 現状: 右下 `bottom: max(1rem, ...)` で固定
-- 新UI: ヘッダーに昇格（視線移動の最短化）
-- 「3 / 50」ではなく「3 / 12」（冊の実ページ数）が親切だが、合意済みの「50」を使うほうがシンプル
-- **提案**: `3 / 50`（常に最大値）。冊の進捗感が一目瞭然。
-
-### スクロールの廃止
-- 現状: 1冊全文スクロール → ユーザーは「どこまで書いたか」を罫線の連続性で把握
-- 新UI: 1ページ = 1画面完結 → **スクロールなし**。ページ番号とページめくりで位置把握
-- 効果: 集中・没入感が増す。認知負荷が下がる。
-
-### 空ページと既存ページの視覚差
-- ユーザーが新しい冊のページ1を開いたとき、罫線だけが並ぶ空の紙
-- 既存ページを開いたとき、本文が罫線と一致して並ぶ
-- **一貫性**: どちらも `notebook-surface` で統一。空ページでも罫線は全画面分描かれる。
-
-## UX フロー
-
-### 初回起動
-- アプリ起動 → `/` = BookshelfPage
-- 冊が0なら ensureActiveVolume で1冊作成 → カードが1枚表示される
-- カードをタップ → `/book/:newId/1` → 空のページ
-- **静けさ**: 自動遷移はしない。ユーザーがタップして開く。ウェルカム画面も不要。
-
-### 既存ユーザー（旧 `/` = WritePage を開いていた人）
-- アプリ起動 → `/` = BookshelfPage（以前と違う画面！）
-- **認知コスト**: 「あれ、書く画面がない」となる可能性
-- **緩和**: 冊カードをタップすれば以前の体験に戻る。ヘルプは不要（静けさ）。初期の 1 冊しか無い場合は違和感が少ない。
-
-### `/read/:id/:page` redirect
-- 既存ブックマークや外部リンクを壊さない。Navigate で透過的に新URLへ。
-
-## 視覚的一貫性チェックリスト
-
-- [x] 全ページで `--color-bg / --color-text / --color-rule` の4色パレットを守る
-- [x] 罫線は line-height 整数倍で位置合わせ
-- [x] トランジションは 180〜200ms ease opacity
-- [x] 通知・バッジなし
-- [x] モーダル使用は confirm のみ（新冊作成ダイアログ）
-- [x] フォントは Klee One（本文）+ system-ui（UI）の2種のみ
-
-## Aesthete の結論
-- **紙のノートのメタファを強化する**: 1ページ=1画面、栞（lastOpenedPage）、ページめくり。既存の「静けさ」を壊さずに深められる。
-- **ヘッダーは3要素以内**: 左[本棚]・中央[ページ番号]・右[日付アイコン]。設定はもう1段下げるか、3要素の中に畳み込む。
-- **日付アイコンはシンプルな線画で**: 16x16 viewBox、stroke 1.5、currentColor。タップ領域 44x44。
-- **トランジション時間は180msか200msか統一を確認**: 要件の180ms と 既存の200msのどちらに合わせるか spec で決定。推奨は200ms（既存との整合）。
-- **「新しい冊」ボタンは本棚末尾の控えめなカード**として配置すると誤タップが減り、静けさを保てる。
+## 優先度判断
+1. **Critical 体験**: textarea スワイプ（FR1）— 現状操作不能に近い
+2. **Critical 信頼性**: 削除機能（FR4/5）— ユーザーが困っている最上位要望
+3. **Critical 操作性**: 本棚スクロール（FR6）— バグ級の UX 破綻
+4. **High 一貫性**: ヘッダー固定 + パディング（FR2/3）— 複数画面での統一

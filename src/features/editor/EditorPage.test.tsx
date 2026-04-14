@@ -268,15 +268,52 @@ describe('EditorPage swipe navigation (M5-T3)', () => {
     await waitFor(() => expect(pathname).toBe(`/book/${v.id}/1`));
   });
 
-  it('textarea 上のスワイプは navigate しない（編集操作を妨げない）', async () => {
+  it('textarea 上の水平スワイプで navigate する (M8-2 B 案)', async () => {
     const v = await ensureActiveVolume();
     let pathname = '';
     renderWithLocationProbe(`/book/${v.id}/1`, (p) => {
       pathname = p;
     });
     const textarea = await screen.findByLabelText('日記本文');
+    // |dx|=100, |dy|=5 → |dx| > |dy|*2 を満たす水平優位スワイプ
     swipe(textarea, { x: 200, y: 100 }, { x: 100, y: 105 });
-    // 十分待っても遷移しないこと
+    await waitFor(() => expect(pathname).toBe(`/book/${v.id}/2`));
+  });
+
+  it('textarea 上 |dx|=60 / |dy|=20 の水平優位スワイプで navigate する', async () => {
+    const v = await ensureActiveVolume();
+    let pathname = '';
+    renderWithLocationProbe(`/book/${v.id}/1`, (p) => {
+      pathname = p;
+    });
+    const textarea = await screen.findByLabelText('日記本文');
+    // |dx|=60, |dy|=20 → |dy|*2=40 < |dx|=60 で発火する
+    swipe(textarea, { x: 200, y: 100 }, { x: 140, y: 120 });
+    await waitFor(() => expect(pathname).toBe(`/book/${v.id}/2`));
+  });
+
+  it('textarea 上 |dx|=30 / |dy|=60 は navigate しない（縦優位）', async () => {
+    const v = await ensureActiveVolume();
+    let pathname = '';
+    renderWithLocationProbe(`/book/${v.id}/1`, (p) => {
+      pathname = p;
+    });
+    const textarea = await screen.findByLabelText('日記本文');
+    // |dx|=30 < 閾値 50 でも弾かれるが、2:1 判定も満たさないため navigate されない
+    swipe(textarea, { x: 100, y: 50 }, { x: 70, y: 110 });
+    await new Promise((r) => setTimeout(r, 250));
+    expect(pathname).toBe(`/book/${v.id}/1`);
+  });
+
+  it('composition 中の textarea 上スワイプは navigate しない (IME ガード)', async () => {
+    const v = await ensureActiveVolume();
+    let pathname = '';
+    renderWithLocationProbe(`/book/${v.id}/1`, (p) => {
+      pathname = p;
+    });
+    const textarea = (await screen.findByLabelText('日記本文')) as HTMLTextAreaElement;
+    fireEvent.compositionStart(textarea);
+    swipe(textarea, { x: 200, y: 100 }, { x: 100, y: 105 });
     await new Promise((r) => setTimeout(r, 250));
     expect(pathname).toBe(`/book/${v.id}/1`);
   });
