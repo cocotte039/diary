@@ -12,10 +12,18 @@
   margin-bottom: 1.5rem;
   font-family: var(--font-family-ui);
 }
-.header a,
+/*
+ * ヘッダー内のリンク・ボタンは global.css の .app-header-link に寄せた (M7-T6)。
+ * ここでは `h1.title` のみフォントサイズを大きくするスタイルを残す。
+ */
 .header button {
-  opacity: 0.5;
-  font-size: 0.875rem;
+  opacity: 0.3;
+  font-size: 0.75rem;
+  font-family: var(--font-family-ui);
+  color: var(--color-text);
+}
+.header button:active {
+  opacity: 0.6;
 }
 
 .title {

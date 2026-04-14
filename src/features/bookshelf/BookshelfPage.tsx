@@ -97,7 +97,7 @@ export default function BookshelfPage() {
       <header className={styles.header}>
         <h1 className={styles.title}>本棚</h1>
         <div style={{ display: 'flex', gap: '0.75rem' }}>
-          <Link to="/settings">設定</Link>
+          <Link to="/settings" className="app-header-link">設定</Link>
         </div>
       </header>
 
