@@ -59,9 +59,48 @@
   font-size: 0.875rem;
   margin-right: 0.5rem;
   margin-top: 0.5rem;
+  border: none;
+  color: var(--color-text);
+  cursor: pointer;
 }
 .button:active {
   opacity: 1;
+}
+.button:disabled {
+  opacity: 0.4;
+  cursor: not-allowed;
+}
+
+.buttonRow {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0;
+  margin-top: 0.5rem;
+}
+
+/* 破壊的操作: 設定を削除。視覚的に明確に分離 */
+.destructiveRow {
+  margin-top: 1.5rem;
+  padding-top: 1rem;
+  border-top: 1px dashed var(--color-rule);
+  display: flex;
+  align-items: center;
+  gap: 0.75rem;
+  flex-wrap: wrap;
+}
+.destructive {
+  background: transparent;
+  border: 1px solid var(--color-error, #c0392b);
+  color: var(--color-error, #c0392b);
+  opacity: 0.8;
+}
+.destructive:active {
+  opacity: 1;
+  background: rgba(192, 57, 43, 0.1);
+}
+.destructiveHint {
+  font-size: 0.75rem;
+  opacity: 0.55;
 }
 
 .status {
@@ -69,6 +108,23 @@
   font-size: 0.75rem;
   opacity: 0.7;
 }
+/* アクション結果として表示される status は目立つよう強調 */
+.statusVisible {
+  opacity: 1;
+  font-size: 0.875rem;
+  padding: 0.5rem 0.75rem;
+  background: rgba(255, 255, 255, 0.04);
+  border-left: 2px solid var(--color-accent);
+  border-radius: 2px;
+  margin-top: 0.75rem;
+}
 .error {
   color: var(--color-error);
+  opacity: 1;
+  font-size: 0.875rem;
+  padding: 0.5rem 0.75rem;
+  background: rgba(192, 57, 43, 0.08);
+  border-left: 2px solid var(--color-error, #c0392b);
+  border-radius: 2px;
+  margin-top: 0.75rem;
 }
