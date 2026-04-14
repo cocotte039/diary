@@ -11,9 +11,12 @@ B5大学ノートに万年筆で書いていた手書き日記の体験を、布
 
 - 本棚が起点: メイン画面が本棚。冊タップでその冊の「最後に開いたページ」から編集再開
 - ページ単位 UI: 1 ページ = 1 textarea の独立画面。左右ボタン / スワイプ / PageUp・PageDown でめくる（180ms フェード）
+- textarea 上でも水平スワイプでページめくり可能（`|dx| > |dy|*2` かつ 50px 超で発火、IME 中はガード）
 - ノート風 UI: 罫線背景 + Klee One + ダークモード、ヘッダーと本文 1 行目が重ならない罫線整合
+- 3 画面（本棚 / エディタ / 設定）のヘッダーは `.app-header` 共通クラスで上部固定・左右 `max(1rem, safe-area)` 統一
 - 30 行到達で次ページへ自動遷移（IME 変換中はガード）、50 ページで冊終了（静かに入力ロック）
 - 新冊作成は本棚の「＋ 新しい冊」カードからのみ（確認ダイアログ付き）
+- 冊の削除は本棚カードを 500ms 長押し → 2 段階 confirm（ページ 0 枚は 1 段階）。active 冊削除時は最大 ordinal の冊が自動昇格
 - IndexedDB によるローカル永続化（ページ単位 savePage、2 秒 debounce、遷移時 flush）
 - 冊ごとに「最後に開いたページ」「カーソル位置」を記憶して復元
 - カレンダー日付ジャンプ / 旧 `/read` URL は `/book` へリダイレクト互換
@@ -30,7 +33,7 @@ B5大学ノートに万年筆で書いていた手書き日記の体験を、布
 diary/
 ├─ public/          # manifest.json / icon.svg / (PNG は別PCで生成)
 ├─ src/
-│  ├─ styles/       # global.css (CSS変数 / --header-height / app-header-link), notebook.css (罫線共通)
+│  ├─ styles/       # global.css (CSS変数 / --header-height / .app-header / .app-header-link), notebook.css (罫線共通)
 │  ├─ lib/          # constants, pagination (splitAtLine30), db (idb v2), github, export, pwa
 │  ├─ hooks/        # useEditorCursor, useDebouncedCallback
 │  ├─ features/
@@ -100,8 +103,8 @@ iOS PWA インストール確認、トラブルシュートは:
 ## ドキュメント
 
 - [`HANDOFF.md`](./HANDOFF.md) — 別PCでの初回セットアップ・デプロイ手順
-- [`.claude/loop/IMPLEMENTATION_PLAN.md`](./.claude/loop/IMPLEMENTATION_PLAN.md) — 実装計画（M1-M7、計 38 タスク。M1-M3 は初期リリース、M4-M7 は UX 刷新）
-- [`.whiteboard/plan.md`](./.whiteboard/plan.md) — M4-M7 UX 刷新の詳細設計
+- [`.claude/loop/IMPLEMENTATION_PLAN.md`](./.claude/loop/IMPLEMENTATION_PLAN.md) — 実装計画（M1-M8。M1-M3 は初期リリース、M4-M7 は UX 刷新、M8 は UX 追加改善）
+- [`.whiteboard/plan.md`](./.whiteboard/plan.md) — 直近フェーズ（M8 UX 改善）の詳細設計。過去フェーズは `.whiteboard/archive/`
 - [`.claude/loop/AGENTS.md`](./.claude/loop/AGENTS.md) — アーキテクチャ方針と設計判断
 - [`.claude/loop/STATE.md`](./.claude/loop/STATE.md) — 現在のプロジェクト状態
 - [`.claude/loop/specs/`](./.claude/loop/specs/) — 各タスクの仕様と完了サマリー
