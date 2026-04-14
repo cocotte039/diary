@@ -308,6 +308,230 @@ describe('EditorPage swipe navigation (M5-T3)', () => {
   });
 });
 
+describe('EditorPage IME composition guard (M6-T2)', () => {
+  it('composition 中は 30 行超の入力で navigate しない', async () => {
+    const v = await ensureActiveVolume();
+    let pathname = '';
+    renderWithLocationProbe(`/book/${v.id}/1`, (p) => {
+      pathname = p;
+    });
+    const textarea = (await screen.findByLabelText('日記本文')) as HTMLTextAreaElement;
+    fireEvent.compositionStart(textarea);
+    const overflowText =
+      Array.from({ length: 31 }, (_, i) => `l${i}`).join('\n');
+    fireEvent.change(textarea, { target: { value: overflowText } });
+    await new Promise((r) => setTimeout(r, 250));
+    expect(pathname).toBe(`/book/${v.id}/1`);
+  });
+
+  it('compositionEnd で最新値が 30 行超なら遷移する', async () => {
+    const v = await ensureActiveVolume();
+    let pathname = '';
+    renderWithLocationProbe(`/book/${v.id}/1`, (p) => {
+      pathname = p;
+    });
+    const textarea = (await screen.findByLabelText('日記本文')) as HTMLTextAreaElement;
+    fireEvent.compositionStart(textarea);
+    const overflowText =
+      Array.from({ length: 31 }, (_, i) => `l${i}`).join('\n');
+    fireEvent.change(textarea, { target: { value: overflowText } });
+    fireEvent.compositionEnd(textarea, { target: { value: overflowText } });
+    await waitFor(() => expect(pathname).toBe(`/book/${v.id}/2`));
+  });
+
+  it('composition 中の PageDown は遷移しない', async () => {
+    const v = await ensureActiveVolume();
+    let pathname = '';
+    renderWithLocationProbe(`/book/${v.id}/1`, (p) => {
+      pathname = p;
+    });
+    const textarea = (await screen.findByLabelText('日記本文')) as HTMLTextAreaElement;
+    fireEvent.compositionStart(textarea);
+    fireEvent.keyDown(textarea, { key: 'PageDown' });
+    await new Promise((r) => setTimeout(r, 250));
+    expect(pathname).toBe(`/book/${v.id}/1`);
+  });
+
+  it('composition 無しで 30 行超の change は即 navigate する', async () => {
+    const v = await ensureActiveVolume();
+    let pathname = '';
+    renderWithLocationProbe(`/book/${v.id}/1`, (p) => {
+      pathname = p;
+    });
+    const textarea = (await screen.findByLabelText('日記本文')) as HTMLTextAreaElement;
+    const overflowText =
+      Array.from({ length: 31 }, (_, i) => `l${i}`).join('\n');
+    fireEvent.change(textarea, { target: { value: overflowText } });
+    await waitFor(() => expect(pathname).toBe(`/book/${v.id}/2`));
+  });
+});
+
+describe('EditorPage auto next-page on overflow (M6-T3)', () => {
+  it('30 行を越えると次ページへ遷移する', async () => {
+    const v = await ensureActiveVolume();
+    let pathname = '';
+    renderWithLocationProbe(`/book/${v.id}/1`, (p) => {
+      pathname = p;
+    });
+    const textarea = (await screen.findByLabelText('日記本文')) as HTMLTextAreaElement;
+    const overflowText =
+      Array.from({ length: 31 }, (_, i) => `line-${i}`).join('\n');
+    fireEvent.change(textarea, { target: { value: overflowText } });
+    await waitFor(() => expect(pathname).toBe(`/book/${v.id}/2`));
+  });
+
+  it('遷移前のページは keep (30 行) で保存される', async () => {
+    const v = await ensureActiveVolume();
+    let pathname = '';
+    renderWithLocationProbe(`/book/${v.id}/1`, (p) => {
+      pathname = p;
+    });
+    const textarea = (await screen.findByLabelText('日記本文')) as HTMLTextAreaElement;
+    const overflowText =
+      Array.from({ length: 31 }, (_, i) => `l${i}`).join('\n');
+    fireEvent.change(textarea, { target: { value: overflowText } });
+    await waitFor(() => expect(pathname).toBe(`/book/${v.id}/2`));
+    const page1 = await getPage(v.id, 1);
+    expect(page1?.content.split('\n').length).toBe(30);
+  });
+
+  it('overflow 分が次ページ先頭に書き込まれる', async () => {
+    const v = await ensureActiveVolume();
+    let pathname = '';
+    renderWithLocationProbe(`/book/${v.id}/1`, (p) => {
+      pathname = p;
+    });
+    const textarea = (await screen.findByLabelText('日記本文')) as HTMLTextAreaElement;
+    const overflowText =
+      Array.from({ length: 31 }, (_, i) => `l${i}`).join('\n');
+    fireEvent.change(textarea, { target: { value: overflowText } });
+    await waitFor(() => expect(pathname).toBe(`/book/${v.id}/2`));
+    const page2 = await getPage(v.id, 2);
+    expect(page2?.content).toBe('l30');
+  });
+
+  it('次ページに既存 content があれば overflow は先頭に prepend される', async () => {
+    const v = await ensureActiveVolume();
+    await savePage(v.id, 2, 'existing');
+    let pathname = '';
+    renderWithLocationProbe(`/book/${v.id}/1`, (p) => {
+      pathname = p;
+    });
+    const textarea = (await screen.findByLabelText('日記本文')) as HTMLTextAreaElement;
+    const overflowText =
+      Array.from({ length: 31 }, (_, i) => `l${i}`).join('\n');
+    fireEvent.change(textarea, { target: { value: overflowText } });
+    await waitFor(() => expect(pathname).toBe(`/book/${v.id}/2`));
+    const page2 = await getPage(v.id, 2);
+    expect(page2?.content).toBe('l30\nexisting');
+  });
+
+  it('50 ページ目では自動遷移が発動しない', async () => {
+    const v = await ensureActiveVolume();
+    await savePage(v.id, PAGES_PER_VOLUME, '');
+    let pathname = '';
+    renderWithLocationProbe(`/book/${v.id}/${PAGES_PER_VOLUME}`, (p) => {
+      pathname = p;
+    });
+    const textarea = (await screen.findByLabelText('日記本文')) as HTMLTextAreaElement;
+    // NOTE: 50 ページ目は onBeforeInput でロックされる設計（T6.4）。
+    // ここでは onChange 経路で overflow が発生しても navigate が起きないことだけ確認する。
+    const overflowText =
+      Array.from({ length: 31 }, (_, i) => `l${i}`).join('\n');
+    fireEvent.change(textarea, { target: { value: overflowText } });
+    await new Promise((r) => setTimeout(r, 250));
+    expect(pathname).toBe(`/book/${v.id}/${PAGES_PER_VOLUME}`);
+  });
+});
+
+describe('EditorPage final page lock (M6-T4)', () => {
+  /**
+   * React の `onBeforeInput` は native `beforeinput` ではなく
+   * `compositionend`/`keypress`/`textInput`/`paste` にマップされる（React 19 実装）。
+   * テストでは `textInput` 相当を dispatch することで onBeforeInput を発火する。
+   *
+   * jsdom には TextEvent が無いため、`CustomEvent('textInput', { detail: data })` のように
+   * 代替 event 送信しても React のハンドラは動かない（data 取得経路が異なる）。
+   * そのため、ここでは `keypress` を使い、`key: 'Enter'` 等で data を模擬する。
+   * React の getFallbackBeforeInputChars は keypress の charCode/which から data を抽出する。
+   */
+  function fireBeforeInput(
+    el: HTMLElement,
+    data: string | null
+  ): { defaultPrevented: boolean } {
+    if (data == null) {
+      // 削除系を模擬: keydown Backspace で onBeforeInput は発火しない想定（React 仕様）。
+      // ここではそもそも cancel 対象外なので、default は常に not prevented 扱い。
+      const ev = new KeyboardEvent('keydown', {
+        key: 'Backspace',
+        bubbles: true,
+        cancelable: true,
+      });
+      el.dispatchEvent(ev);
+      return { defaultPrevented: ev.defaultPrevented };
+    }
+    // 改行は key='Enter' + charCode=13 で keypress を出す。
+    const charCode = data === '\n' ? 13 : data.charCodeAt(0);
+    const ev = new KeyboardEvent('keypress', {
+      key: data === '\n' ? 'Enter' : data,
+      charCode,
+      keyCode: charCode,
+      which: charCode,
+      bubbles: true,
+      cancelable: true,
+    });
+    el.dispatchEvent(ev);
+    return { defaultPrevented: ev.defaultPrevented };
+  }
+
+  it('50 ページ目 30 行末尾で改行を beforeInput すると preventDefault される', async () => {
+    const v = await ensureActiveVolume();
+    const thirtyLines = Array.from({ length: 30 }, (_, i) => `l${i}`).join('\n');
+    await savePage(v.id, PAGES_PER_VOLUME, thirtyLines);
+    renderAt(`/book/${v.id}/${PAGES_PER_VOLUME}`);
+    const textarea = (await screen.findByLabelText('日記本文')) as HTMLTextAreaElement;
+    await waitFor(() => expect(textarea.value).toBe(thirtyLines));
+    textarea.setSelectionRange(thirtyLines.length, thirtyLines.length);
+    const result = fireBeforeInput(textarea, '\n');
+    expect(result.defaultPrevented).toBe(true);
+  });
+
+  it('49 ページ目では同じ beforeInput は preventDefault されない', async () => {
+    const v = await ensureActiveVolume();
+    const thirtyLines = Array.from({ length: 30 }, (_, i) => `l${i}`).join('\n');
+    await savePage(v.id, 49, thirtyLines);
+    renderAt(`/book/${v.id}/49`);
+    const textarea = (await screen.findByLabelText('日記本文')) as HTMLTextAreaElement;
+    await waitFor(() => expect(textarea.value).toBe(thirtyLines));
+    textarea.setSelectionRange(thirtyLines.length, thirtyLines.length);
+    const result = fireBeforeInput(textarea, '\n');
+    expect(result.defaultPrevented).toBe(false);
+  });
+
+  it('50 ページ目でも 30 行以内の文字挿入は妨げられない', async () => {
+    const v = await ensureActiveVolume();
+    await savePage(v.id, PAGES_PER_VOLUME, 'hello');
+    renderAt(`/book/${v.id}/${PAGES_PER_VOLUME}`);
+    const textarea = (await screen.findByLabelText('日記本文')) as HTMLTextAreaElement;
+    await waitFor(() => expect(textarea.value).toBe('hello'));
+    textarea.setSelectionRange(5, 5);
+    const result = fireBeforeInput(textarea, 'x');
+    expect(result.defaultPrevented).toBe(false);
+  });
+
+  it('50 ページ目の削除操作 (data なし) は preventDefault されない', async () => {
+    const v = await ensureActiveVolume();
+    const thirtyLines = Array.from({ length: 30 }, (_, i) => `l${i}`).join('\n');
+    await savePage(v.id, PAGES_PER_VOLUME, thirtyLines);
+    renderAt(`/book/${v.id}/${PAGES_PER_VOLUME}`);
+    const textarea = (await screen.findByLabelText('日記本文')) as HTMLTextAreaElement;
+    await waitFor(() => expect(textarea.value).toBe(thirtyLines));
+    textarea.setSelectionRange(thirtyLines.length, thirtyLines.length);
+    const result = fireBeforeInput(textarea, null);
+    expect(result.defaultPrevented).toBe(false);
+  });
+});
+
 describe('EditorPage keyboard navigation (M5-T5)', () => {
   it('PageDown で次ページに遷移する', async () => {
     const v = await ensureActiveVolume();

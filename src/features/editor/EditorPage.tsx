@@ -4,13 +4,20 @@ import {
   useState,
   useCallback,
   type ChangeEvent,
+  type CompositionEvent as ReactCompositionEvent,
+  type FormEvent,
   type KeyboardEvent as ReactKeyboardEvent,
   type TouchEvent as ReactTouchEvent,
 } from 'react';
 import { Link, useNavigate, useParams } from 'react-router-dom';
 import styles from './EditorPage.module.css';
-import { getPage, updateVolumeLastOpenedPage } from '../../lib/db';
-import { PAGES_PER_VOLUME, SWIPE_THRESHOLD_PX } from '../../lib/constants';
+import { getPage, savePage, updateVolumeLastOpenedPage } from '../../lib/db';
+import {
+  LINES_PER_PAGE,
+  PAGES_PER_VOLUME,
+  SWIPE_THRESHOLD_PX,
+} from '../../lib/constants';
+import { splitAtLine30 } from '../../lib/pagination';
 import { useEditorAutoSave } from './useEditorAutoSave';
 import { useEditorCursor } from '../../hooks/useEditorCursor';
 
@@ -56,6 +63,11 @@ export default function EditorPage() {
   const touchStartYRef = useRef<number | null>(null);
   // textarea 参照（カーソル復元 M5-T4 用）
   const textareaRef = useRef<HTMLTextAreaElement | null>(null);
+  // IME 変換中フラグ (M6-T2)。true の間は自動次ページ遷移を発動させない。
+  const isComposingRef = useRef(false);
+  // 自動遷移後、次ページでカーソルを overflow.length 位置に置くための pending 値 (M6-T3)。
+  // null の間は通常のカーソル復元 (useEditorCursor) に任せる。
+  const pendingCursorPosRef = useRef<number | null>(null);
 
   useEffect(() => {
     let cancelled = false;
@@ -75,6 +87,20 @@ export default function EditorPage() {
       // 「最後に開いたページ」を記憶（次回本棚から同じページに戻れるように）
       // fire-and-forget: 失敗しても表示は継続
       void updateVolumeLastOpenedPage(volumeId, current).catch(() => {});
+      // M6-T3: 自動遷移直後はカーソルを overflow.length 位置（＝前ページから持ち越した文末）に置く。
+      // useEditorCursor の復元より後に実行する必要があるため、microtask で textarea を直接操作する。
+      if (pendingCursorPosRef.current != null) {
+        const pos = pendingCursorPosRef.current;
+        pendingCursorPosRef.current = null;
+        requestAnimationFrame(() => {
+          if (cancelled) return;
+          const el = textareaRef.current;
+          if (!el) return;
+          el.focus();
+          const clamped = Math.max(0, Math.min(pos, el.value.length));
+          el.setSelectionRange(clamped, clamped);
+        });
+      }
     })();
     return () => {
       cancelled = true;
@@ -106,13 +132,73 @@ export default function EditorPage() {
     current
   );
 
+  /**
+   * M6-T3: 30 行超過時の自動次ページ遷移。
+   * - 現ページを keep で即時 savePage (flush 相当)
+   * - 次ページ既存 content の先頭に overflow を prepend して savePage
+   * - lastOpenedPage を next に更新し /book/:id/:next に navigate
+   * - 遷移後、textarea にカーソル位置 `overflow.length` を復元する (pendingCursorPosRef)
+   *
+   * 呼び出しは `onChange`（composition 中でない時）と `onCompositionEnd` から。
+   * 50 ページ目は T6.4 の onBeforeInput 側でロックされるためここでは発動させない。
+   */
+  const checkOverflowAndNavigate = useCallback(
+    (value: string) => {
+      if (!volumeId) return;
+      if (current >= PAGES_PER_VOLUME) return; // T6.4 ロック対象は発動させない
+      if (transitionLockRef.current) return;
+      const { keep, overflow } = splitAtLine30(value);
+      if (overflow.length === 0) return;
+
+      transitionLockRef.current = true;
+      const next = current + 1;
+      // 遷移後の初期カーソルを overflow.length に置く（次ページ先頭から overflow 末尾）
+      pendingCursorPosRef.current = overflow.length;
+      // textarea 内容を即 keep に差し替える（autosave の再発火や fade 中の古い値の上書きを防ぐ）
+      setText(keep);
+      setFading(true);
+
+      void (async () => {
+        try {
+          // 1) 現ページを keep で確定保存（autosave の debounce を待たない）
+          await savePage(volumeId, current, keep);
+          // 2) 次ページ既存 content を取得し、overflow を先頭に prepend
+          const existingNext = await getPage(volumeId, next);
+          const prevNextContent = existingNext?.content ?? '';
+          const nextContent =
+            prevNextContent.length === 0
+              ? overflow
+              : `${overflow}\n${prevNextContent}`;
+          await savePage(volumeId, next, nextContent);
+        } catch {
+          // 保存失敗でも遷移は継続（次ページの useEffect で再ロードされる）
+        }
+        try {
+          await updateVolumeLastOpenedPage(volumeId, next);
+        } catch {
+          // 握りつぶし
+        }
+        if (fadeTimerRef.current) clearTimeout(fadeTimerRef.current);
+        fadeTimerRef.current = setTimeout(() => {
+          navigate(`/book/${volumeId}/${next}`);
+        }, PAGE_FADE_MS);
+      })();
+    },
+    [volumeId, current, navigate]
+  );
+
   const handleChange = useCallback(
     (e: ChangeEvent<HTMLTextAreaElement>) => {
-      setText(e.target.value);
+      const value = e.target.value;
+      setText(value);
       const t = e.target as HTMLTextAreaElement;
       onSelectionChange(t.selectionStart ?? 0);
+      // IME 変換中は自動遷移判定をスキップ (M6-T2)。
+      // composition 終了時に onCompositionEnd から再判定する。
+      if (isComposingRef.current) return;
+      checkOverflowAndNavigate(value);
     },
-    [onSelectionChange]
+    [onSelectionChange, checkOverflowAndNavigate]
   );
 
   const handleSelect = useCallback(
@@ -121,6 +207,61 @@ export default function EditorPage() {
       onSelectionChange(t.selectionStart ?? 0);
     },
     [onSelectionChange]
+  );
+
+  // M6-T2: IME (composition) ガード。
+  // 変換中は自動遷移を抑止し、変換確定時に最新 value で再判定する。
+  const handleCompositionStart = useCallback(() => {
+    isComposingRef.current = true;
+  }, []);
+
+  const handleCompositionEnd = useCallback(
+    (e: ReactCompositionEvent<HTMLTextAreaElement>) => {
+      isComposingRef.current = false;
+      checkOverflowAndNavigate(e.currentTarget.value);
+    },
+    [checkOverflowAndNavigate]
+  );
+
+  /**
+   * M6-T4: 50 ページ目末尾ロック。
+   * 最終ページで overflow が発生する入力（改行・長文ペースト）を `onBeforeInput` で先読みキャンセル。
+   * - 削除や 30 行以内の入力は素通り（overflow が発生しないので preventDefault しない）。
+   * - IME 変換中（composition）は判定をスキップ（確定前の中間状態で誤判定しないため）。
+   * - 静けさ原則: トースト・点滅・触覚フィードバックは出さない（AGENTS.md #17）。
+   */
+  const handleBeforeInput = useCallback(
+    (e: FormEvent<HTMLTextAreaElement>) => {
+      if (current !== PAGES_PER_VOLUME) return;
+      if (isComposingRef.current) return;
+      const el = e.currentTarget;
+      // React の SyntheticInputEvent は `data` プロパティを（fallback で）持つ。
+      // 型には無いので unknown 経由でアクセス。native InputEvent.data も fallback として読む。
+      const syntheticData = (e as unknown as { data?: string | null }).data;
+      const nativeData = (
+        e as unknown as { nativeEvent?: { data?: string | null } }
+      ).nativeEvent?.data;
+      const raw =
+        typeof syntheticData === 'string'
+          ? syntheticData
+          : typeof nativeData === 'string'
+            ? nativeData
+            : '';
+      // keypress 由来で `\r` が返ってくるケース（Enter 押下）を `\n` として扱う
+      const inserted = raw === '\r' ? '\n' : raw;
+      // 削除系 inputType は data が null/空で overflow を増やさないので skip
+      if (!inserted) return;
+      const start = el.selectionStart ?? el.value.length;
+      const end = el.selectionEnd ?? el.value.length;
+      const nextValue =
+        el.value.slice(0, start) + inserted + el.value.slice(end);
+      // `overflow.length > 0` だと「30 行＋末尾改行」のケース (overflow="" だが lines=31) を
+      // 取りこぼす。行数ベースで `> LINES_PER_PAGE` なら常にロック対象とする。
+      if (nextValue.split('\n').length > LINES_PER_PAGE) {
+        e.preventDefault();
+      }
+    },
+    [current]
   );
 
   /**
@@ -185,8 +326,9 @@ export default function EditorPage() {
 
   // --- キーボード (M5-T5): PageUp / PageDown ---
   // preventDefault でブラウザ標準のスクロール動作を抑止してから goPage を呼ぶ。
-  // IME 変換中のガードは T6.2 で composing ref を参照する形で追加予定。
+  // M6-T2: IME 変換中は遷移を発動させない（composition 中の PageUp/Down で誤遷移防止）。
   const handleKeyDown = (e: ReactKeyboardEvent<HTMLTextAreaElement>) => {
+    if (isComposingRef.current) return;
     if (e.key === 'PageUp') {
       e.preventDefault();
       goPage(-1);
@@ -260,6 +402,9 @@ export default function EditorPage() {
           onChange={handleChange}
           onSelect={handleSelect}
           onKeyDown={handleKeyDown}
+          onBeforeInput={handleBeforeInput}
+          onCompositionStart={handleCompositionStart}
+          onCompositionEnd={handleCompositionEnd}
           autoComplete="off"
           autoCorrect="off"
           autoCapitalize="off"
