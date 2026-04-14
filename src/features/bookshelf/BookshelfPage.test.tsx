@@ -98,3 +98,30 @@ describe('BookshelfPage link targets (M4-T5)', () => {
     );
   });
 });
+
+describe('BookshelfPage auto-create & header (M4-T6)', () => {
+  it('does not render the old 書く header link', async () => {
+    await ensureActiveVolume();
+    renderPage();
+    await screen.findByRole('heading', { name: '本棚' });
+    expect(screen.queryByRole('link', { name: '書く' })).toBeNull();
+  });
+
+  it('auto-creates an initial volume when DB is empty', async () => {
+    // DB is wiped in beforeEach; no ensureActiveVolume call here
+    renderPage();
+    const link = await screen.findByRole('link', { name: /第1冊/ });
+    expect(link).toBeInTheDocument();
+    // Also ensure "まだ冊がありません" empty state is not shown
+    expect(screen.queryByText('まだ冊がありません')).toBeNull();
+  });
+
+  it('does not add a new volume when one already exists (idempotent)', async () => {
+    const v = await ensureActiveVolume();
+    renderPage();
+    await screen.findByRole('link', { name: new RegExp(`第${v.ordinal}冊`) });
+    // Only one card should be rendered
+    const cards = screen.getAllByRole('link', { name: /第\d+冊/ });
+    expect(cards.length).toBe(1);
+  });
+});

@@ -230,7 +230,7 @@ export default function SettingsPage() {
     <div className={styles.root}>
       <header className={styles.header}>
         <h1 className={styles.title}>設定</h1>
-        <Link to="/">書く</Link>
+        <Link to="/">本棚</Link>
       </header>
 
       <section className={styles.section}>

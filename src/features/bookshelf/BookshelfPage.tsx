@@ -2,6 +2,7 @@ import { useEffect, useState } from 'react';
 import { Link } from 'react-router-dom';
 import styles from './BookshelfPage.module.css';
 import {
+  ensureActiveVolume,
   getAllPages,
   getAllVolumes,
   getLatestUpdatedPageNumber,
@@ -24,7 +25,12 @@ export default function BookshelfPage() {
   useEffect(() => {
     let cancelled = false;
     (async () => {
-      const [vs, ps] = await Promise.all([getAllVolumes(), getAllPages()]);
+      let [vs, ps] = await Promise.all([getAllVolumes(), getAllPages()]);
+      // 冊 0 件なら自動で 1 冊作成して再ロード（初回起動 UX）
+      if (!cancelled && vs.length === 0) {
+        await ensureActiveVolume();
+        [vs, ps] = await Promise.all([getAllVolumes(), getAllPages()]);
+      }
       if (cancelled) return;
       // createdAt 降順で表示
       vs.sort((a, b) => b.createdAt.localeCompare(a.createdAt));
@@ -66,7 +72,6 @@ export default function BookshelfPage() {
         <h1 className={styles.title}>本棚</h1>
         <div style={{ display: 'flex', gap: '0.75rem' }}>
           <Link to="/settings">設定</Link>
-          <Link to="/">書く</Link>
         </div>
       </header>
 
