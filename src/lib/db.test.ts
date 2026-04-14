@@ -13,7 +13,7 @@ import { DB_NAME } from './constants';
 
 // 各テスト前に DB を捨てる
 async function wipeDB() {
-  _resetDBForTests();
+  await _resetDBForTests();
   await new Promise<void>((resolve, reject) => {
     const req = indexedDB.deleteDatabase(DB_NAME);
     req.onsuccess = () => resolve();

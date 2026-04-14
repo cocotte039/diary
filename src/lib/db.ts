@@ -3,7 +3,6 @@ import {
   DB_NAME,
   DB_VERSION,
   GITHUB_SETTINGS_KEY,
-  LINES_PER_PAGE,
 } from './constants';
 import type {
   GitHubSettings,
@@ -73,9 +72,17 @@ export function getDB(): Promise<IDBPDatabase<DiaryDB>> {
   return dbPromise;
 }
 
-/** テスト用: DB ハンドルをリセットする */
-export function _resetDBForTests() {
-  dbPromise = null;
+/** テスト用: DB ハンドルをリセットする（接続があれば閉じる） */
+export async function _resetDBForTests() {
+  if (dbPromise) {
+    try {
+      const db = await dbPromise;
+      db.close();
+    } catch {
+      // ignore
+    }
+    dbPromise = null;
+  }
 }
 
 function nowIso(): string {

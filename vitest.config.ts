@@ -1,3 +1,14 @@
-// Vitest は vite.config.ts の test フィールドを参照する。
-// 独立の設定が必要な場合はここに定義する（現在はプレースホルダ）。
-export { default } from './vite.config';
+import { defineConfig, mergeConfig } from 'vitest/config';
+import viteConfig from './vite.config';
+
+export default mergeConfig(
+  viteConfig,
+  defineConfig({
+    test: {
+      globals: true,
+      environment: 'jsdom',
+      setupFiles: ['./src/test/setup.ts'],
+      css: false,
+    },
+  }),
+);
