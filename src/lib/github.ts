@@ -170,7 +170,7 @@ export async function syncPendingPages(): Promise<{
   return { synced, failed };
 }
 
-/** 非同期に発火するだけのヘルパ（useAutoSave から fire-and-forget） */
+/** 非同期に発火するだけのヘルパ（autosave から fire-and-forget） */
 export function syncPendingPagesBackground() {
   void syncPendingPages().catch((err) => {
     // eslint-disable-next-line no-console

@@ -1,10 +1,25 @@
-import { describe, expect, it } from 'vitest';
+import { describe, expect, it, vi } from 'vitest';
 import { render, screen, waitFor } from '@testing-library/react';
-import { MemoryRouter, Route, Routes, Navigate, useParams, useLocation } from 'react-router-dom';
+import {
+  MemoryRouter,
+  Route,
+  Routes,
+  Navigate,
+  useParams,
+  useLocation,
+} from 'react-router-dom';
 import BookshelfPage from './features/bookshelf/BookshelfPage';
 import EditorPage from './features/editor/EditorPage';
 import SettingsPage from './features/settings/SettingsPage';
-import WritePage from './features/write/WritePage';
+
+// GitHub 同期は本テストの対象外なのでモック
+vi.mock('./lib/github', () => ({
+  syncPendingPagesBackground: vi.fn(),
+  registerOnlineSync: vi.fn(() => () => {}),
+  importFromGitHub: vi.fn(),
+  syncPendingPages: vi.fn(),
+  testConnection: vi.fn(),
+}));
 
 /**
  * ReadRedirect は App.tsx 内部の小関数だが、テストのためルート構造を複製する。
@@ -28,14 +43,13 @@ function AppRoutes() {
       <Route path="/book/:volumeId/:pageNumber" element={<EditorPage />} />
       <Route path="/read/:volumeId/:pageNumber" element={<ReadRedirect />} />
       <Route path="/bookshelf" element={<Navigate to="/" replace />} />
-      <Route path="/write" element={<WritePage />} />
       <Route path="/settings" element={<SettingsPage />} />
       <Route path="*" element={<Navigate to="/" replace />} />
     </Routes>
   );
 }
 
-describe('App routing (M4-T1)', () => {
+describe('App routing (M4-T1 / M7-T5)', () => {
   it('renders BookshelfPage at "/"', async () => {
     render(
       <MemoryRouter initialEntries={['/']}>
@@ -84,6 +98,19 @@ describe('App routing (M4-T1)', () => {
   it('falls back unknown paths to /', () => {
     render(
       <MemoryRouter initialEntries={['/no/such/route']}>
+        <>
+          <AppRoutes />
+          <LocationProbe />
+        </>
+      </MemoryRouter>
+    );
+    expect(screen.getByTestId('location')).toHaveTextContent('/');
+  });
+
+  // M7-T5: 旧 /write URL も path="*" で / (本棚) にフォールバックする
+  it('falls back removed /write path to /', () => {
+    render(
+      <MemoryRouter initialEntries={['/write']}>
         <>
           <AppRoutes />
           <LocationProbe />
