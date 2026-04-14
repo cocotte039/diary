@@ -30,9 +30,35 @@
 .header a:active {
   opacity: 1;
 }
+
+/* ページ番号と左右ボタンは中央でまとめてクラスタにする */
+.pageCluster {
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+  pointer-events: none;
+}
 .pageNumber {
   pointer-events: none;
   opacity: 0.5;
+}
+
+.navBtn {
+  pointer-events: auto;
+  font-family: var(--font-family-ui);
+  font-size: 1rem;
+  line-height: 1;
+  padding: 0.25rem 0.5rem;
+  color: inherit;
+  opacity: 0.3;
+  transition: opacity 120ms ease;
+}
+.navBtn:active:not(:disabled) {
+  opacity: 0.6;
+}
+.navBtn:disabled {
+  opacity: 0.1;
+  cursor: default;
 }
 
 .textarea {

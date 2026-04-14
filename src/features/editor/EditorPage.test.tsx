@@ -1,7 +1,13 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import { render, screen, waitFor, fireEvent } from '@testing-library/react';
-import { MemoryRouter, Routes, Route } from 'react-router-dom';
-import { _resetDBForTests, ensureActiveVolume, savePage } from '../../lib/db';
+import { MemoryRouter, Routes, Route, useLocation } from 'react-router-dom';
+import {
+  _resetDBForTests,
+  ensureActiveVolume,
+  getPage,
+  getVolume,
+  savePage,
+} from '../../lib/db';
 import { DB_NAME, PAGES_PER_VOLUME } from '../../lib/constants';
 import EditorPage from './EditorPage';
 
@@ -29,6 +35,27 @@ afterEach(async () => {
 function renderAt(path: string) {
   return render(
     <MemoryRouter initialEntries={[path]}>
+      <Routes>
+        <Route path="/book/:volumeId/:pageNumber" element={<EditorPage />} />
+      </Routes>
+    </MemoryRouter>
+  );
+}
+
+/** ルーティング状態監視用 probe */
+function LocationProbe({ onChange }: { onChange: (pathname: string) => void }) {
+  const loc = useLocation();
+  onChange(loc.pathname);
+  return null;
+}
+
+function renderWithLocationProbe(
+  path: string,
+  onChange: (pathname: string) => void
+) {
+  return render(
+    <MemoryRouter initialEntries={[path]}>
+      <LocationProbe onChange={onChange} />
       <Routes>
         <Route path="/book/:volumeId/:pageNumber" element={<EditorPage />} />
       </Routes>
@@ -84,5 +111,80 @@ describe('EditorPage (M4-T3)', () => {
     const textarea = (await screen.findByLabelText('日記本文')) as HTMLTextAreaElement;
     await waitFor(() => expect(textarea.value).toBe('first'));
     expect(screen.getByText(`1 / ${PAGES_PER_VOLUME}`)).toBeInTheDocument();
+  });
+});
+
+describe('EditorPage page navigation buttons (M5-T1)', () => {
+  it('「次のページ」ボタンで pageNumber+1 のページに遷移する', async () => {
+    const v = await ensureActiveVolume();
+    await savePage(v.id, 1, 'one');
+    await savePage(v.id, 2, 'two');
+    let pathname = '';
+    renderWithLocationProbe(`/book/${v.id}/1`, (p) => {
+      pathname = p;
+    });
+    const textarea = (await screen.findByLabelText('日記本文')) as HTMLTextAreaElement;
+    await waitFor(() => expect(textarea.value).toBe('one'));
+
+    fireEvent.click(screen.getByRole('button', { name: '次のページ' }));
+    await waitFor(() => expect(pathname).toBe(`/book/${v.id}/2`));
+  });
+
+  it('「前のページ」ボタンで pageNumber-1 のページに遷移する', async () => {
+    const v = await ensureActiveVolume();
+    await savePage(v.id, 1, 'one');
+    await savePage(v.id, 2, 'two');
+    let pathname = '';
+    renderWithLocationProbe(`/book/${v.id}/2`, (p) => {
+      pathname = p;
+    });
+    await screen.findByLabelText('日記本文');
+    fireEvent.click(screen.getByRole('button', { name: '前のページ' }));
+    await waitFor(() => expect(pathname).toBe(`/book/${v.id}/1`));
+  });
+
+  it('1 ページ目で「前のページ」ボタンが無効', async () => {
+    const v = await ensureActiveVolume();
+    renderAt(`/book/${v.id}/1`);
+    await screen.findByLabelText('日記本文');
+    const prev = screen.getByRole('button', { name: '前のページ' }) as HTMLButtonElement;
+    expect(prev.disabled).toBe(true);
+  });
+
+  it('最終ページで「次のページ」ボタンが無効', async () => {
+    const v = await ensureActiveVolume();
+    renderAt(`/book/${v.id}/${PAGES_PER_VOLUME}`);
+    await screen.findByLabelText('日記本文');
+    const next = screen.getByRole('button', { name: '次のページ' }) as HTMLButtonElement;
+    expect(next.disabled).toBe(true);
+  });
+
+  it('遷移前に編集中のテキストが flush で保存される（データロス防止）', async () => {
+    const v = await ensureActiveVolume();
+    let pathname = '';
+    renderWithLocationProbe(`/book/${v.id}/1`, (p) => {
+      pathname = p;
+    });
+    const textarea = (await screen.findByLabelText('日記本文')) as HTMLTextAreaElement;
+    fireEvent.change(textarea, { target: { value: 'unsaved draft' } });
+    fireEvent.click(screen.getByRole('button', { name: '次のページ' }));
+    await waitFor(() => expect(pathname).toBe(`/book/${v.id}/2`));
+    const saved = await getPage(v.id, 1);
+    expect(saved?.content).toBe('unsaved draft');
+  });
+
+  it('遷移時に Volume.lastOpenedPage が次ページ番号に更新される', async () => {
+    const v = await ensureActiveVolume();
+    let pathname = '';
+    renderWithLocationProbe(`/book/${v.id}/1`, (p) => {
+      pathname = p;
+    });
+    await screen.findByLabelText('日記本文');
+    fireEvent.click(screen.getByRole('button', { name: '次のページ' }));
+    await waitFor(() => expect(pathname).toBe(`/book/${v.id}/2`));
+    await waitFor(async () => {
+      const after = await getVolume(v.id);
+      expect(after?.lastOpenedPage).toBe(2);
+    });
   });
 });
