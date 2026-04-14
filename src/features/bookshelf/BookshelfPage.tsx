@@ -2,6 +2,7 @@ import { useCallback, useEffect, useState } from 'react';
 import { Link } from 'react-router-dom';
 import styles from './BookshelfPage.module.css';
 import {
+  deleteVolume,
   ensureActiveVolume,
   getActiveVolume,
   getAllPages,
@@ -85,6 +86,20 @@ export default function BookshelfPage() {
     setReloadKey((k) => k + 1);
   }, []);
 
+  /**
+   * M8-4-T8-4.3: VolumeCard からの長押し削除要求を受けて冊を削除。
+   * 静けさ原則: 失敗時も toast は出さず console.error のみ。成功/失敗いずれも
+   * reloadKey を進めて DB 状態を正として再読み込みする。
+   */
+  const handleDelete = useCallback(async (volumeId: string) => {
+    try {
+      await deleteVolume(volumeId);
+    } catch (err) {
+      console.error('deleteVolume failed:', err);
+    }
+    setReloadKey((k) => k + 1);
+  }, []);
+
   const pagesByVolume = new Map<string, Page[]>();
   for (const p of pages) {
     const arr = pagesByVolume.get(p.volumeId) ?? [];
@@ -111,6 +126,7 @@ export default function BookshelfPage() {
               volume={v}
               pages={pagesByVolume.get(v.id) ?? []}
               initialPage={initialPages.get(v.id) ?? 1}
+              onDelete={handleDelete}
             />
           ))}
           {/* M6-T5: グリッド末尾に新しい冊カード（冊0件時は非表示） */}
