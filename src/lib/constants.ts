@@ -32,7 +32,7 @@ export const SWIPE_THRESHOLD_PX = 50;
 
 /** IndexedDB 名 */
 export const DB_NAME = 'diary';
-export const DB_VERSION = 1;
+export const DB_VERSION = 2;
 
 /** localStorage キー */
 export const LS_CURSOR_KEY = 'note-cursor-position';

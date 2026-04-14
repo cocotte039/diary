@@ -16,6 +16,8 @@ export interface Volume {
   status: VolumeStatus;
   /** 何冊目か（1-indexed）。表示用に保持。 */
   ordinal: number;
+  /** 最後に開いたページ番号 (1〜PAGES_PER_VOLUME)。未設定なら最終更新ページへフォールバック。 */
+  lastOpenedPage?: number;
 }
 
 export interface Page {

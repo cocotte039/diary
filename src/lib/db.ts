@@ -50,7 +50,9 @@ let dbPromise: Promise<IDBPDatabase<DiaryDB>> | null = null;
 export function getDB(): Promise<IDBPDatabase<DiaryDB>> {
   if (!dbPromise) {
     dbPromise = openDB<DiaryDB>(DB_NAME, DB_VERSION, {
-      upgrade(db) {
+      // v1→v2 は Volume.lastOpenedPage (optional) 追加のみでスキーマ変化は無い。
+      // 既存ストアは現行方式（contains ガード）で新規ユーザー作成漏れを防ぐ。
+      upgrade(db, oldVersion) {
         if (!db.objectStoreNames.contains('volumes')) {
           const vs = db.createObjectStore('volumes', { keyPath: 'id' });
           vs.createIndex('by-status', 'status');
@@ -65,6 +67,10 @@ export function getDB(): Promise<IDBPDatabase<DiaryDB>> {
         }
         if (!db.objectStoreNames.contains('meta')) {
           db.createObjectStore('meta');
+        }
+        if (oldVersion < 2) {
+          // v2: Volume.lastOpenedPage (optional) 追加。
+          // 既存レコードの書換不要 (optional フィールドなので undefined で読める)。
         }
       },
     });
@@ -280,6 +286,84 @@ export async function saveVolumeText(
 export async function loadVolumeText(volumeId: string): Promise<string> {
   const pages = await getPagesByVolume(volumeId);
   return pages.map((p) => p.content).join('\n');
+}
+
+/**
+ * 単一ページのみを更新する（他ページには一切触れない）。
+ * 既存: content/updatedAt/syncStatus=pending を更新。
+ * 未存在: 新規 Page を作成 (createdAt=now, id=uuid)。
+ * EditorPage (M4-T3) の autosave から呼ばれる前提。
+ */
+export async function savePage(
+  volumeId: string,
+  pageNumber: number,
+  content: string
+): Promise<Page> {
+  const db = await getDB();
+  const tx = db.transaction('pages', 'readwrite');
+  const store = tx.objectStore('pages');
+  const idx = store.index('by-volume-page');
+  const existing = await idx.get([volumeId, pageNumber]);
+  const now = nowIso();
+  let saved: Page;
+  if (existing) {
+    saved = {
+      ...existing,
+      content,
+      updatedAt: now,
+      syncStatus: 'pending',
+    };
+  } else {
+    saved = {
+      id: uuid(),
+      volumeId,
+      pageNumber,
+      content,
+      createdAt: now,
+      updatedAt: now,
+      syncStatus: 'pending',
+    };
+  }
+  await store.put(saved);
+  await tx.done;
+  return saved;
+}
+
+/**
+ * Volume.lastOpenedPage を更新する。
+ * ページ遷移時に呼ばれ、次回本棚からの復帰で同じページに戻れるようにする。
+ */
+export async function updateVolumeLastOpenedPage(
+  volumeId: string,
+  pageNumber: number
+): Promise<void> {
+  const db = await getDB();
+  const tx = db.transaction('volumes', 'readwrite');
+  const store = tx.objectStore('volumes');
+  const v = await store.get(volumeId);
+  if (v) {
+    v.lastOpenedPage = pageNumber;
+    await store.put(v);
+  }
+  await tx.done;
+}
+
+/**
+ * 最終更新ページ番号を返す。ページが 1 枚も無い場合は 1 を返す。
+ * lastOpenedPage フォールバック（本棚カードのリンク先決定）で利用。
+ */
+export async function getLatestUpdatedPageNumber(
+  volumeId: string
+): Promise<number> {
+  const pages = await getPagesByVolume(volumeId);
+  if (pages.length === 0) return 1;
+  let best = pages[0];
+  for (const p of pages) {
+    if (p.updatedAt.localeCompare(best.updatedAt) > 0) {
+      best = p;
+    }
+  }
+  return best.pageNumber;
 }
 
 // =============================================================================

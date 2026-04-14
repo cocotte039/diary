@@ -4,12 +4,17 @@ import {
   ensureActiveVolume,
   getAllPages,
   getAllVolumes,
+  getLatestUpdatedPageNumber,
+  getPage,
   getPagesByVolume,
+  getVolume,
   loadVolumeText,
   replaceAllData,
   rotateVolume,
+  savePage,
   saveVolumeText,
   findPageByDate,
+  updateVolumeLastOpenedPage,
 } from './db';
 import { DB_NAME } from './constants';
 import type { Page, Volume } from '../types';
@@ -183,5 +188,106 @@ describe('db.replaceAllData', () => {
     await replaceAllData([], []);
     expect((await getAllVolumes()).length).toBe(0);
     expect((await getAllPages()).length).toBe(0);
+  });
+});
+
+describe('db.savePage (M4-T2)', () => {
+  it('creates a new page when none exists', async () => {
+    const v = await ensureActiveVolume();
+    const saved = await savePage(v.id, 3, 'page 3 content');
+    expect(saved.volumeId).toBe(v.id);
+    expect(saved.pageNumber).toBe(3);
+    expect(saved.content).toBe('page 3 content');
+    expect(saved.syncStatus).toBe('pending');
+    expect(typeof saved.id).toBe('string');
+    expect(saved.id.length).toBeGreaterThan(0);
+  });
+
+  it('updates existing page content / updatedAt / syncStatus', async () => {
+    const v = await ensureActiveVolume();
+    const first = await savePage(v.id, 2, 'first');
+    // tick to ensure updatedAt differs
+    await new Promise((r) => setTimeout(r, 5));
+    const second = await savePage(v.id, 2, 'second');
+    expect(second.id).toBe(first.id);
+    expect(second.content).toBe('second');
+    expect(second.syncStatus).toBe('pending');
+    expect(second.updatedAt >= first.updatedAt).toBe(true);
+  });
+
+  it('does not touch other pages (updatedAt / content unchanged)', async () => {
+    const v = await ensureActiveVolume();
+    // seed pages 1,2,3,4,5 via saveVolumeText (fills page 1 only via savePage for determinism)
+    await savePage(v.id, 1, 'p1');
+    await savePage(v.id, 2, 'p2');
+    await savePage(v.id, 3, 'p3');
+    await savePage(v.id, 4, 'p4');
+    await savePage(v.id, 5, 'p5');
+    const before = await getPagesByVolume(v.id);
+    const byN = new Map(before.map((p) => [p.pageNumber, p]));
+    await new Promise((r) => setTimeout(r, 5));
+    await savePage(v.id, 3, 'p3-updated');
+    const after = await getPagesByVolume(v.id);
+    const afterByN = new Map(after.map((p) => [p.pageNumber, p]));
+    for (const n of [1, 2, 4, 5]) {
+      expect(afterByN.get(n)!.updatedAt).toBe(byN.get(n)!.updatedAt);
+      expect(afterByN.get(n)!.content).toBe(byN.get(n)!.content);
+    }
+    expect(afterByN.get(3)!.content).toBe('p3-updated');
+  });
+});
+
+describe('db.updateVolumeLastOpenedPage (M4-T2)', () => {
+  it('persists lastOpenedPage on the volume', async () => {
+    const v = await ensureActiveVolume();
+    await updateVolumeLastOpenedPage(v.id, 7);
+    const got = await getVolume(v.id);
+    expect(got?.lastOpenedPage).toBe(7);
+  });
+
+  it('is a no-op when volume does not exist', async () => {
+    await updateVolumeLastOpenedPage('missing-id', 3);
+    // no throw
+    expect(true).toBe(true);
+  });
+});
+
+describe('db.getLatestUpdatedPageNumber (M4-T2)', () => {
+  it('returns 1 for a volume with no pages', async () => {
+    // Create a volume without Page #1 by using replaceAllData
+    await replaceAllData(
+      [
+        {
+          id: 'v-empty',
+          ordinal: 1,
+          status: 'active',
+          createdAt: '2025-01-01T00:00:00.000Z',
+        },
+      ],
+      []
+    );
+    expect(await getLatestUpdatedPageNumber('v-empty')).toBe(1);
+  });
+
+  it('returns the page number of the page with latest updatedAt', async () => {
+    const v = await ensureActiveVolume();
+    await savePage(v.id, 1, 'a');
+    await new Promise((r) => setTimeout(r, 5));
+    await savePage(v.id, 2, 'b');
+    await new Promise((r) => setTimeout(r, 5));
+    await savePage(v.id, 3, 'c');
+    // update page 2 last
+    await new Promise((r) => setTimeout(r, 5));
+    await savePage(v.id, 2, 'b-latest');
+    expect(await getLatestUpdatedPageNumber(v.id)).toBe(2);
+  });
+});
+
+describe('db v2: Volume.lastOpenedPage roundtrip', () => {
+  it('getPage still works after DB v2 migration', async () => {
+    const v = await ensureActiveVolume();
+    await savePage(v.id, 4, 'hello');
+    const p = await getPage(v.id, 4);
+    expect(p?.content).toBe('hello');
   });
 });
