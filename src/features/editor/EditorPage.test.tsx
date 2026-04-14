@@ -307,3 +307,58 @@ describe('EditorPage swipe navigation (M5-T3)', () => {
     expect(pathname).toBe(`/book/${v.id}/1`);
   });
 });
+
+describe('EditorPage keyboard navigation (M5-T5)', () => {
+  it('PageDown で次ページに遷移する', async () => {
+    const v = await ensureActiveVolume();
+    let pathname = '';
+    renderWithLocationProbe(`/book/${v.id}/1`, (p) => {
+      pathname = p;
+    });
+    const textarea = await screen.findByLabelText('日記本文');
+    fireEvent.keyDown(textarea, { key: 'PageDown' });
+    await waitFor(() => expect(pathname).toBe(`/book/${v.id}/2`));
+  });
+
+  it('PageUp で前ページに遷移する', async () => {
+    const v = await ensureActiveVolume();
+    let pathname = '';
+    renderWithLocationProbe(`/book/${v.id}/3`, (p) => {
+      pathname = p;
+    });
+    const textarea = await screen.findByLabelText('日記本文');
+    fireEvent.keyDown(textarea, { key: 'PageUp' });
+    await waitFor(() => expect(pathname).toBe(`/book/${v.id}/2`));
+  });
+
+  it('1 ページ目で PageUp は no-op（preventDefault のみ）', async () => {
+    const v = await ensureActiveVolume();
+    let pathname = '';
+    renderWithLocationProbe(`/book/${v.id}/1`, (p) => {
+      pathname = p;
+    });
+    const textarea = await screen.findByLabelText('日記本文');
+    fireEvent.keyDown(textarea, { key: 'PageUp' });
+    await new Promise((r) => setTimeout(r, 250));
+    expect(pathname).toBe(`/book/${v.id}/1`);
+  });
+
+  it('PageUp/PageDown はブラウザのデフォルトスクロール動作を抑止する (preventDefault)', async () => {
+    const v = await ensureActiveVolume();
+    renderAt(`/book/${v.id}/2`);
+    const textarea = await screen.findByLabelText('日記本文');
+    // fireEvent.keyDown は preventDefault されていれば false を返す
+    const down = fireEvent.keyDown(textarea, { key: 'PageDown' });
+    expect(down).toBe(false);
+    const up = fireEvent.keyDown(textarea, { key: 'PageUp' });
+    expect(up).toBe(false);
+  });
+
+  it('PageUp/PageDown 以外のキーは preventDefault しない', async () => {
+    const v = await ensureActiveVolume();
+    renderAt(`/book/${v.id}/2`);
+    const textarea = await screen.findByLabelText('日記本文');
+    const other = fireEvent.keyDown(textarea, { key: 'a' });
+    expect(other).toBe(true);
+  });
+});

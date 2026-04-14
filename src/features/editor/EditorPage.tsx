@@ -4,6 +4,7 @@ import {
   useState,
   useCallback,
   type ChangeEvent,
+  type KeyboardEvent as ReactKeyboardEvent,
   type TouchEvent as ReactTouchEvent,
 } from 'react';
 import { Link, useNavigate, useParams } from 'react-router-dom';
@@ -23,11 +24,11 @@ const PAGE_FADE_MS = 180;
  * - ロード: getPage(volumeId, current) → textarea に content を流し込む
  * - 保存: useEditorAutoSave(volumeId, current, text) で 2 秒 debounce + flush
  * - ヘッダー: 左「本棚」/ 中央「‹ n / 50 ›」/ 右「設定」
- * - ページ遷移 (M5-T1/T2/T3): 左右ボタン + 180ms フェード (--transition-page)
- *   + 左右スワイプ（textarea 外の余白領域のみ反応, A 案）。
+ * - ページ遷移 (M5-T1/T2/T3/T5): 左右ボタン + 180ms フェード (--transition-page)
+ *   + 左右スワイプ（textarea 外の余白領域のみ反応, A 案）
+ *   + PageUp/PageDown キー（textarea にフォーカスがある時のみ）。
  *   遷移前に autosave flush + lastOpenedPage 更新。
  *
- * PageUp/PageDown は後続タスク (M5-T5) で追加。
  * 30 行ロック・IME ガード等は M6/M7 で追加。
  */
 export default function EditorPage() {
@@ -182,6 +183,19 @@ export default function EditorPage() {
     touchStartYRef.current = t.clientY;
   };
 
+  // --- キーボード (M5-T5): PageUp / PageDown ---
+  // preventDefault でブラウザ標準のスクロール動作を抑止してから goPage を呼ぶ。
+  // IME 変換中のガードは T6.2 で composing ref を参照する形で追加予定。
+  const handleKeyDown = (e: ReactKeyboardEvent<HTMLTextAreaElement>) => {
+    if (e.key === 'PageUp') {
+      e.preventDefault();
+      goPage(-1);
+    } else if (e.key === 'PageDown') {
+      e.preventDefault();
+      goPage(1);
+    }
+  };
+
   const onTouchEnd = (e: ReactTouchEvent<HTMLDivElement>) => {
     if (isFromTextarea(e.target)) return;
     const startX = touchStartXRef.current;
@@ -245,6 +259,7 @@ export default function EditorPage() {
           value={text}
           onChange={handleChange}
           onSelect={handleSelect}
+          onKeyDown={handleKeyDown}
           autoComplete="off"
           autoCorrect="off"
           autoCapitalize="off"
