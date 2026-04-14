@@ -11,6 +11,7 @@ import styles from './EditorPage.module.css';
 import { getPage, updateVolumeLastOpenedPage } from '../../lib/db';
 import { PAGES_PER_VOLUME, SWIPE_THRESHOLD_PX } from '../../lib/constants';
 import { useEditorAutoSave } from './useEditorAutoSave';
+import { useEditorCursor } from '../../hooks/useEditorCursor';
 
 /** ページめくりフェードの所要時間 (ms)。global.css の --transition-page と同期させる。 */
 const PAGE_FADE_MS = 180;
@@ -52,6 +53,8 @@ export default function EditorPage() {
   // スワイプ開始座標 (M5-T3)
   const touchStartXRef = useRef<number | null>(null);
   const touchStartYRef = useRef<number | null>(null);
+  // textarea 参照（カーソル復元 M5-T4 用）
+  const textareaRef = useRef<HTMLTextAreaElement | null>(null);
 
   useEffect(() => {
     let cancelled = false;
@@ -93,9 +96,30 @@ export default function EditorPage() {
   // autosave 配線（本番コードパス）
   const { flush } = useEditorAutoSave(ready ? volumeId : null, current, text);
 
+  // カーソル復元 (M5-T4): ページ単位でスコープ化された localStorage キーを使う
+  const { onSelectionChange } = useEditorCursor(
+    textareaRef,
+    text,
+    ready,
+    volumeId,
+    current
+  );
+
   const handleChange = useCallback(
-    (e: ChangeEvent<HTMLTextAreaElement>) => setText(e.target.value),
-    []
+    (e: ChangeEvent<HTMLTextAreaElement>) => {
+      setText(e.target.value);
+      const t = e.target as HTMLTextAreaElement;
+      onSelectionChange(t.selectionStart ?? 0);
+    },
+    [onSelectionChange]
+  );
+
+  const handleSelect = useCallback(
+    (e: React.SyntheticEvent<HTMLTextAreaElement>) => {
+      const t = e.currentTarget;
+      onSelectionChange(t.selectionStart ?? 0);
+    },
+    [onSelectionChange]
   );
 
   /**
@@ -215,10 +239,12 @@ export default function EditorPage() {
         data-testid="editor-surface"
       >
         <textarea
+          ref={textareaRef}
           data-testid="editor-textarea"
           className={`notebook-surface notebook-textarea ${styles.textarea}`}
           value={text}
           onChange={handleChange}
+          onSelect={handleSelect}
           autoComplete="off"
           autoCorrect="off"
           autoCapitalize="off"
