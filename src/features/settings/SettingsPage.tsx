@@ -228,7 +228,7 @@ export default function SettingsPage() {
 
   return (
     <div className={styles.root}>
-      <header className={styles.header}>
+      <header className={`app-header ${styles.header}`}>
         <h1 className={styles.title}>設定</h1>
         <Link to="/" className="app-header-link">本棚</Link>
       </header>
