@@ -56,3 +56,8 @@ export const GITHUB_SYNC_MAX_RETRIES = 3;
 
 /** GitHub 同期リトライの初期待機 (ms)、以後 exponential */
 export const GITHUB_SYNC_INITIAL_BACKOFF_MS = 1000;
+
+/** 長押し検知までの時間 (ms)。iOS context menu (500ms〜) と同等で自然。 */
+export const LONG_PRESS_MS = 500;
+/** 長押し中に指が動いてもキャンセルしない閾値 (px)。 */
+export const LONG_PRESS_MOVE_TOLERANCE_PX = 10;

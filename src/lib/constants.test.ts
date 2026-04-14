@@ -4,6 +4,8 @@ import {
   HEADER_HEIGHT_PX,
   LINE_HEIGHT_EM,
   LINE_HEIGHT_PX,
+  LONG_PRESS_MOVE_TOLERANCE_PX,
+  LONG_PRESS_MS,
 } from './constants';
 
 describe('constants (M7-T1)', () => {
@@ -15,5 +17,15 @@ describe('constants (M7-T1)', () => {
     expect(HEADER_HEIGHT_PX).toBe(2 * LINE_HEIGHT_PX);
     // Currently that works out to 57.6 with default values (16 * 1.8 * 2).
     expect(HEADER_HEIGHT_PX).toBeCloseTo(57.6, 5);
+  });
+});
+
+describe('constants (M8-4-T8-4.1) long-press', () => {
+  it('LONG_PRESS_MS', () => {
+    expect(LONG_PRESS_MS).toBe(500);
+  });
+
+  it('LONG_PRESS_MOVE_TOLERANCE_PX', () => {
+    expect(LONG_PRESS_MOVE_TOLERANCE_PX).toBe(10);
   });
 });
