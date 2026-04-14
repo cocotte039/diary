@@ -9,11 +9,15 @@ B5大学ノートに万年筆で書いていた手書き日記の体験を、布
 
 ## 主要機能
 
-- ノート風 UI: フルスクリーン textarea + 罫線背景 + Klee One フォント + ダークモード
-- 30 行ごとのページ区切り線 / 50 ページで 1 冊 → 自動切替 / 手動切替
-- IndexedDB によるローカル永続化（自動保存 2 秒 debounce）
-- 前回のカーソル位置・スクロールを復元（localStorage）
-- 本棚（冊一覧カード）/ 読み返し（スワイプでページめくり）/ カレンダー日付ジャンプ
+- 本棚が起点: メイン画面が本棚。冊タップでその冊の「最後に開いたページ」から編集再開
+- ページ単位 UI: 1 ページ = 1 textarea の独立画面。左右ボタン / スワイプ / PageUp・PageDown でめくる（180ms フェード）
+- ノート風 UI: 罫線背景 + Klee One + ダークモード、ヘッダーと本文 1 行目が重ならない罫線整合
+- 30 行到達で次ページへ自動遷移（IME 変換中はガード）、50 ページで冊終了（静かに入力ロック）
+- 新冊作成は本棚の「＋ 新しい冊」カードからのみ（確認ダイアログ付き）
+- IndexedDB によるローカル永続化（ページ単位 savePage、2 秒 debounce、遷移時 flush）
+- 冊ごとに「最後に開いたページ」「カーソル位置」を記憶して復元
+- カレンダー日付ジャンプ / 旧 `/read` URL は `/book` へリダイレクト互換
+- ヘッダー右端にモノクロ SVG の日付挿入アイコン（`YYYY年M月D日(曜)\n` を挿入）
 - GitHub Private リポジトリへの自動バックアップ（オフラインキュー + online 復帰時再同期）
 - PWA 対応（vite-plugin-pwa / Workbox / Google Fonts の runtime cache）
 - JSON エクスポート（データ消失リスク緩和）/ iOS Safari の A2HS バナー
@@ -26,19 +30,27 @@ B5大学ノートに万年筆で書いていた手書き日記の体験を、布
 diary/
 ├─ public/          # manifest.json / icon.svg / (PNG は別PCで生成)
 ├─ src/
-│  ├─ styles/       # global.css (CSS変数), notebook.css (罫線共通)
-│  ├─ lib/          # constants, pagination, db (idb), github, export, pwa
-│  ├─ hooks/        # useAutoSave, useCursorRestore, useDebouncedCallback
+│  ├─ styles/       # global.css (CSS変数 / --header-height / app-header-link), notebook.css (罫線共通)
+│  ├─ lib/          # constants, pagination (splitAtLine30), db (idb v2), github, export, pwa
+│  ├─ hooks/        # useEditorCursor, useDebouncedCallback
 │  ├─ features/
-│  │  ├─ write/     # WritePage, useWrite
-│  │  ├─ bookshelf/ # BookshelfPage, VolumeCard, Calendar
-│  │  ├─ reader/    # ReaderPage
+│  │  ├─ editor/    # EditorPage, useEditorAutoSave, DateIcon
+│  │  ├─ bookshelf/ # BookshelfPage, VolumeCard, NewVolumeCard, Calendar
 │  │  └─ settings/  # SettingsPage
 │  ├─ types/        # 型定義 (Volume/Page/ExportPayload 他)
 │  └─ test/         # Vitest セットアップ (fake-indexeddb)
 ├─ index.html, vite.config.ts, tsconfig.json, package.json
 └─ .claude/loop/    # 実装計画 & エージェント向けドキュメント
 ```
+
+### ルーティング
+
+| パス | 画面 |
+|---|---|
+| `/` | 本棚（メイン） |
+| `/book/:volumeId/:pageNumber` | エディタ（ページ単位） |
+| `/settings` | 設定 |
+| `/read/:volumeId/:pageNumber` | 旧 URL → `/book/...` へリダイレクト |
 
 ---
 
@@ -88,7 +100,8 @@ iOS PWA インストール確認、トラブルシュートは:
 ## ドキュメント
 
 - [`HANDOFF.md`](./HANDOFF.md) — 別PCでの初回セットアップ・デプロイ手順
-- [`.claude/loop/IMPLEMENTATION_PLAN.md`](./.claude/loop/IMPLEMENTATION_PLAN.md) — 実装計画（14タスク）
+- [`.claude/loop/IMPLEMENTATION_PLAN.md`](./.claude/loop/IMPLEMENTATION_PLAN.md) — 実装計画（M1-M7、計 38 タスク。M1-M3 は初期リリース、M4-M7 は UX 刷新）
+- [`.whiteboard/plan.md`](./.whiteboard/plan.md) — M4-M7 UX 刷新の詳細設計
 - [`.claude/loop/AGENTS.md`](./.claude/loop/AGENTS.md) — アーキテクチャ方針と設計判断
 - [`.claude/loop/STATE.md`](./.claude/loop/STATE.md) — 現在のプロジェクト状態
 - [`.claude/loop/specs/`](./.claude/loop/specs/) — 各タスクの仕様と完了サマリー
