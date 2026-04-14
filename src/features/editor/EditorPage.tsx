@@ -4,11 +4,12 @@ import {
   useState,
   useCallback,
   type ChangeEvent,
+  type TouchEvent as ReactTouchEvent,
 } from 'react';
 import { Link, useNavigate, useParams } from 'react-router-dom';
 import styles from './EditorPage.module.css';
 import { getPage, updateVolumeLastOpenedPage } from '../../lib/db';
-import { PAGES_PER_VOLUME } from '../../lib/constants';
+import { PAGES_PER_VOLUME, SWIPE_THRESHOLD_PX } from '../../lib/constants';
 import { useEditorAutoSave } from './useEditorAutoSave';
 
 /** ページめくりフェードの所要時間 (ms)。global.css の --transition-page と同期させる。 */
@@ -21,10 +22,11 @@ const PAGE_FADE_MS = 180;
  * - ロード: getPage(volumeId, current) → textarea に content を流し込む
  * - 保存: useEditorAutoSave(volumeId, current, text) で 2 秒 debounce + flush
  * - ヘッダー: 左「本棚」/ 中央「‹ n / 50 ›」/ 右「設定」
- * - ページ遷移 (M5-T1/T2): 左右ボタン + 180ms フェード (--transition-page)。
+ * - ページ遷移 (M5-T1/T2/T3): 左右ボタン + 180ms フェード (--transition-page)
+ *   + 左右スワイプ（textarea 外の余白領域のみ反応, A 案）。
  *   遷移前に autosave flush + lastOpenedPage 更新。
  *
- * スワイプ・PageUp/PageDown は後続タスク (M5-T3/T5) で追加。
+ * PageUp/PageDown は後続タスク (M5-T5) で追加。
  * 30 行ロック・IME ガード等は M6/M7 で追加。
  */
 export default function EditorPage() {
@@ -47,6 +49,9 @@ export default function EditorPage() {
   const transitionLockRef = useRef(false);
   // 遷移用 setTimeout を unmount 時にクリーンアップするための ref
   const fadeTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+  // スワイプ開始座標 (M5-T3)
+  const touchStartXRef = useRef<number | null>(null);
+  const touchStartYRef = useRef<number | null>(null);
 
   useEffect(() => {
     let cancelled = false;
@@ -134,8 +139,49 @@ export default function EditorPage() {
   const canGoPrev = current > 1;
   const canGoNext = current < PAGES_PER_VOLUME;
 
+  // --- スワイプ (M5-T3): textarea 外の領域のみ反応（A 案） ---
+  // 実機検証で textarea 上でも反応させたい場合は B 案へ切替可能:
+  //   1) isFromTextarea チェックを外す
+  //   2) 水平判定を Math.abs(dx) > Math.abs(dy) * 2 に強化する
+  const isFromTextarea = (target: EventTarget | null): boolean =>
+    target instanceof HTMLTextAreaElement;
+
+  const onTouchStart = (e: ReactTouchEvent<HTMLDivElement>) => {
+    if (isFromTextarea(e.target)) {
+      touchStartXRef.current = null;
+      touchStartYRef.current = null;
+      return;
+    }
+    const t = e.touches[0];
+    if (!t) return;
+    touchStartXRef.current = t.clientX;
+    touchStartYRef.current = t.clientY;
+  };
+
+  const onTouchEnd = (e: ReactTouchEvent<HTMLDivElement>) => {
+    if (isFromTextarea(e.target)) return;
+    const startX = touchStartXRef.current;
+    const startY = touchStartYRef.current;
+    touchStartXRef.current = null;
+    touchStartYRef.current = null;
+    if (startX == null || startY == null) return;
+    const t = e.changedTouches[0];
+    if (!t) return;
+    const dx = t.clientX - startX;
+    const dy = t.clientY - startY;
+    if (Math.abs(dx) < SWIPE_THRESHOLD_PX) return;
+    if (Math.abs(dx) <= Math.abs(dy)) return; // 縦方向優位はスクロール扱い
+    if (dx < 0) goPage(1); // 左スワイプ → 次
+    else goPage(-1); // 右スワイプ → 前
+  };
+
   return (
-    <div className={styles.root} data-testid="editor-page">
+    <div
+      className={styles.root}
+      data-testid="editor-page"
+      onTouchStart={onTouchStart}
+      onTouchEnd={onTouchEnd}
+    >
       <header className={styles.header}>
         <Link to="/" aria-label="本棚に戻る">本棚</Link>
         <div className={styles.pageCluster}>

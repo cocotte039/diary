@@ -8,7 +8,7 @@ import {
   getVolume,
   savePage,
 } from '../../lib/db';
-import { DB_NAME, PAGES_PER_VOLUME } from '../../lib/constants';
+import { DB_NAME, PAGES_PER_VOLUME, SWIPE_THRESHOLD_PX } from '../../lib/constants';
 import EditorPage from './EditorPage';
 
 vi.mock('../../lib/github', () => ({
@@ -227,5 +227,83 @@ describe('EditorPage fade transition (M5-T2)', () => {
       const surface = screen.getByTestId('editor-surface');
       expect(surface.className).not.toMatch(/fading/);
     });
+  });
+});
+
+describe('EditorPage swipe navigation (M5-T3)', () => {
+  function swipe(
+    el: Element,
+    from: { x: number; y: number },
+    to: { x: number; y: number }
+  ) {
+    fireEvent.touchStart(el, {
+      touches: [{ clientX: from.x, clientY: from.y }],
+    });
+    fireEvent.touchEnd(el, {
+      changedTouches: [{ clientX: to.x, clientY: to.y }],
+    });
+  }
+
+  it('root 余白を左にスワイプすると次ページへ進む', async () => {
+    const v = await ensureActiveVolume();
+    let pathname = '';
+    renderWithLocationProbe(`/book/${v.id}/1`, (p) => {
+      pathname = p;
+    });
+    await screen.findByLabelText('日記本文');
+    const root = screen.getByTestId('editor-page');
+    swipe(root, { x: 200, y: 100 }, { x: 120, y: 105 });
+    await waitFor(() => expect(pathname).toBe(`/book/${v.id}/2`));
+  });
+
+  it('root 余白を右にスワイプすると前ページに戻る', async () => {
+    const v = await ensureActiveVolume();
+    let pathname = '';
+    renderWithLocationProbe(`/book/${v.id}/2`, (p) => {
+      pathname = p;
+    });
+    await screen.findByLabelText('日記本文');
+    const root = screen.getByTestId('editor-page');
+    swipe(root, { x: 80, y: 100 }, { x: 160, y: 95 });
+    await waitFor(() => expect(pathname).toBe(`/book/${v.id}/1`));
+  });
+
+  it('textarea 上のスワイプは navigate しない（編集操作を妨げない）', async () => {
+    const v = await ensureActiveVolume();
+    let pathname = '';
+    renderWithLocationProbe(`/book/${v.id}/1`, (p) => {
+      pathname = p;
+    });
+    const textarea = await screen.findByLabelText('日記本文');
+    swipe(textarea, { x: 200, y: 100 }, { x: 100, y: 105 });
+    // 十分待っても遷移しないこと
+    await new Promise((r) => setTimeout(r, 250));
+    expect(pathname).toBe(`/book/${v.id}/1`);
+  });
+
+  it('縦方向のスクロール操作は誤判定されない (|dy| > |dx|)', async () => {
+    const v = await ensureActiveVolume();
+    let pathname = '';
+    renderWithLocationProbe(`/book/${v.id}/1`, (p) => {
+      pathname = p;
+    });
+    await screen.findByLabelText('日記本文');
+    const root = screen.getByTestId('editor-page');
+    swipe(root, { x: 100, y: 50 }, { x: 70, y: 130 });
+    await new Promise((r) => setTimeout(r, 250));
+    expect(pathname).toBe(`/book/${v.id}/1`);
+  });
+
+  it(`閾値 ${SWIPE_THRESHOLD_PX}px 未満では発火しない`, async () => {
+    const v = await ensureActiveVolume();
+    let pathname = '';
+    renderWithLocationProbe(`/book/${v.id}/1`, (p) => {
+      pathname = p;
+    });
+    await screen.findByLabelText('日記本文');
+    const root = screen.getByTestId('editor-page');
+    swipe(root, { x: 200, y: 100 }, { x: 170, y: 102 });
+    await new Promise((r) => setTimeout(r, 250));
+    expect(pathname).toBe(`/book/${v.id}/1`);
   });
 });
