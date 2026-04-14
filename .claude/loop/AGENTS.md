@@ -185,6 +185,33 @@ npm run preview      # ビルド結果のプレビュー
     JS 側の所要時間。DRY 化のため constants.ts 送りも検討したが、トランジション時間の調整は
     CSS 変数で行うのが自然なので現状は両方個別に持つ。今後ズレが問題になったら constants に移す。
 
+## 実装時に追加した判断（2026-04-14 M6）
+
+36. **🟡 50 ページロックの判定は「行数 > LINES_PER_PAGE」で行う**: `splitAtLine30` の
+    `overflow.length > 0` だと、30 行末尾で Enter したケース (split→31 要素だが最後が空で
+    `join('\n')` が `''`) を取りこぼす。`nextValue.split('\n').length > LINES_PER_PAGE`
+    で常に行数増加を検知し、preventDefault の漏れを防ぐ。
+37. **🟡 React の `onBeforeInput` は native `beforeinput` ではなく keypress/textInput/paste/
+    compositionend に bind される**: そのためテストでは `fireEvent.beforeInput` が使えず、
+    Enter を `KeyboardEvent('keypress', { charCode: 13 })` で dispatch して onBeforeInput を
+    発火させる。ハンドラ側は SyntheticInputEvent の `data` と native の `InputEvent.data` を
+    両方フォールバックとして読み、`\r → \n` への正規化も行う。
+38. **🟡 自動次ページ遷移は専用 checkOverflowAndNavigate 関数に集約**: onChange と
+    onCompositionEnd の両方から呼ぶ必要があるため、goPage とは別系統の遷移関数として分離。
+    現ページの keep 保存と次ページの overflow prepend を 1 つの async で連鎖させ、
+    完了後に `navigate` する。遷移中は transitionLockRef でロックし多重発動を防ぐ。
+39. **🟡 遷移後カーソルは pendingCursorPosRef + requestAnimationFrame で復元**: useEditorCursor
+    の localStorage 復元より後に実行されないと上書きされる。初期ロード useEffect 内で pending 値が
+    あれば rAF 経由で setSelectionRange する。値はクランプして textarea 長に収める。
+40. **🟡 useWrite.rotateNow は UI から切り離すだけで残置**: T6.6 で WritePage のボタンのみ除去し、
+    useWrite.rotateNow エクスポート自体は残す。M7 T7.5 の WritePage/useWrite 削除で同時に消す。
+41. **🟡 BookshelfPage のリロードは reloadKey state 変更で useEffect 再実行**: rotateVolume 後に
+    getAllVolumes/getAllPages を再取得する必要があるが、イベントバス導入は過剰。依存配列に
+    `[reloadKey]` を置き、`setReloadKey((k) => k + 1)` で再レンダを発火する方式で十分。
+42. **🟡 NewVolumeCard は独立コンポーネント**: BookshelfPage.tsx 内インラインでも良いが、
+    スタイル・aria 属性・今後の装飾追加を考え 1 ファイル分割。`styles.card + styles.newCard` で
+    既存 .card と共通化し、破線境界・opacity のみ差分。
+
 ## 本PCで実施できなかった作業（HANDOFF.md に委譲）
 
 - `npm install`（依存取得、lockfile 生成）

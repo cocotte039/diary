@@ -38,15 +38,15 @@
       "id": "M6",
       "name": "30行境界・50ページロック・新冊作成",
       "goal": "30行で自動遷移、IMEガード付き、50ページで入力ロック、新冊は本棚からのみ。",
-      "status": "pending",
+      "status": "completed",
       "verification": "npm run lint && npm run test:run",
       "tasks": [
-        { "id": "T6.1", "name": "splitAtLine30純関数追加", "spec": "specs/m6-t1.md", "wave": 1, "status": "pending", "assignee": "build" },
-        { "id": "T6.2", "name": "IME(composition)ガード", "spec": "specs/m6-t2.md", "wave": 1, "status": "pending", "assignee": "build" },
-        { "id": "T6.3", "name": "30行到達時の自動次ページ遷移", "spec": "specs/m6-t3.md", "wave": 2, "status": "pending", "assignee": "build" },
-        { "id": "T6.4", "name": "50ページ目末尾ロック", "spec": "specs/m6-t4.md", "wave": 2, "status": "pending", "assignee": "build" },
-        { "id": "T6.5", "name": "本棚に新しい冊ボタン追加", "spec": "specs/m6-t5.md", "wave": 3, "status": "pending", "assignee": "build" },
-        { "id": "T6.6", "name": "WritePageの新しいノートボタン削除", "spec": "specs/m6-t6.md", "wave": 3, "status": "pending", "assignee": "build" }
+        { "id": "T6.1", "name": "splitAtLine30純関数追加", "spec": "specs/m6-t1.md", "wave": 1, "status": "completed", "assignee": "build" },
+        { "id": "T6.2", "name": "IME(composition)ガード", "spec": "specs/m6-t2.md", "wave": 1, "status": "completed", "assignee": "build" },
+        { "id": "T6.3", "name": "30行到達時の自動次ページ遷移", "spec": "specs/m6-t3.md", "wave": 2, "status": "completed", "assignee": "build" },
+        { "id": "T6.4", "name": "50ページ目末尾ロック", "spec": "specs/m6-t4.md", "wave": 2, "status": "completed", "assignee": "build" },
+        { "id": "T6.5", "name": "本棚に新しい冊ボタン追加", "spec": "specs/m6-t5.md", "wave": 3, "status": "completed", "assignee": "build" },
+        { "id": "T6.6", "name": "WritePageの新しいノートボタン削除", "spec": "specs/m6-t6.md", "wave": 3, "status": "completed", "assignee": "build" }
       ]
     },
     {
