@@ -406,7 +406,7 @@ export default function EditorPage() {
       onTouchStart={onTouchStart}
       onTouchEnd={onTouchEnd}
     >
-      <header className={styles.header}>
+      <header className={`app-header ${styles.header}`}>
         <Link to="/" aria-label="本棚に戻る" className="app-header-link">本棚</Link>
         <div className={styles.pageCluster}>
           <button

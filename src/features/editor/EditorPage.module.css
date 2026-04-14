@@ -9,25 +9,12 @@
 }
 
 /*
- * M7-T2: ヘッダーは固定高 (--header-height) の position: fixed。
- * 背景色でその下を塗りつぶし、本文の上端がヘッダー下に透けて見えるのを防ぐ。
- * safe-area-inset-top がある端末では top に足し込み、高さも確保する。
+ * M8-1-T2: 共通プロパティは global.css の .app-header に集約済み。
+ * 左右パディングは .app-header の max(1rem, ...) で統一（旧 0.5rem から変更）。
+ * ここでは EditorPage 固有の副次スタイルがあればのみ残す（現状なし）。
  */
 .header {
-  position: fixed;
-  top: 0;
-  left: 0;
-  right: 0;
-  height: calc(var(--header-height) + env(safe-area-inset-top, 0px));
-  padding-top: env(safe-area-inset-top, 0px);
-  padding-left: max(0.5rem, env(safe-area-inset-left));
-  padding-right: max(0.5rem, env(safe-area-inset-right));
-  display: flex;
-  justify-content: space-between;
-  align-items: center;
-  z-index: 2;
-  background-color: var(--color-bg);
-  font-family: var(--font-family-ui);
+  /* empty: 共通スタイルは .app-header に集約 */
 }
 
 /* ページ番号と左右ボタンは中央でまとめてクラスタにする */
