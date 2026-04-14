@@ -50,6 +50,24 @@ export function joinPages(pages: string[]): string {
 }
 
 /**
+ * 30 行境界で「このページに残す部分」(keep) と「次ページへ持ち越す部分」(overflow) に分離する。
+ * - `text.split('\n').length <= LINES_PER_PAGE` → overflow は空文字。
+ * - 31 行以上 → keep は最初の 30 行を `\n` 結合、overflow は 31 行目以降を `\n` 結合。
+ * - round-trip: overflow が非空のとき `keep + '\n' + overflow === text`。
+ *
+ * 用途: M6 の 30 行自動送り (T6.3) と 50 ページ目ロック (T6.4)。
+ */
+export function splitAtLine30(text: string): { keep: string; overflow: string } {
+  const lines = text.split('\n');
+  if (lines.length <= LINES_PER_PAGE) {
+    return { keep: text, overflow: '' };
+  }
+  const keep = lines.slice(0, LINES_PER_PAGE).join('\n');
+  const overflow = lines.slice(LINES_PER_PAGE).join('\n');
+  return { keep, overflow };
+}
+
+/**
  * selectionStart 位置に対応する textarea.scrollTop を返す。
  * 表示上の折り返しは考慮しない（仕様: 折り返し行はカウントしない）。
  */

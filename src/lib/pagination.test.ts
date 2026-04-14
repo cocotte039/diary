@@ -5,6 +5,7 @@ import {
   getPageNumber,
   getScrollTopForCursor,
   joinPages,
+  splitAtLine30,
   splitIntoPages,
 } from './pagination';
 import { LINES_PER_PAGE, LINE_HEIGHT_PX } from './constants';
@@ -76,6 +77,84 @@ describe('pagination', () => {
       for (const p of pages.slice(0, -1)) {
         expect(p.split('\n').length).toBe(LINES_PER_PAGE);
       }
+    });
+  });
+
+  describe('splitAtLine30 (M6-T1)', () => {
+    it('empty string -> keep="" overflow=""', () => {
+      expect(splitAtLine30('')).toEqual({ keep: '', overflow: '' });
+    });
+
+    it('1 line -> overflow empty, keep == original', () => {
+      expect(splitAtLine30('hello')).toEqual({ keep: 'hello', overflow: '' });
+    });
+
+    it('29 lines -> overflow empty, keep == original', () => {
+      const text = Array.from({ length: 29 }, (_, i) => `l${i}`).join('\n');
+      expect(splitAtLine30(text)).toEqual({ keep: text, overflow: '' });
+    });
+
+    it('exactly 30 lines -> overflow empty, keep == original', () => {
+      const text = Array.from({ length: 30 }, (_, i) => `l${i}`).join('\n');
+      const result = splitAtLine30(text);
+      expect(result.keep).toBe(text);
+      expect(result.overflow).toBe('');
+    });
+
+    it('31 lines -> keep is 30 lines, overflow is 1 line', () => {
+      const text = Array.from({ length: 31 }, (_, i) => `l${i}`).join('\n');
+      const { keep, overflow } = splitAtLine30(text);
+      expect(keep.split('\n').length).toBe(30);
+      expect(overflow.split('\n').length).toBe(1);
+      expect(overflow).toBe('l30');
+    });
+
+    it('45 lines -> keep=30 lines, overflow=15 lines', () => {
+      const text = Array.from({ length: 45 }, (_, i) => `l${i}`).join('\n');
+      const { keep, overflow } = splitAtLine30(text);
+      expect(keep.split('\n').length).toBe(30);
+      expect(overflow.split('\n').length).toBe(15);
+    });
+
+    it('100 lines -> keep=30, overflow=70', () => {
+      const text = Array.from({ length: 100 }, (_, i) => `l${i}`).join('\n');
+      const { keep, overflow } = splitAtLine30(text);
+      expect(keep.split('\n').length).toBe(30);
+      expect(overflow.split('\n').length).toBe(70);
+    });
+
+    it('round-trip: overflow 非空時、keep + "\\n" + overflow === 元テキスト', () => {
+      const text = Array.from({ length: 75 }, (_, i) => `line-${i}`).join('\n');
+      const { keep, overflow } = splitAtLine30(text);
+      expect(overflow).not.toBe('');
+      expect(keep + '\n' + overflow).toBe(text);
+    });
+
+    it('trailing newline (30 lines + trailing \\n) -> overflow is empty line', () => {
+      // 30 行のテキストに末尾 \n を足すと split 上は 31 要素（31行目が空）
+      const text = Array.from({ length: 30 }, (_, i) => `l${i}`).join('\n') + '\n';
+      const { keep, overflow } = splitAtLine30(text);
+      expect(keep.split('\n').length).toBe(30);
+      expect(overflow).toBe('');
+    });
+
+    it('consecutive empty lines in overflow are preserved', () => {
+      const lines = Array.from({ length: 30 }, (_, i) => `l${i}`);
+      const text = [...lines, '', '', ''].join('\n');
+      const { keep, overflow } = splitAtLine30(text);
+      expect(keep.split('\n').length).toBe(30);
+      expect(overflow).toBe('\n\n');
+    });
+
+    it('uses LINES_PER_PAGE constant (30)', () => {
+      // 定数が変わっても split が同期することを緩く確認
+      const text = Array.from(
+        { length: LINES_PER_PAGE + 1 },
+        (_, i) => `l${i}`
+      ).join('\n');
+      const { keep, overflow } = splitAtLine30(text);
+      expect(keep.split('\n').length).toBe(LINES_PER_PAGE);
+      expect(overflow.split('\n').length).toBe(1);
     });
   });
 

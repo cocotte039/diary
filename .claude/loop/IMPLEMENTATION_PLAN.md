@@ -1,59 +1,79 @@
-# 実装計画 (Implementation Plan)
+# 実装計画 (Implementation Plan) — UX Overhaul M4〜M7
+
+前回までの M1-M3（初期リリース）は完了済み。本計画は UX 刷新フェーズ。
+過去の計画は `IMPLEMENTATION_PLAN.md.bak` に退避済み。
 
 ## プロジェクト概要
 
-- 目的: B5大学ノートに万年筆で書いていた手書き日記の体験を、布団の中でスマホから書けるPWA日記アプリ「ノート」として再現する
-- スコープ: ノート風書く画面、冊管理（50ページ固定）、本棚＋読み返し、カレンダージャンプ、GitHubバックアップ、PWAオフライン対応
-- 非目標: リマインダー/ストリーク、AI分析、ランダム提示、画像添付、複数デバイス同期
+- 目的: メイン画面を本棚に刷新、ページ単位の独立UIへ変更、ヘッダー整合と日付アイコンの改善
+- 参照: `.whiteboard/plan.md`（詳細設計）、`.claude/loop/AGENTS.md`（プロジェクト規約）
 
 ## マイルストーン
 
-### M1: コア体験のプロトタイプ
-- 状態: completed（本PCでは静的検証まで。ビルド/テスト実行は別PCで）
-- 優先度: high
-- 完了条件: スマホでアプリを開き、ノート風の画面でテキストを書き、閉じて再度開いたら前回の続きから書ける
+### M4: ルート再編と最小EditorPage
+
+- 状態: pending
+- 完了条件: 本棚から冊を開き、新しい編集画面で日記を書ける。旧URLはリダイレクト互換。
 
 #### タスク
-- [x] T1.1: プロジェクトセットアップ（React + Vite + TypeScript + PWA基盤） -- specs/m1-t1.md
-- [x] T1.2: ノート風の書く画面（textarea + 罫線 + Klee One + ダークモード） -- specs/m1-t2.md
-- [x] T1.3: ページの視覚的表現（30行/ページ区切り + 日付補助ボタン） -- specs/m1-t3.md
-- [x] T1.4: テキストのローカル保存（IndexedDB） -- specs/m1-t4.md
-- [x] T1.5: 前回の続きから開く機能 -- specs/m1-t5.md
-- [x] T1.6: データ消失リスク緩和（簡易エクスポート + ホーム画面追加促し） -- specs/m1-t6.md
+- [ ] T4.1: ルーター変更とリダイレクト -- specs/m4-t1.md
+- [ ] T4.2: Volume型拡張とDB v2マイグレーション -- specs/m4-t2.md
+- [ ] T4.3: 最小EditorPage新規作成 -- specs/m4-t3.md
+- [ ] T4.4: ページ単位autosave -- specs/m4-t4.md
+- [ ] T4.5: BookshelfPageのリンク先変更 -- specs/m4-t5.md
+- [ ] T4.6: 書くリンク削除と初回自動冊作成 -- specs/m4-t6.md
 
-### M2: 「冊」と読み返し
-- 状態: completed（静的検証まで）
-- 優先度: high
-- 完了条件: 50ページ分書いたら新しい冊に自動切替。本棚から過去の冊を読み返し可能。カレンダーから特定日にジャンプ可能
+### M5: ページめくりUIとページ単位保存
 
-#### タスク
-- [x] T2.1: 冊の管理（自動/手動切替 + 終わりの視覚表現） -- specs/m2-t1.md
-- [x] T2.2: 本棚画面（冊一覧カード表示） -- specs/m2-t2.md
-- [x] T2.3: 読み返し画面（ページめくり） -- specs/m2-t3.md
-- [x] T2.4: カレンダーからのジャンプ -- specs/m2-t4.md
-
-### M3: バックアップと磨き込み
-- 状態: completed（静的検証まで）
-- 優先度: medium
-- 完了条件: GitHub自動バックアップ動作。オフラインで書ける。ホーム画面アイコン追加可能。配色・罫線・フォントが完成
+- 状態: pending
+- 完了条件: 左右ボタン/スワイプ/キーでページをめくり、180msフェードで連続編集できる。
 
 #### タスク
-- [x] T3.1: GitHub APIバックアップ（自動コミット + オフラインキューイング） -- specs/m3-t1.md
-- [x] T3.2: PWAオフライン対応（Workbox設定 + フォントキャッシュ） -- specs/m3-t2.md
-- [x] T3.3: アイコン・スプラッシュスクリーン -- specs/m3-t3.md
-- [x] T3.4: フォント・カラー・罫線の微調整 -- specs/m3-t4.md
+- [ ] T5.1: ページ遷移UI(ボタン)とflush保存 -- specs/m5-t1.md
+- [ ] T5.2: 180msフェードトランジション -- specs/m5-t2.md
+- [ ] T5.3: 左右スワイプ対応(領域限定) -- specs/m5-t3.md
+- [ ] T5.4: カーソル復元のページ単位化 -- specs/m5-t4.md
+- [ ] T5.5: PageUp/PageDownキーでの遷移 -- specs/m5-t5.md
+
+### M6: 30行境界・50ページロック・新冊作成
+
+- 状態: pending
+- 完了条件: 30行で自動遷移、IMEガード付き、50ページで入力ロック、新冊は本棚からのみ。
+
+#### タスク
+- [ ] T6.1: splitAtLine30純関数追加 -- specs/m6-t1.md
+- [ ] T6.2: IME(composition)ガード -- specs/m6-t2.md
+- [ ] T6.3: 30行到達時の自動次ページ遷移 -- specs/m6-t3.md
+- [ ] T6.4: 50ページ目末尾ロック -- specs/m6-t4.md
+- [ ] T6.5: 本棚に新しい冊ボタン追加 -- specs/m6-t5.md
+- [ ] T6.6: WritePageの新しいノートボタン削除 -- specs/m6-t6.md
+
+### M7: ヘッダー整合・日付アイコン・旧画面削除
+
+- 状態: pending
+- 完了条件: UIが整い、旧画面の残骸がなくなる。全テスト・ビルドが通る。
+
+#### タスク
+- [ ] T7.1: --header-height CSS変数追加 -- specs/m7-t1.md
+- [ ] T7.2: EditorPage本文と罫線の整合 -- specs/m7-t2.md
+- [ ] T7.3: 日付アイコンSVGコンポーネント -- specs/m7-t3.md
+- [ ] T7.4: insertDateをEditorPageへ移植 -- specs/m7-t4.md
+- [ ] T7.5: WritePage/ReaderPage削除 -- specs/m7-t5.md
+- [ ] T7.6: ヘッダー視覚統一 -- specs/m7-t6.md
+- [ ] T7.7: リグレッションテスト一式 -- specs/m7-t7.md
 
 ## 完了基準 (Definition of Done)
 
-- [x] 全タスクが実装済み
-- [x] 全テストが書かれている（実行は別PC：`npm test`）
-- [x] ビルドが成功する前提で静的検証済み（実ビルドは別PC：`npm run build`）
-- [x] README.md が最新の仕様と整合している
+- [ ] 全タスクが実装済み
+- [ ] 全テストがパス（`npm run test:run`）
+- [ ] ビルドが成功（`npm run build`）
+- [ ] README.md が最新の仕様と整合
 
-## 進捗サマリー (Progress Summary)
+## 進捗サマリー
 
 | マイルストーン | 状態 | タスク完了 | 最終更新 |
 |---|---|---|---|
-| M1 | completed(static) | 6/6 | 2026-04-13 |
-| M2 | completed(static) | 4/4 | 2026-04-13 |
-| M3 | completed(static) | 4/4 | 2026-04-13 |
+| M4 | pending | 0/6 | 2026-04-14 |
+| M5 | pending | 0/5 | 2026-04-14 |
+| M6 | pending | 0/6 | 2026-04-14 |
+| M7 | pending | 0/7 | 2026-04-14 |
