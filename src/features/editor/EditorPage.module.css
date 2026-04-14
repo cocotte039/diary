@@ -8,27 +8,26 @@
   flex-direction: column;
 }
 
+/*
+ * M7-T2: ヘッダーは固定高 (--header-height) の position: fixed。
+ * 背景色でその下を塗りつぶし、本文の上端がヘッダー下に透けて見えるのを防ぐ。
+ * safe-area-inset-top がある端末では top に足し込み、高さも確保する。
+ */
 .header {
   position: fixed;
-  top: max(0.5rem, env(safe-area-inset-top));
-  left: max(0.5rem, env(safe-area-inset-left));
-  right: max(0.5rem, env(safe-area-inset-right));
+  top: 0;
+  left: 0;
+  right: 0;
+  height: calc(var(--header-height) + env(safe-area-inset-top, 0px));
+  padding-top: env(safe-area-inset-top, 0px);
+  padding-left: max(0.5rem, env(safe-area-inset-left));
+  padding-right: max(0.5rem, env(safe-area-inset-right));
   display: flex;
   justify-content: space-between;
   align-items: center;
-  pointer-events: none;
   z-index: 2;
+  background-color: var(--color-bg);
   font-family: var(--font-family-ui);
-  font-size: 0.75rem;
-  opacity: 0.6;
-}
-.header a {
-  pointer-events: auto;
-  padding: 0.25rem 0.5rem;
-  opacity: 0.7;
-}
-.header a:active {
-  opacity: 1;
 }
 
 /* ページ番号と左右ボタンは中央でまとめてクラスタにする */
@@ -36,15 +35,15 @@
   display: flex;
   align-items: center;
   gap: 0.5rem;
-  pointer-events: none;
 }
 .pageNumber {
-  pointer-events: none;
+  font-family: var(--font-family-ui);
+  font-size: 0.75rem;
+  color: var(--color-text);
   opacity: 0.5;
 }
 
 .navBtn {
-  pointer-events: auto;
   font-family: var(--font-family-ui);
   font-size: 1rem;
   line-height: 1;
@@ -61,7 +60,26 @@
   cursor: default;
 }
 
-/* ページ送りフェード用ラッパ。transition は --transition-page (180ms) を使う */
+/* M7-T4: ヘッダー右の日付アイコンボタン。hit area 44x44 を確保する。 */
+.headerDateButton {
+  width: 44px;
+  height: 44px;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  padding: 0;
+  color: var(--color-text);
+  opacity: 0.3;
+  transition: opacity 120ms ease;
+}
+.headerDateButton:active {
+  opacity: 0.6;
+}
+
+/*
+ * ページ送りフェード用ラッパ。transition は --transition-page (180ms) を使う。
+ * surface 自体は flex:1 で画面全体をほぼ埋める（ヘッダーは fixed で上に乗る）。
+ */
 .surface {
   flex: 1 1 auto;
   min-height: 0;
@@ -73,12 +91,20 @@
   opacity: 0;
 }
 
+/*
+ * M7-T2: textarea の上端をヘッダー分下げる。
+ * safe-area-inset-top と --header-height の合算で本文 1 行目をヘッダーの下に逃がす。
+ * 罫線 (notebook-surface の repeating-linear-gradient) は本文テキストと一緒に
+ * シフトするよう background-position を env(safe-area-inset-top) ぶん下げる。
+ * ヘッダー自身の背景で本文上端の罫線も隠れるため、視覚上はヘッダー下から罫線が始まる。
+ */
 .textarea {
   flex: 1 1 auto;
   min-height: 0;
-  padding-top: 0;
+  padding-top: calc(var(--header-height) + env(safe-area-inset-top, 0px));
   padding-bottom: 0;
   padding-left: max(var(--padding-page), env(safe-area-inset-left));
   padding-right: max(var(--padding-page), env(safe-area-inset-right));
   overflow-y: auto;
+  background-position: 0 env(safe-area-inset-top, 0px);
 }
