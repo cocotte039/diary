@@ -16,6 +16,7 @@ import {
   savePage,
   saveVolumeText,
   findPageByDate,
+  getDateSetInMonth,
   updateVolumeLastOpenedPage,
 } from './db';
 import { DB_NAME } from './constants';
@@ -66,9 +67,13 @@ describe('db.saveVolumeText / loadVolumeText', () => {
     expect(loaded).toBe(text);
   });
 
-  it('creates additional pages when text grows past 30 lines', async () => {
+  it('creates additional pages when text grows past LINES_PER_PAGE lines', async () => {
     const v = await ensureActiveVolume();
-    const text = Array.from({ length: 31 }, (_, i) => `L${i}`).join('\n');
+    const { LINES_PER_PAGE } = await import('./constants');
+    const text = Array.from(
+      { length: LINES_PER_PAGE + 1 },
+      (_, i) => `L${i}`
+    ).join('\n');
     await saveVolumeText(v.id, text);
     const pages = await getPagesByVolume(v.id);
     expect(pages.length).toBe(2);
@@ -85,7 +90,10 @@ describe('db.saveVolumeText / loadVolumeText', () => {
 
   it('deletes surplus pages when text shrinks (but keeps page 1)', async () => {
     const v = await ensureActiveVolume();
-    const big = Array.from({ length: 75 }, (_, i) => `line-${i}`).join('\n');
+    const { LINES_PER_PAGE } = await import('./constants');
+    // LINES_PER_PAGE * 2.5 行 → 3 ページ相当
+    const lines = Math.floor(LINES_PER_PAGE * 2.5);
+    const big = Array.from({ length: lines }, (_, i) => `line-${i}`).join('\n');
     await saveVolumeText(v.id, big);
     let pages = await getPagesByVolume(v.id);
     expect(pages.length).toBe(3);
@@ -214,6 +222,68 @@ describe('db.findPageByDate', () => {
     const hit = await findPageByDate(today);
     expect(hit).not.toBeNull();
     expect(hit!.volumeId).toBe(v.id);
+  });
+});
+
+describe('db.getDateSetInMonth (M9-M3 ローカル日付ベース)', () => {
+  it('ローカル時刻で同じ日の UTC ISO をローカル日付で集約する', async () => {
+    // JST で 2026-04-15 00:30 に書いた想定 = UTC では 2026-04-14T15:30:00Z
+    // 以前の実装 (iso.slice(0,10)) では 2026-04-14 に分類され、2026-04-15 に印が付かなかった
+    const v = await ensureActiveVolume();
+    const localDate = new Date(2026, 3, 15, 0, 30); // month は 0-indexed
+    await replaceAllData(
+      [
+        {
+          id: v.id,
+          ordinal: v.ordinal,
+          status: 'active',
+          createdAt: v.createdAt,
+        },
+      ],
+      [
+        {
+          id: 'p1',
+          volumeId: v.id,
+          pageNumber: 1,
+          content: 'hello',
+          createdAt: localDate.toISOString(),
+          updatedAt: localDate.toISOString(),
+          syncStatus: 'pending',
+        },
+      ]
+    );
+    const set = await getDateSetInMonth(2026, 4);
+    expect(set.has('2026-04-15')).toBe(true);
+  });
+
+  it('別月のページは含まれない', async () => {
+    const v = await ensureActiveVolume();
+    const d = new Date(2026, 2, 20, 10, 0); // 2026-03-20
+    await replaceAllData(
+      [
+        {
+          id: v.id,
+          ordinal: v.ordinal,
+          status: 'active',
+          createdAt: v.createdAt,
+        },
+      ],
+      [
+        {
+          id: 'p1',
+          volumeId: v.id,
+          pageNumber: 1,
+          content: 'hello',
+          createdAt: d.toISOString(),
+          updatedAt: d.toISOString(),
+          syncStatus: 'pending',
+        },
+      ]
+    );
+    const aprSet = await getDateSetInMonth(2026, 4);
+    expect(aprSet.size).toBe(0);
+    const marSet = await getDateSetInMonth(2026, 3);
+    expect(marSet.has('2026-03-20')).toBe(true);
   });
 });
 

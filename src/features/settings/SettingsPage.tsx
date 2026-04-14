@@ -233,6 +233,7 @@ export default function SettingsPage() {
         <Link to="/" className="app-header-link">本棚</Link>
       </header>
 
+      <div className={styles.body}>
       <section className={styles.section}>
         <h2 className={styles.sectionTitle}>データをエクスポート</h2>
         <button type="button" className={styles.button} onClick={onExport}>
@@ -339,6 +340,7 @@ export default function SettingsPage() {
         )}
         {renderStatus(importStatus)}
       </section>
+      </div>
     </div>
   );
 }

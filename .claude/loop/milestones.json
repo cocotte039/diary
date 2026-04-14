@@ -1,60 +1,81 @@
 {
   "version": "2.0",
   "project": {
-    "name": "diary UX refinement (M8)",
-    "description": "5 つの UX 課題を一括解消: textarea 上スワイプ / 3 画面ヘッダー固定統一 / 端パディング 1rem / 冊削除長押し UX / 本棚縦スクロール"
+    "name": "diary UX refinement (M9)",
+    "description": "Android 実機で顕在化した UX 課題を包括解消: ヘッダー固定 / 60 行化 / 罫線強調 / 本棚文言・日付 / Calendar JST ズレ / カーソル位置 / 中央寄せ / visual row 判定"
   },
   "milestones": [
     {
-      "id": "M8-1",
-      "name": "本棚スクロール修正 + 3 画面ヘッダー統一",
-      "goal": "global.css に .app-header を導入、3 画面ヘッダーを固定化・余白統一、本棚の縦スクロールを有効化",
+      "id": "M1",
+      "name": "構造改修（ヘッダー固定・60 行化・罫線強調・中央寄せ）",
+      "goal": "R1/R2/R3/R8/R9 をまとめて実装",
       "status": "completed",
-      "verification": "npm test && grep -rn \"app-header\" src/",
+      "verification": "npm test && npm run build",
       "tasks": [
-        { "id": "T8-1.1", "name": "global.css に .app-header 追加", "spec": "specs/m8-1-t1.md", "wave": 1, "status": "completed", "assignee": "build" },
-        { "id": "T8-1.2", "name": "EditorPage ヘッダーを .app-header に置換", "spec": "specs/m8-1-t2.md", "wave": 1, "status": "completed", "assignee": "build" },
-        { "id": "T8-1.3", "name": "BookshelfPage ヘッダー固定 + 縦スクロール修正", "spec": "specs/m8-1-t3.md", "wave": 2, "status": "completed", "assignee": "build" },
-        { "id": "T8-1.4", "name": "SettingsPage ヘッダー固定 + 縦スクロール", "spec": "specs/m8-1-t4.md", "wave": 2, "status": "completed", "assignee": "build" }
+        { "id": "T1.1", "name": "LINES_PER_PAGE = 60 化", "spec": "specs/m1-t1.md", "wave": 1, "status": "completed", "assignee": "build" },
+        { "id": "T1.2", "name": "15/30/45 行目の罫線を強調", "spec": "specs/m1-t2.md", "wave": 2, "status": "completed", "assignee": "build" },
+        { "id": "T1.3", "name": "ヘッダー固定構造を flex 子要素に戻す", "spec": "specs/m1-t3.md", "wave": 3, "status": "completed", "assignee": "build" },
+        { "id": "T1.4", "name": "EditorPage ヘッダーを grid 中央寄せに", "spec": "specs/m1-t4.md", "wave": 4, "status": "completed", "assignee": "build" }
       ]
     },
     {
-      "id": "M8-2",
-      "name": "textarea 上スワイプ対応 (B 案)",
-      "goal": "isFromTextarea ガードを撤廃し textarea 上の水平優位スワイプでページめくり、IME ガードも追加",
+      "id": "M2",
+      "name": "本棚の文言・日付表示",
+      "goal": "R4/R5/R5b",
       "status": "completed",
-      "verification": "npm test -- src/features/editor/EditorPage.test.tsx",
+      "verification": "npm test",
       "tasks": [
-        { "id": "T8-2.1", "name": "EditorPage スワイプ B 案化", "spec": "specs/m8-2-t1.md", "wave": 1, "status": "completed", "assignee": "build" }
+        { "id": "T2.1", "name": "VolumeCard 表示・日付・aria 変更", "spec": "specs/m2-t1.md", "wave": 1, "status": "completed", "assignee": "build" },
+        { "id": "T2.2", "name": "NewVolumeCard 文言変更", "spec": "specs/m2-t2.md", "wave": 1, "status": "completed", "assignee": "build" },
+        { "id": "T2.3", "name": "削除ダイアログ文言変更", "spec": "specs/m2-t3.md", "wave": 1, "status": "completed", "assignee": "build" }
       ]
     },
     {
-      "id": "M8-3",
-      "name": "deleteVolume (DB 層)",
-      "goal": "db.ts に deleteVolume を実装し、volume + pages を原子的に削除、active 削除時は残存最大 ordinal を昇格",
+      "id": "M3",
+      "name": "Calendar 日付ズレ修正",
+      "goal": "R6",
       "status": "completed",
-      "verification": "npm test -- src/lib/db.test.ts && grep -rn \"deleteVolume\" src/",
+      "verification": "npm test -- db.test",
       "tasks": [
-        { "id": "T8-3.1", "name": "db.ts に deleteVolume 実装 + テスト", "spec": "specs/m8-3-t1.md", "wave": 1, "status": "completed", "assignee": "build" }
+        { "id": "T3.1", "name": "dateKey / getDateSetInMonth をローカル日付ベースに", "spec": "specs/m3-t1.md", "wave": 1, "status": "completed", "assignee": "build" }
       ]
     },
     {
-      "id": "M8-4",
-      "name": "VolumeCard 長押し削除 UI",
-      "goal": "本棚カードを 500ms 長押しで 2 段階 confirm → 冊削除、ページ 0 枚は 1 段階",
+      "id": "M4",
+      "name": "カーソル位置制御",
+      "goal": "R7",
       "status": "completed",
-      "verification": "npm test -- src/features/bookshelf && grep -rn \"LONG_PRESS_MS\\|deleteVolume\" src/",
+      "verification": "npm test",
       "tasks": [
-        { "id": "T8-4.1", "name": "constants.ts に LONG_PRESS_MS 等追加", "spec": "specs/m8-4-t1.md", "wave": 1, "status": "completed", "assignee": "build" },
-        { "id": "T8-4.2", "name": "VolumeCard 長押し削除配線", "spec": "specs/m8-4-t2.md", "wave": 2, "status": "completed", "assignee": "build" },
-        { "id": "T8-4.3", "name": "BookshelfPage から deleteVolume 配線", "spec": "specs/m8-4-t3.md", "wave": 2, "status": "completed", "assignee": "build" }
+        { "id": "T4.1", "name": "EditorPage 初回ロード時にステータス別カーソル配置", "spec": "specs/m4-t1.md", "wave": 1, "status": "completed", "assignee": "build" }
+      ]
+    },
+    {
+      "id": "M5",
+      "name": "visual row 判定",
+      "goal": "R10",
+      "status": "completed",
+      "verification": "npm test && npm run build",
+      "tasks": [
+        { "id": "T5.1", "name": "checkOverflowAndNavigate を visual row ベースに", "spec": "specs/m5-t1.md", "wave": 1, "status": "completed", "assignee": "build" }
+      ]
+    },
+    {
+      "id": "M6",
+      "name": "検証・README",
+      "goal": "全テスト通過、ビルド成功、README 整合性",
+      "status": "completed",
+      "verification": "npm test && npm run build",
+      "tasks": [
+        { "id": "T6.1", "name": "全テスト + ビルド確認", "spec": "specs/m6-t1.md", "wave": 1, "status": "completed", "assignee": "verify" },
+        { "id": "T6.2", "name": "README 整合性チェック", "spec": "specs/m6-t2.md", "wave": 2, "status": "completed", "assignee": "verify" }
       ]
     }
   ],
   "fix_queue": [],
   "metadata": {
-    "created_at": "2026-04-14T00:00:00Z",
-    "last_updated": "2026-04-14T00:10:00Z",
+    "created_at": "2026-04-15T07:04:00+09:00",
+    "last_updated": "2026-04-15T07:04:00+09:00",
     "current_iteration": 0,
     "total_iterations": 0
   }

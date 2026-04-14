@@ -112,8 +112,36 @@ describe('useEditorCursor (M5-T4)', () => {
     const ta = createTextarea('hello');
     const ref = { current: ta };
     renderHook(() => useEditorCursor(ref, 'hello', true, 'v1', 1));
-    // v1:1 キーが無いので pos=0 を試みる (raw=null → parsed=0)
+    // v1:1 キーが無い → fallback='end'（デフォルト）で text.length (5) に置く
+    expect(ta.selectionStart).toBe(5);
+  });
+
+  it('fallback="start" 指定時は scope キーが無ければ先頭に置かれる (M9-M4)', () => {
+    const ta = createTextarea('hello');
+    const ref = { current: ta };
+    renderHook(() =>
+      useEditorCursor(ref, 'hello', true, 'v1', 1, 'start')
+    );
     expect(ta.selectionStart).toBe(0);
+  });
+
+  it('fallback="end" 指定時は scope キーが無ければ末尾に置かれる (M9-M4)', () => {
+    const ta = createTextarea('hello');
+    const ref = { current: ta };
+    renderHook(() =>
+      useEditorCursor(ref, 'hello', true, 'v1', 1, 'end')
+    );
+    expect(ta.selectionStart).toBe(5);
+  });
+
+  it('fallback="start" でも localStorage に値があれば優先される (M9-M4)', () => {
+    localStorage.setItem(`${LS_CURSOR_KEY}:v1:1`, '3');
+    const ta = createTextarea('hello');
+    const ref = { current: ta };
+    renderHook(() =>
+      useEditorCursor(ref, 'hello', true, 'v1', 1, 'start')
+    );
+    expect(ta.selectionStart).toBe(3);
   });
 
   it('restoreReady=false の間は復元されない', () => {

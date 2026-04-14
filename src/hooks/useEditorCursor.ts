@@ -26,7 +26,14 @@ export function useEditorCursor(
   text: string,
   restoreReady: boolean,
   volumeId: string | null,
-  pageNumber: number
+  pageNumber: number,
+  /**
+   * localStorage に位置が保存されていないときのフォールバック位置 (M9-M4-T4.1)。
+   * - 'end': 末尾（書きかけの冊の続きを書く想定）
+   * - 'start': 先頭（完了済みの冊を読み返す想定）
+   * デフォルトは 'end'（既存挙動と同じ）。
+   */
+  fallback: 'end' | 'start' = 'end'
 ) {
   const restoredRef = useRef(false);
 
@@ -64,17 +71,18 @@ export function useEditorCursor(
         return null;
       }
     })();
-    const parsed = raw == null ? 0 : Number(raw);
+    const fallbackPos = fallback === 'end' ? text.length : 0;
+    const parsed = raw == null ? null : Number(raw);
     const pos =
-      Number.isFinite(parsed) && parsed >= 0 && parsed <= text.length
+      parsed != null && Number.isFinite(parsed) && parsed >= 0 && parsed <= text.length
         ? parsed
-        : text.length;
+        : fallbackPos;
 
     el.focus();
     el.setSelectionRange(pos, pos);
     el.scrollTop = getScrollTopForCursor(text, pos);
     restoredRef.current = true;
-  }, [restoreReady, text, textareaRef, storageKey]);
+  }, [restoreReady, text, textareaRef, storageKey, fallback]);
 
   // 保存トリガ（呼び出し元が selection 変更時に呼ぶ）
   const onSelectionChange = (pos: number) => save(pos);

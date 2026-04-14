@@ -9,12 +9,25 @@
 }
 
 /*
- * M8-1-T2: 共通プロパティは global.css の .app-header に集約済み。
- * 左右パディングは .app-header の max(1rem, ...) で統一（旧 0.5rem から変更）。
- * ここでは EditorPage 固有の副次スタイルがあればのみ残す（現状なし）。
+ * M9-M1-T4: ページ数クラスタを画面中央に厳密にピン留めするため、
+ * `.app-header` の justify-content: space-between を grid で上書きする。
+ * 1fr auto 1fr で左・中央・右セルを等幅にし、中央セルの中身が真の画面中央になる。
  */
 .header {
-  /* empty: 共通スタイルは .app-header に集約 */
+  display: grid;
+  grid-template-columns: 1fr auto 1fr;
+  column-gap: 0.5rem;
+}
+.headerLeft {
+  justify-self: start;
+  display: inline-flex;
+  align-items: center;
+}
+.headerRight {
+  justify-self: end;
+  display: inline-flex;
+  align-items: center;
+  gap: 0.25rem;
 }
 
 /* ページ番号と左右ボタンは中央でまとめてクラスタにする */
@@ -79,19 +92,16 @@
 }
 
 /*
- * M7-T2: textarea の上端をヘッダー分下げる。
- * safe-area-inset-top と --header-height の合算で本文 1 行目をヘッダーの下に逃がす。
- * 罫線 (notebook-surface の repeating-linear-gradient) は本文テキストと一緒に
- * シフトするよう background-position を env(safe-area-inset-top) ぶん下げる。
- * ヘッダー自身の背景で本文上端の罫線も隠れるため、視覚上はヘッダー下から罫線が始まる。
+ * M9-M1-T3: ヘッダーを通常 flex 子要素に戻したため、textarea は残り高さを占有すればよい。
+ * 旧 `padding-top = var(--header-height) + env(safe-area-inset-top)` は撤廃。
+ * 左右 padding はノート余白 + safe-area-inset のみ維持。罫線もデフォルト位置で OK。
  */
 .textarea {
   flex: 1 1 auto;
   min-height: 0;
-  padding-top: calc(var(--header-height) + env(safe-area-inset-top, 0px));
+  padding-top: 0;
   padding-bottom: 0;
   padding-left: max(var(--padding-page), env(safe-area-inset-left));
   padding-right: max(var(--padding-page), env(safe-area-inset-right));
   overflow-y: auto;
-  background-position: 0 env(safe-area-inset-top, 0px);
 }

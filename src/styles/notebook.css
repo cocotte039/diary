@@ -16,15 +16,34 @@
   color: var(--color-text);
   background-color: var(--color-bg);
 
-  /* 罫線: 1行ごとに下線を1px */
-  background-image: repeating-linear-gradient(
-    to bottom,
-    transparent 0,
-    transparent calc(var(--line-height-px) - 1px),
-    var(--color-rule) calc(var(--line-height-px) - 1px),
-    var(--color-rule) var(--line-height-px)
-  );
-  background-size: 100% var(--line-height-px);
+  /*
+   * 罫線: 2 層の repeating-linear-gradient。
+   * レイヤー 1（上）: 15 行目ごとに少し濃い罫線（ページ進捗の 1/4 区切り）。
+   *                  LINES_PER_PAGE=60 で 15/30/45 行目が強調される。
+   *                  `--color-page-divider` トークンを再利用。
+   * レイヤー 2（下）: 1 行ごとに通常罫線。
+   *
+   * CSS では順序が早いほど上に重なる。強調罫線を上に置くことで、
+   * 同じ y 位置の通常罫線を覆う形になる。
+   */
+  background-image:
+    repeating-linear-gradient(
+      to bottom,
+      transparent 0,
+      transparent calc(var(--line-height-px) * 15 - 1px),
+      var(--color-page-divider) calc(var(--line-height-px) * 15 - 1px),
+      var(--color-page-divider) calc(var(--line-height-px) * 15)
+    ),
+    repeating-linear-gradient(
+      to bottom,
+      transparent 0,
+      transparent calc(var(--line-height-px) - 1px),
+      var(--color-rule) calc(var(--line-height-px) - 1px),
+      var(--color-rule) var(--line-height-px)
+    );
+  background-size:
+    100% calc(var(--line-height-px) * 15),
+    100% var(--line-height-px);
   /* テキストのベースラインと罫線を合わせるため、上下 padding は
      line-height の整数倍にする。左右はノート余白を演出。 */
   padding: 0 var(--padding-page);

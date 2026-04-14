@@ -19,16 +19,28 @@ interface Props {
   onDelete: (volumeId: string) => void | Promise<void>;
 }
 
-function formatRange(pages: Page[]): string {
+/**
+ * YYYY/MM/DD 形式の日付範囲を返す。
+ * - 書きかけ (isActive=true): `YYYY/MM/DD 〜`
+ * - 完了済 (isActive=false): `YYYY/MM/DD 〜 YYYY/MM/DD`
+ *
+ * ローカルタイムで整形する（UTC ISO の先頭10文字だと JST で日付ズレが起きる）。
+ */
+function formatRange(pages: Page[], isActive: boolean): string {
   if (pages.length === 0) return '';
   const sorted = [...pages].sort((a, b) =>
     a.createdAt.localeCompare(b.createdAt)
   );
   const first = new Date(sorted[0].createdAt);
   const last = new Date(sorted[sorted.length - 1].updatedAt);
-  const fmt = (d: Date) => `${d.getFullYear()}.${d.getMonth() + 1}`;
-  if (fmt(first) === fmt(last)) return fmt(first);
-  return `${fmt(first)} - ${fmt(last)}`;
+  const fmt = (d: Date) => {
+    const y = d.getFullYear();
+    const m = String(d.getMonth() + 1).padStart(2, '0');
+    const day = String(d.getDate()).padStart(2, '0');
+    return `${y}/${m}/${day}`;
+  };
+  if (isActive) return `${fmt(first)} 〜`;
+  return `${fmt(first)} 〜 ${fmt(last)}`;
 }
 
 export default function VolumeCard({
@@ -37,8 +49,8 @@ export default function VolumeCard({
   initialPage,
   onDelete,
 }: Props) {
-  const range = formatRange(pages);
   const isActive = volume.status === 'active';
+  const range = formatRange(pages, isActive);
 
   // 長押し検知用の ref 群。レンダーを伴わないので state ではなく ref。
   const longPressTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
@@ -57,8 +69,8 @@ export default function VolumeCard({
     const n = pages.length;
     const firstMsg =
       n === 0
-        ? 'この冊を削除します。よろしいですか？'
-        : `この冊と全 ${n} ページを削除します。よろしいですか？`;
+        ? 'このノートを削除します。よろしいですか？'
+        : `このノートと全 ${n} ページを削除します。よろしいですか？`;
     const firstOk = window.confirm(firstMsg);
     if (!firstOk) return;
     if (n >= 1) {
@@ -109,7 +121,7 @@ export default function VolumeCard({
     <Link
       to={`/book/${volume.id}/${initialPage}`}
       className={`${styles.card} ${isActive ? styles.cardActive : ''}`}
-      aria-label={`第${volume.ordinal}冊 ${range}`}
+      aria-label={`ノート ${volume.ordinal} ${range}`.trim()}
       onPointerDown={handlePointerDown}
       onPointerMove={handlePointerMove}
       onPointerUp={handlePointerEnd}
@@ -118,7 +130,7 @@ export default function VolumeCard({
       onClick={handleClick}
       onContextMenu={(e) => e.preventDefault()}
     >
-      <div className={styles.cardOrdinal}>第{volume.ordinal}冊</div>
+      <div className={styles.cardOrdinal}>{volume.ordinal}</div>
       <div className={styles.cardRange}>{range || '　'}</div>
       {isActive && <div className={styles.cardBadge}>書きかけ</div>}
     </Link>

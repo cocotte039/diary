@@ -79,7 +79,7 @@ export default function BookshelfPage() {
     const ap = await getPagesByVolume(active.id);
     const count = ap.length;
     const ok = window.confirm(
-      `現在の冊は ${count} / ${PAGES_PER_VOLUME} ページです。新しい冊を作りますか？`
+      `現在のノートは ${count} / ${PAGES_PER_VOLUME} ページです。新しいノートを作りますか？`
     );
     if (!ok) return;
     await rotateVolume(active.id);
@@ -116,34 +116,35 @@ export default function BookshelfPage() {
         </div>
       </header>
 
-      {volumes.length === 0 ? (
-        <div className={styles.empty}>まだ冊がありません</div>
-      ) : (
-        <div className={styles.grid}>
-          {volumes.map((v) => (
-            <VolumeCard
-              key={v.id}
-              volume={v}
-              pages={pagesByVolume.get(v.id) ?? []}
-              initialPage={initialPages.get(v.id) ?? 1}
-              onDelete={handleDelete}
-            />
-          ))}
-          {/* M6-T5: グリッド末尾に新しい冊カード（冊0件時は非表示） */}
-          <NewVolumeCard onCreate={handleCreateNew} />
-        </div>
-      )}
+      <div className={styles.body}>
+        {volumes.length === 0 ? (
+          <div className={styles.empty}>まだノートがありません</div>
+        ) : (
+          <div className={styles.grid}>
+            {volumes.map((v) => (
+              <VolumeCard
+                key={v.id}
+                volume={v}
+                pages={pagesByVolume.get(v.id) ?? []}
+                initialPage={initialPages.get(v.id) ?? 1}
+                onDelete={handleDelete}
+              />
+            ))}
+            <NewVolumeCard onCreate={handleCreateNew} />
+          </div>
+        )}
 
-      <div className={styles.calendarToggle}>
-        <button
-          type="button"
-          onClick={() => setShowCalendar((s) => !s)}
-          aria-expanded={showCalendar}
-        >
-          {showCalendar ? 'カレンダーを閉じる' : 'カレンダーを開く'}
-        </button>
+        <div className={styles.calendarToggle}>
+          <button
+            type="button"
+            onClick={() => setShowCalendar((s) => !s)}
+            aria-expanded={showCalendar}
+          >
+            {showCalendar ? 'カレンダーを閉じる' : 'カレンダーを開く'}
+          </button>
+        </div>
+        {showCalendar && <Calendar />}
       </div>
-      {showCalendar && <Calendar />}
     </div>
   );
 }

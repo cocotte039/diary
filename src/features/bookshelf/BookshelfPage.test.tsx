@@ -54,7 +54,7 @@ describe('BookshelfPage link targets (M4-T5)', () => {
     await updateVolumeLastOpenedPage(v.id, 4);
     renderPage();
     const link = await screen.findByRole('link', {
-      name: new RegExp(`第${v.ordinal}冊`),
+      name: new RegExp(`ノート ${v.ordinal}`),
     });
     await waitFor(() =>
       expect(link).toHaveAttribute('href', `/book/${v.id}/4`)
@@ -71,7 +71,7 @@ describe('BookshelfPage link targets (M4-T5)', () => {
     await savePage(v.id, 2, 'b-latest'); // page 2 has latest updatedAt
     renderPage();
     const link = await screen.findByRole('link', {
-      name: new RegExp(`第${v.ordinal}冊`),
+      name: new RegExp(`ノート ${v.ordinal}`),
     });
     await waitFor(() =>
       expect(link).toHaveAttribute('href', `/book/${v.id}/2`)
@@ -90,7 +90,7 @@ describe('BookshelfPage link targets (M4-T5)', () => {
     const pages: Page[] = [];
     await replaceAllData(volumes, pages);
     renderPage();
-    const link = await screen.findByRole('link', { name: /第1冊/ });
+    const link = await screen.findByRole('link', { name: /ノート 1/ });
     await waitFor(() => expect(link).toHaveAttribute('href', '/book/vx/1'));
   });
 
@@ -98,7 +98,7 @@ describe('BookshelfPage link targets (M4-T5)', () => {
     const v = await ensureActiveVolume();
     renderPage();
     const link = await screen.findByRole('link', {
-      name: new RegExp(`第${v.ordinal}冊`),
+      name: new RegExp(`ノート ${v.ordinal}`),
     });
     await waitFor(() =>
       expect(link.getAttribute('href')).toMatch(/^\/book\//)
@@ -107,21 +107,21 @@ describe('BookshelfPage link targets (M4-T5)', () => {
 });
 
 describe('BookshelfPage new volume card (M6-T5)', () => {
-  it('冊が 1 件以上あると「新しい冊」ボタンが表示される', async () => {
+  it('冊が 1 件以上あると「新しいノート」ボタンが表示される', async () => {
     await ensureActiveVolume();
     renderPage();
-    await screen.findByRole('link', { name: /第1冊/ });
+    await screen.findByRole('link', { name: /ノート 1/ });
     expect(
-      screen.getByRole('button', { name: '新しい冊を作る' })
+      screen.getByRole('button', { name: '新しいノートを作る' })
     ).toBeInTheDocument();
   });
 
-  it('冊 0 件 → 自動作成後に「新しい冊」ボタンが表示される（1 件以上になったため）', async () => {
+  it('冊 0 件 → 自動作成後に「新しいノート」ボタンが表示される（1 件以上になったため）', async () => {
     // DB は wipe 済み。自動作成ロジックが走り、1 冊目ができた後にカードが出る。
     renderPage();
-    await screen.findByRole('link', { name: /第1冊/ });
+    await screen.findByRole('link', { name: /ノート 1/ });
     expect(
-      screen.getByRole('button', { name: '新しい冊を作る' })
+      screen.getByRole('button', { name: '新しいノートを作る' })
     ).toBeInTheDocument();
   });
 
@@ -131,11 +131,11 @@ describe('BookshelfPage new volume card (M6-T5)', () => {
     await savePage(v.id, 2, 'b');
     const confirmSpy = vi.spyOn(window, 'confirm').mockReturnValue(true);
     renderPage();
-    await screen.findByRole('link', { name: /第1冊/ });
-    const btn = screen.getByRole('button', { name: '新しい冊を作る' });
+    await screen.findByRole('link', { name: /ノート 1/ });
+    const btn = screen.getByRole('button', { name: '新しいノートを作る' });
     btn.click();
     await waitFor(() => {
-      expect(screen.getAllByRole('link', { name: /第\d+冊/ }).length).toBe(2);
+      expect(screen.getAllByRole('link', { name: /ノート \d+/ }).length).toBe(2);
     });
     // confirm メッセージにページ数が含まれる
     expect(confirmSpy).toHaveBeenCalledWith(
@@ -148,27 +148,27 @@ describe('BookshelfPage new volume card (M6-T5)', () => {
     const v = await ensureActiveVolume();
     const confirmSpy = vi.spyOn(window, 'confirm').mockReturnValue(false);
     renderPage();
-    await screen.findByRole('link', { name: new RegExp(`第${v.ordinal}冊`) });
-    const btn = screen.getByRole('button', { name: '新しい冊を作る' });
+    await screen.findByRole('link', { name: new RegExp(`ノート ${v.ordinal}`) });
+    const btn = screen.getByRole('button', { name: '新しいノートを作る' });
     btn.click();
     // 十分待っても冊は増えない
     await new Promise((r) => setTimeout(r, 200));
-    expect(screen.getAllByRole('link', { name: /第\d+冊/ }).length).toBe(1);
+    expect(screen.getAllByRole('link', { name: /ノート \d+/ }).length).toBe(1);
     confirmSpy.mockRestore();
   });
 
-  it('confirm のメッセージに「現在の冊は X / 50 ページです」と含まれる', async () => {
+  it('confirm のメッセージに「現在のノートは X / 50 ページです」と含まれる', async () => {
     const v = await ensureActiveVolume();
     await savePage(v.id, 1, 'a');
     await savePage(v.id, 2, 'b');
     await savePage(v.id, 3, 'c');
     const confirmSpy = vi.spyOn(window, 'confirm').mockReturnValue(false);
     renderPage();
-    await screen.findByRole('link', { name: new RegExp(`第${v.ordinal}冊`) });
-    screen.getByRole('button', { name: '新しい冊を作る' }).click();
+    await screen.findByRole('link', { name: new RegExp(`ノート ${v.ordinal}`) });
+    screen.getByRole('button', { name: '新しいノートを作る' }).click();
     await waitFor(() => expect(confirmSpy).toHaveBeenCalled());
     expect(confirmSpy).toHaveBeenCalledWith(
-      expect.stringContaining('現在の冊は 3 / 50 ページです')
+      expect.stringContaining('現在のノートは 3 / 50 ページです')
     );
     confirmSpy.mockRestore();
   });
@@ -209,7 +209,7 @@ describe('BookshelfPage long-press delete (M8-4)', () => {
     const confirmSpy = vi.spyOn(window, 'confirm').mockReturnValue(true);
     renderPage();
     const link = await screen.findByRole('link', {
-      name: new RegExp(`第${v.ordinal}冊`),
+      name: new RegExp(`ノート ${v.ordinal}`),
     });
     firePointer(link, 'pointerDown', 0, 0);
     firePointer(link, 'pointerUp', 0, 0);
@@ -224,7 +224,7 @@ describe('BookshelfPage long-press delete (M8-4)', () => {
     const confirmSpy = vi.spyOn(window, 'confirm').mockReturnValue(false);
     renderPage();
     const link = await screen.findByRole('link', {
-      name: new RegExp(`第${v.ordinal}冊`),
+      name: new RegExp(`ノート ${v.ordinal}`),
     });
     await fireLongPress(link);
     await waitFor(() => expect(confirmSpy).toHaveBeenCalled());
@@ -241,7 +241,7 @@ describe('BookshelfPage long-press delete (M8-4)', () => {
     const confirmSpy = vi.spyOn(window, 'confirm').mockReturnValue(true);
     renderPage();
     const link = await screen.findByRole('link', {
-      name: new RegExp(`第${v.ordinal}冊`),
+      name: new RegExp(`ノート ${v.ordinal}`),
     });
     firePointer(link, 'pointerDown', 0, 0);
     firePointer(link, 'pointerMove', 15, 0);
@@ -257,14 +257,14 @@ describe('BookshelfPage long-press delete (M8-4)', () => {
     const confirmSpy = vi.spyOn(window, 'confirm').mockReturnValue(false);
     renderPage();
     const link = await screen.findByRole('link', {
-      name: new RegExp(`第${v.ordinal}冊`),
+      name: new RegExp(`ノート ${v.ordinal}`),
     });
     await fireLongPress(link);
     await waitFor(() => expect(confirmSpy).toHaveBeenCalledTimes(1));
     // 削除されていないのでまだ同じ冊がある
     await new Promise((r) => setTimeout(r, 200));
     expect(
-      screen.getByRole('link', { name: new RegExp(`第${v.ordinal}冊`) })
+      screen.getByRole('link', { name: new RegExp(`ノート ${v.ordinal}`) })
     ).toBeInTheDocument();
     confirmSpy.mockRestore();
   });
@@ -279,14 +279,14 @@ describe('BookshelfPage long-press delete (M8-4)', () => {
       .mockReturnValueOnce(false);
     renderPage();
     const link = await screen.findByRole('link', {
-      name: new RegExp(`第${v.ordinal}冊`),
+      name: new RegExp(`ノート ${v.ordinal}`),
     });
     await fireLongPress(link);
     await waitFor(() => expect(confirmSpy).toHaveBeenCalledTimes(2));
     // まだ残っている
     await new Promise((r) => setTimeout(r, 200));
     expect(
-      screen.getByRole('link', { name: new RegExp(`第${v.ordinal}冊`) })
+      screen.getByRole('link', { name: new RegExp(`ノート ${v.ordinal}`) })
     ).toBeInTheDocument();
     confirmSpy.mockRestore();
   });
@@ -323,18 +323,18 @@ describe('BookshelfPage long-press delete (M8-4)', () => {
     const confirmSpy = vi.spyOn(window, 'confirm').mockReturnValue(true);
     renderPage();
     await waitFor(() => {
-      expect(screen.getAllByRole('link', { name: /第\d+冊/ }).length).toBe(2);
+      expect(screen.getAllByRole('link', { name: /ノート \d+/ }).length).toBe(2);
     });
     // 第2冊（active・0 ページ）を長押し削除
-    const link2 = screen.getByRole('link', { name: /第2冊/ });
+    const link2 = screen.getByRole('link', { name: /ノート 2/ });
     await fireLongPress(link2);
     await waitFor(() =>
-      expect(screen.getAllByRole('link', { name: /第\d+冊/ }).length).toBe(1)
+      expect(screen.getAllByRole('link', { name: /ノート \d+/ }).length).toBe(1)
     );
     // 1 段階のみ
     expect(confirmSpy).toHaveBeenCalledTimes(1);
     expect(confirmSpy).toHaveBeenCalledWith(
-      'この冊を削除します。よろしいですか？'
+      'このノートを削除します。よろしいですか？'
     );
     confirmSpy.mockRestore();
   });
@@ -348,18 +348,18 @@ describe('BookshelfPage long-press delete (M8-4)', () => {
     const confirmSpy = vi.spyOn(window, 'confirm').mockReturnValue(true);
     renderPage();
     await waitFor(() => {
-      expect(screen.getAllByRole('link', { name: /第\d+冊/ }).length).toBe(2);
+      expect(screen.getAllByRole('link', { name: /ノート \d+/ }).length).toBe(2);
     });
     // 第1冊を削除（2 ページある → 2 段階 confirm）
-    const link1 = screen.getByRole('link', { name: /第1冊/ });
+    const link1 = screen.getByRole('link', { name: /ノート 1/ });
     await fireLongPress(link1);
     await waitFor(() =>
-      expect(screen.getAllByRole('link', { name: /第\d+冊/ }).length).toBe(1)
+      expect(screen.getAllByRole('link', { name: /ノート \d+/ }).length).toBe(1)
     );
     expect(
-      screen.queryByRole('link', { name: /第1冊/ })
+      screen.queryByRole('link', { name: /ノート 1/ })
     ).not.toBeInTheDocument();
-    expect(screen.getByRole('link', { name: /第2冊/ })).toBeInTheDocument();
+    expect(screen.getByRole('link', { name: /ノート 2/ })).toBeInTheDocument();
     // 2 段階呼ばれている
     expect(confirmSpy).toHaveBeenCalledTimes(2);
     confirmSpy.mockRestore();
@@ -377,18 +377,18 @@ describe('BookshelfPage auto-create & header (M4-T6)', () => {
   it('auto-creates an initial volume when DB is empty', async () => {
     // DB is wiped in beforeEach; no ensureActiveVolume call here
     renderPage();
-    const link = await screen.findByRole('link', { name: /第1冊/ });
+    const link = await screen.findByRole('link', { name: /ノート 1/ });
     expect(link).toBeInTheDocument();
     // Also ensure "まだ冊がありません" empty state is not shown
-    expect(screen.queryByText('まだ冊がありません')).toBeNull();
+    expect(screen.queryByText('まだノートがありません')).toBeNull();
   });
 
   it('does not add a new volume when one already exists (idempotent)', async () => {
     const v = await ensureActiveVolume();
     renderPage();
-    await screen.findByRole('link', { name: new RegExp(`第${v.ordinal}冊`) });
+    await screen.findByRole('link', { name: new RegExp(`ノート ${v.ordinal}`) });
     // Only one card should be rendered
-    const cards = screen.getAllByRole('link', { name: /第\d+冊/ });
+    const cards = screen.getAllByRole('link', { name: /ノート \d+/ });
     expect(cards.length).toBe(1);
   });
 });

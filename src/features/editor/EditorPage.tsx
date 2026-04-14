@@ -11,9 +11,15 @@ import {
 } from 'react';
 import { Link, useNavigate, useParams } from 'react-router-dom';
 import styles from './EditorPage.module.css';
-import { getPage, savePage, updateVolumeLastOpenedPage } from '../../lib/db';
+import {
+  getPage,
+  getVolume,
+  savePage,
+  updateVolumeLastOpenedPage,
+} from '../../lib/db';
 import {
   LINES_PER_PAGE,
+  LINE_HEIGHT_PX,
   PAGES_PER_VOLUME,
   SWIPE_THRESHOLD_PX,
 } from '../../lib/constants';
@@ -67,6 +73,9 @@ export default function EditorPage() {
   const [text, setText] = useState('');
   const [ready, setReady] = useState(false);
   const [fading, setFading] = useState(false);
+  // M9-M4: 冊ステータスに応じた初回カーソル位置のフォールバック。
+  // active なら末尾（続きを書く）、completed なら先頭（読み返す）。
+  const [cursorFallback, setCursorFallback] = useState<'end' | 'start'>('end');
 
   // フェード中の連続クリック/タップ/キーを無視するロック
   const transitionLockRef = useRef(false);
@@ -94,9 +103,14 @@ export default function EditorPage() {
         }
         return;
       }
-      const page = await getPage(volumeId, current);
+      const [page, volume] = await Promise.all([
+        getPage(volumeId, current),
+        getVolume(volumeId),
+      ]);
       if (cancelled) return;
       setText(page?.content ?? '');
+      // M9-M4: 書きかけ（active）は末尾、完了済みは先頭にカーソルを置く（localStorage が無いとき）
+      setCursorFallback(volume?.status === 'active' ? 'end' : 'start');
       setReady(true);
       // 「最後に開いたページ」を記憶（次回本棚から同じページに戻れるように）
       // fire-and-forget: 失敗しても表示は継続
@@ -137,13 +151,14 @@ export default function EditorPage() {
   // autosave 配線（本番コードパス）
   const { flush } = useEditorAutoSave(ready ? volumeId : null, current, text);
 
-  // カーソル復元 (M5-T4): ページ単位でスコープ化された localStorage キーを使う
+  // カーソル復元 (M5-T4 / M9-M4): ページ単位でスコープ化された localStorage キーを使う
   const { onSelectionChange } = useEditorCursor(
     textareaRef,
     text,
     ready,
     volumeId,
-    current
+    current,
+    cursorFallback
   );
 
   /**
@@ -161,7 +176,29 @@ export default function EditorPage() {
       if (!volumeId) return;
       if (current >= PAGES_PER_VOLUME) return; // T6.4 ロック対象は発動させない
       if (transitionLockRef.current) return;
-      const { keep, overflow } = splitAtLine30(value);
+      // 1) 論理行ベースの overflow（既存）
+      let { keep, overflow } = splitAtLine30(value);
+
+      // 2) M9-M5: 視覚行（折り返し込み）ベースの overflow 検出。
+      //    論理行は 60 以下でも 1 行が長いと折り返しで視覚行が 60 を超える。
+      //    textarea.scrollHeight / LINE_HEIGHT_PX で視覚行数を推定し、
+      //    上限超過なら最後の改行で分割（なければ末尾半分をフォールバック持ち越し）。
+      if (overflow.length === 0) {
+        const el = textareaRef.current;
+        const maxPx = LINES_PER_PAGE * LINE_HEIGHT_PX;
+        if (el && el.scrollHeight > maxPx + 1) {
+          const lastNl = value.lastIndexOf('\n');
+          if (lastNl >= 0 && lastNl < value.length - 1) {
+            keep = value.slice(0, lastNl);
+            overflow = value.slice(lastNl + 1);
+          } else {
+            const mid = Math.floor(value.length / 2);
+            keep = value.slice(0, mid);
+            overflow = value.slice(mid);
+          }
+        }
+      }
+
       if (overflow.length === 0) return;
 
       transitionLockRef.current = true;
@@ -402,7 +439,9 @@ export default function EditorPage() {
       onTouchEnd={onTouchEnd}
     >
       <header className={`app-header ${styles.header}`}>
-        <Link to="/" aria-label="本棚に戻る" className="app-header-link">本棚</Link>
+        <div className={styles.headerLeft}>
+          <Link to="/" aria-label="本棚に戻る" className="app-header-link">本棚</Link>
+        </div>
         <div className={styles.pageCluster}>
           <button
             type="button"
@@ -426,7 +465,7 @@ export default function EditorPage() {
             ›
           </button>
         </div>
-        <div style={{ display: 'flex', alignItems: 'center', gap: '0.25rem' }}>
+        <div className={styles.headerRight}>
           <button
             type="button"
             className={styles.headerDateButton}

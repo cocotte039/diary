@@ -15,12 +15,12 @@ export default function NewVolumeCard({
       type="button"
       className={`${styles.card} ${styles.newCard}`}
       onClick={onCreate}
-      aria-label="新しい冊を作る"
+      aria-label="新しいノートを作る"
     >
       <span className={styles.newCardGlyph} aria-hidden="true">
         ＋
       </span>
-      <span className={styles.newCardLabel}>新しい冊</span>
+      <span className={styles.newCardLabel}>新しいノート</span>
     </button>
   );
 }

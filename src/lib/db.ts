@@ -462,8 +462,17 @@ export async function deleteVolume(volumeId: string): Promise<void> {
 // 日付検索（T2.4）
 // =============================================================================
 
+/**
+ * ISO 文字列（UTC）をローカル日付の YYYY-MM-DD に変換する。
+ * 単純な `iso.slice(0, 10)` は UTC 日付なので JST 深夜〜早朝の境界で
+ * 前日/翌日にズレる。Date 経由でローカル年月日を組み立てることで解消。
+ */
 function dateKey(iso: string): string {
-  return iso.slice(0, 10);
+  const d = new Date(iso);
+  const y = d.getFullYear();
+  const m = String(d.getMonth() + 1).padStart(2, '0');
+  const day = String(d.getDate()).padStart(2, '0');
+  return `${y}-${m}-${day}`;
 }
 
 /**
@@ -499,6 +508,7 @@ export async function findPageByDate(
 
 /**
  * ある年月 (year, month 1-12) のうち、日記が存在する日 (YYYY-MM-DD) 集合を返す。
+ * ローカルタイム基準で年月を比較する（JST 境界時刻のズレ解消）。
  */
 export async function getDateSetInMonth(
   year: number,
@@ -506,10 +516,10 @@ export async function getDateSetInMonth(
 ): Promise<Set<string>> {
   const db = await getDB();
   const pages = await db.getAll('pages');
-  const prefix = `${year}-${String(month).padStart(2, '0')}`;
   const set = new Set<string>();
   for (const p of pages) {
-    if (p.createdAt.startsWith(prefix)) {
+    const d = new Date(p.createdAt);
+    if (d.getFullYear() === year && d.getMonth() + 1 === month) {
       set.add(dateKey(p.createdAt));
     }
   }

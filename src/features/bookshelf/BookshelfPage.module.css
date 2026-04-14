@@ -1,14 +1,17 @@
 /*
- * M8-1-T3: ヘッダーを .app-header で固定化し、.root をスクロールコンテナ化。
- * height: 100dvh + overflow-y: auto でカード数が増えても縦スクロールで全件見られる。
- * padding-top でヘッダー分の逃げを確保（第1冊カードが隠れないように）。
+ * M9-M1-T3: ヘッダーは flex 子要素に戻したため padding-top の逃げは不要。
+ * .root は flex-column の全高、ヘッダーは .app-header 側で flex-shrink: 0、
+ * 本体領域は overflow-y: auto で縦スクロール。
  */
 .root {
   height: 100dvh;
-  padding-top: calc(var(--header-height) + env(safe-area-inset-top, 0px) + 1rem);
-  padding-left: var(--padding-page);
-  padding-right: var(--padding-page);
-  padding-bottom: max(1rem, env(safe-area-inset-bottom));
+  display: flex;
+  flex-direction: column;
+}
+.body {
+  flex: 1 1 auto;
+  min-height: 0;
+  padding: 1rem var(--padding-page) max(1rem, env(safe-area-inset-bottom));
   overflow-y: auto;
 }
 

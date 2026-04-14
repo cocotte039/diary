@@ -1,16 +1,18 @@
 /*
- * M8-1-T4: ヘッダーを .app-header で固定化し、.root をスクロールコンテナ化。
- * 設定は縦に長いため overflow-y: auto で全セクションを閲覧可能にする。
- * padding-top でヘッダー分の逃げを確保する。
+ * M9-M1-T3: ヘッダーを flex 子要素に戻したので padding-top の逃げは不要。
+ * .root は flex-column 全高、本文領域 .body で overflow-y: auto。
  */
 .root {
   height: 100dvh;
-  padding-top: calc(var(--header-height) + env(safe-area-inset-top, 0px) + 1rem);
-  padding-left: var(--padding-page);
-  padding-right: var(--padding-page);
-  padding-bottom: max(1rem, env(safe-area-inset-bottom));
-  overflow-y: auto;
+  display: flex;
+  flex-direction: column;
   font-family: var(--font-family-ui);
+}
+.body {
+  flex: 1 1 auto;
+  min-height: 0;
+  padding: 1rem var(--padding-page) max(1rem, env(safe-area-inset-bottom));
+  overflow-y: auto;
 }
 
 .header {

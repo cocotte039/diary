@@ -3,8 +3,9 @@
  * マジックナンバーはここに集約すること。
  */
 
-/** 1ページあたりの論理行数（\n 区切りの行数） */
-export const LINES_PER_PAGE = 30;
+/** 1ページあたりの論理行数（\n 区切りの行数）。
+ *  視覚行ベース判定（折り返し込み）の閾値としても使われる。M9 で 30→60 に拡大。 */
+export const LINES_PER_PAGE = 60;
 
 /** 1冊あたりのページ数 */
 export const PAGES_PER_VOLUME = 50;
