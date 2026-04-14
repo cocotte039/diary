@@ -291,3 +291,108 @@ describe('db v2: Volume.lastOpenedPage roundtrip', () => {
     expect(p?.content).toBe('hello');
   });
 });
+
+/**
+ * M7-T7: v1 スキーマで書いたデータを v2 で open して読めることを保証する。
+ * 本テストでは「素の IndexedDB」で v1 のストア構成を作り、そこにレコードを入れてから
+ * `getDB()` (DB_VERSION=2) で再 open することで upgrade パスを通過させる。
+ *
+ * 重要な既存データ:
+ *  - Volume は lastOpenedPage が undefined のまま読める（optional フィールド）
+ *  - Page は id/content/updatedAt 等すべて保持される
+ */
+describe('db v2 migration from v1 (M7-T7)', () => {
+  it('opens a pre-existing v1 DB and reads existing records without loss', async () => {
+    // 1) 素の IndexedDB で v1 スキーマを構築しレコードを入れる
+    await new Promise<void>((resolve, reject) => {
+      const req = indexedDB.open(DB_NAME, 1);
+      req.onupgradeneeded = () => {
+        const db = req.result;
+        const vs = db.createObjectStore('volumes', { keyPath: 'id' });
+        vs.createIndex('by-status', 'status');
+        vs.createIndex('by-ordinal', 'ordinal');
+        const ps = db.createObjectStore('pages', { keyPath: 'id' });
+        ps.createIndex('by-volume-page', ['volumeId', 'pageNumber']);
+        ps.createIndex('by-volume', 'volumeId');
+        ps.createIndex('by-createdAt', 'createdAt');
+        ps.createIndex('by-syncStatus', 'syncStatus');
+        db.createObjectStore('meta');
+      };
+      req.onsuccess = () => {
+        const db = req.result;
+        const tx = db.transaction(['volumes', 'pages'], 'readwrite');
+        tx.objectStore('volumes').put({
+          id: 'v-old',
+          ordinal: 1,
+          status: 'active',
+          createdAt: '2025-01-01T00:00:00.000Z',
+        } as Volume);
+        tx.objectStore('pages').put({
+          id: 'p-old',
+          volumeId: 'v-old',
+          pageNumber: 1,
+          content: 'legacy body',
+          createdAt: '2025-01-01T00:00:00.000Z',
+          updatedAt: '2025-01-01T00:00:00.000Z',
+          syncStatus: 'synced',
+        } as Page);
+        tx.oncomplete = () => {
+          db.close();
+          resolve();
+        };
+        tx.onerror = () => reject(tx.error);
+      };
+      req.onerror = () => reject(req.error);
+    });
+
+    // 2) 新バージョンで open（upgrade パスを通過）→ 既存レコードが読める
+    const v = await getVolume('v-old');
+    expect(v).toBeTruthy();
+    expect(v?.id).toBe('v-old');
+    // v1 データには lastOpenedPage が無い。undefined のまま読めること。
+    expect(v?.lastOpenedPage).toBeUndefined();
+
+    const p = await getPage('v-old', 1);
+    expect(p?.content).toBe('legacy body');
+    expect(p?.syncStatus).toBe('synced');
+  });
+
+  it('can write lastOpenedPage on a v1-origin volume after v2 upgrade', async () => {
+    // v1 レコードを作成
+    await new Promise<void>((resolve, reject) => {
+      const req = indexedDB.open(DB_NAME, 1);
+      req.onupgradeneeded = () => {
+        const db = req.result;
+        const vs = db.createObjectStore('volumes', { keyPath: 'id' });
+        vs.createIndex('by-status', 'status');
+        vs.createIndex('by-ordinal', 'ordinal');
+        const ps = db.createObjectStore('pages', { keyPath: 'id' });
+        ps.createIndex('by-volume-page', ['volumeId', 'pageNumber']);
+        ps.createIndex('by-volume', 'volumeId');
+        ps.createIndex('by-createdAt', 'createdAt');
+        ps.createIndex('by-syncStatus', 'syncStatus');
+        db.createObjectStore('meta');
+      };
+      req.onsuccess = () => {
+        const db = req.result;
+        const tx = db.transaction('volumes', 'readwrite');
+        tx.objectStore('volumes').put({
+          id: 'v-legacy',
+          ordinal: 2,
+          status: 'active',
+          createdAt: '2025-02-01T00:00:00.000Z',
+        } as Volume);
+        tx.oncomplete = () => {
+          db.close();
+          resolve();
+        };
+        tx.onerror = () => reject(tx.error);
+      };
+      req.onerror = () => reject(req.error);
+    });
+
+    await updateVolumeLastOpenedPage('v-legacy', 5);
+    const got = await getVolume('v-legacy');
+    expect(got?.lastOpenedPage).toBe(5);
+  });
+});

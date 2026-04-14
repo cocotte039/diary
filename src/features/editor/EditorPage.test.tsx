@@ -586,3 +586,85 @@ describe('EditorPage keyboard navigation (M5-T5)', () => {
     expect(other).toBe(true);
   });
 });
+
+describe('EditorPage date insertion (M7-T4)', () => {
+  /**
+   * Date を決定論的にするためのスパイヘルパ。
+   * vi.useFakeTimers は fake-indexeddb の microtask と干渉しハングするため
+   * (AGENTS.md #27)、ここでは Date 自体を stub する軽量実装を使う。
+   */
+  function withFixedDate<T>(iso: string, fn: () => T): T {
+    const RealDate = globalThis.Date;
+    const fixed = new RealDate(iso);
+    class StubDate extends RealDate {
+      constructor(...args: unknown[]) {
+        if (args.length === 0) {
+          super(fixed.getTime());
+          return;
+        }
+        // @ts-expect-error: passthrough to RealDate constructor signatures
+        super(...args);
+      }
+      static now(): number {
+        return fixed.getTime();
+      }
+    }
+    // @ts-expect-error: temporary override
+    globalThis.Date = StubDate;
+    try {
+      return fn();
+    } finally {
+      globalThis.Date = RealDate;
+    }
+  }
+
+  it('ヘッダー右の「今日の日付を挿入」ボタンで本文にスタンプが挿入される', async () => {
+    const v = await ensureActiveVolume();
+    renderAt(`/book/${v.id}/1`);
+    const textarea = (await screen.findByLabelText('日記本文')) as HTMLTextAreaElement;
+    fireEvent.change(textarea, { target: { value: 'before-' } });
+    textarea.setSelectionRange(textarea.value.length, textarea.value.length);
+    const btn = screen.getByRole('button', { name: '今日の日付を挿入' });
+    withFixedDate('2026-04-14T09:00:00', () => fireEvent.click(btn));
+    expect(textarea.value).toBe('before-2026年4月14日(火)\n');
+  });
+
+  it('挿入後にカーソルがスタンプ末尾に移動する', async () => {
+    const v = await ensureActiveVolume();
+    renderAt(`/book/${v.id}/1`);
+    const textarea = (await screen.findByLabelText('日記本文')) as HTMLTextAreaElement;
+    textarea.setSelectionRange(0, 0);
+    const btn = screen.getByRole('button', { name: '今日の日付を挿入' });
+    withFixedDate('2026-04-14T09:00:00', () => fireEvent.click(btn));
+    // rAF で setSelectionRange が反映されるのを待つ
+    await waitFor(() =>
+      expect(textarea.selectionStart).toBe('2026年4月14日(火)\n'.length)
+    );
+  });
+
+  it('ヘッダー日付ボタンは styles.headerDateButton で 44x44 を確保する', async () => {
+    const v = await ensureActiveVolume();
+    renderAt(`/book/${v.id}/1`);
+    await screen.findByLabelText('日記本文');
+    const btn = screen.getByRole('button', { name: '今日の日付を挿入' });
+    // CSS Module 由来のクラスで styles.headerDateButton が適用されていること
+    expect(btn.className).toMatch(/headerDateButton/);
+  });
+
+  it('日付挿入で 30 行を超える場合、次ページへ自動遷移する', async () => {
+    const v = await ensureActiveVolume();
+    let pathname = '';
+    renderWithLocationProbe(`/book/${v.id}/1`, (p) => {
+      pathname = p;
+    });
+    const textarea = (await screen.findByLabelText('日記本文')) as HTMLTextAreaElement;
+    // 30 行を埋めてからスタンプを先頭に挿入 → 最終行が「余剰」として 31 行目に押し出される
+    const thirtyLines = Array.from({ length: 30 }, (_, i) => `l${i}`).join('\n');
+    fireEvent.change(textarea, { target: { value: thirtyLines } });
+    textarea.setSelectionRange(0, 0);
+    withFixedDate('2026-04-14T09:00:00', () =>
+      fireEvent.click(screen.getByRole('button', { name: '今日の日付を挿入' }))
+    );
+    await waitFor(() => expect(pathname).toBe(`/book/${v.id}/2`));
+  });
+});

@@ -212,6 +212,34 @@ npm run preview      # ビルド結果のプレビュー
     スタイル・aria 属性・今後の装飾追加を考え 1 ファイル分割。`styles.card + styles.newCard` で
     既存 .card と共通化し、破線境界・opacity のみ差分。
 
+## 実装時に追加した判断（2026-04-14 M7）
+
+43. **🟡 ヘッダー高さは 2 行分で固定**: `--header-height = calc(2 * var(--line-height-px))` = 57.6px。
+    本文は `padding-top = var(--header-height) + env(safe-area-inset-top)` でヘッダー分下げ、
+    罫線も `background-position: 0 env(safe-area-inset-top)` で揃える。ヘッダー自体は不透明背景で
+    本文上端を隠す方式。iOS Safari の safe-area-inset は実機目視が最終判断。
+44. **🟡 app-header-link クラスで 3 ページのヘッダーを統一**: `global.css` に共通クラスを定義し、
+    EditorPage/BookshelfPage/SettingsPage の Link に付与。opacity 0.3 / active 0.6 / 0.75rem。
+    CSS Module 内で :global を書かずにクラス参照だけで済むよう、JSX 側に `className="app-header-link"` を直接置く方針。
+45. **🟡 DateIcon は機能ディレクトリ直下に配置**: 共通 icons ディレクトリを新設せず、
+    `src/features/editor/DateIcon.tsx` に 1 ファイル。将来他アイコンが増えたら集約検討。
+    SVG は stroke=currentColor で親の color を継承し、aria-hidden でボタン側の aria-label に任せる。
+46. **🟡 日付挿入ボタンの hit area は styles.headerDateButton で 44x44 固定**: アイコン自体は 16x16 だが、
+    ボタンに width/height 44px を与えるタッチ安全域を確保（Skeptic M3）。
+47. **🟡 insertDate の overflow 判定は既存 checkOverflowAndNavigate 再利用**: 日付挿入で 30 行超過時も
+    T6.3 の自動遷移経路を通す。state と requestAnimationFrame による selection 復元の順序を維持。
+48. **🟡 WritePage/ReaderPage 削除**: `git rm -r src/features/write src/features/reader` に加え、
+    WritePage 専用だった hooks (`useAutoSave`, `useCursorRestore`) も同時削除。
+    `/write` ルートは `path="*"` のフォールバックで `/`（本棚）に戻す。
+    `/read/:id/:page` は既存ブックマーク互換のため ReadRedirect を残す。
+49. **🟡 v1→v2 マイグレーションテストは素の indexedDB.open で構築**: fake-indexeddb + idb の
+    upgrade テストは、先にバージョン 1 でオブジェクトストアを作成しレコードを入れてから、
+    `getDB()` (DB_VERSION=2) で再 open して upgrade ハンドラを通す。optional フィールド追加のため
+    既存レコードは無傷で読める。
+50. **🟡 insertDate テストは vi.useFakeTimers を使わない**: AGENTS.md #27 と同じ理由で、
+    fake-indexeddb の microtask がハングする。Date 自体を軽量に stub する `withFixedDate`
+    ヘルパで決定論化し、rAF の収束は `waitFor` で待つ。
+
 ## 本PCで実施できなかった作業（HANDOFF.md に委譲）
 
 - `npm install`（依存取得、lockfile 生成）
