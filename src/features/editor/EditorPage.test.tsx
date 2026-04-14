@@ -188,3 +188,44 @@ describe('EditorPage page navigation buttons (M5-T1)', () => {
     });
   });
 });
+
+describe('EditorPage fade transition (M5-T2)', () => {
+  it('クリック直後に surface に fading クラスが付く', async () => {
+    const v = await ensureActiveVolume();
+    renderAt(`/book/${v.id}/1`);
+    await screen.findByLabelText('日記本文');
+    const surface = screen.getByTestId('editor-surface');
+    expect(surface.className).not.toMatch(/fading/);
+    fireEvent.click(screen.getByRole('button', { name: '次のページ' }));
+    expect(surface.className).toMatch(/fading/);
+  });
+
+  it('フェード中の連続クリックは無視される（多重遷移防止）', async () => {
+    const v = await ensureActiveVolume();
+    let pathname = '';
+    renderWithLocationProbe(`/book/${v.id}/1`, (p) => {
+      pathname = p;
+    });
+    await screen.findByLabelText('日記本文');
+    const nextBtn = screen.getByRole('button', { name: '次のページ' });
+    fireEvent.click(nextBtn);
+    fireEvent.click(nextBtn); // 2 度目はロックで握りつぶされる
+    await waitFor(() => expect(pathname).toBe(`/book/${v.id}/2`));
+    expect(pathname).not.toBe(`/book/${v.id}/3`);
+  });
+
+  it('遷移後は fading クラスが外れる', async () => {
+    const v = await ensureActiveVolume();
+    let pathname = '';
+    renderWithLocationProbe(`/book/${v.id}/1`, (p) => {
+      pathname = p;
+    });
+    await screen.findByLabelText('日記本文');
+    fireEvent.click(screen.getByRole('button', { name: '次のページ' }));
+    await waitFor(() => expect(pathname).toBe(`/book/${v.id}/2`));
+    await waitFor(() => {
+      const surface = screen.getByTestId('editor-surface');
+      expect(surface.className).not.toMatch(/fading/);
+    });
+  });
+});

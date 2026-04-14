@@ -1,5 +1,6 @@
 import {
   useEffect,
+  useRef,
   useState,
   useCallback,
   type ChangeEvent,
@@ -10,6 +11,9 @@ import { getPage, updateVolumeLastOpenedPage } from '../../lib/db';
 import { PAGES_PER_VOLUME } from '../../lib/constants';
 import { useEditorAutoSave } from './useEditorAutoSave';
 
+/** ページめくりフェードの所要時間 (ms)。global.css の --transition-page と同期させる。 */
+const PAGE_FADE_MS = 180;
+
 /**
  * EditorPage: 1 ページ = 1 textarea の独立 UI。
  *
@@ -17,9 +21,10 @@ import { useEditorAutoSave } from './useEditorAutoSave';
  * - ロード: getPage(volumeId, current) → textarea に content を流し込む
  * - 保存: useEditorAutoSave(volumeId, current, text) で 2 秒 debounce + flush
  * - ヘッダー: 左「本棚」/ 中央「‹ n / 50 ›」/ 右「設定」
- * - ページ遷移 (M5-T1): 左右ボタン。遷移前に autosave flush + lastOpenedPage 更新。
+ * - ページ遷移 (M5-T1/T2): 左右ボタン + 180ms フェード (--transition-page)。
+ *   遷移前に autosave flush + lastOpenedPage 更新。
  *
- * 180ms フェード・スワイプ・PageUp/PageDown は後続タスク (M5-T2/T3/T5) で追加。
+ * スワイプ・PageUp/PageDown は後続タスク (M5-T3/T5) で追加。
  * 30 行ロック・IME ガード等は M6/M7 で追加。
  */
 export default function EditorPage() {
@@ -36,6 +41,12 @@ export default function EditorPage() {
 
   const [text, setText] = useState('');
   const [ready, setReady] = useState(false);
+  const [fading, setFading] = useState(false);
+
+  // フェード中の連続クリック/タップ/キーを無視するロック
+  const transitionLockRef = useRef(false);
+  // 遷移用 setTimeout を unmount 時にクリーンアップするための ref
+  const fadeTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
 
   useEffect(() => {
     let cancelled = false;
@@ -61,6 +72,19 @@ export default function EditorPage() {
     };
   }, [volumeId, current]);
 
+  // ページ切替完了時にフェード状態とロックを解除する
+  useEffect(() => {
+    setFading(false);
+    transitionLockRef.current = false;
+  }, [volumeId, current]);
+
+  // unmount 時にフェードタイマーを破棄
+  useEffect(() => {
+    return () => {
+      if (fadeTimerRef.current) clearTimeout(fadeTimerRef.current);
+    };
+  }, []);
+
   // autosave 配線（本番コードパス）
   const { flush } = useEditorAutoSave(ready ? volumeId : null, current, text);
 
@@ -70,19 +94,23 @@ export default function EditorPage() {
   );
 
   /**
-   * ページ遷移の共通処理 (M5-T1)。
-   * 1. 範囲外ならガード。
-   * 2. flush() で編集中テキストを確定保存（データロス防止）。
-   * 3. Volume.lastOpenedPage を更新（次回復帰用）。
-   * 4. navigate で URL を切替（replace: false、履歴を残す）。
+   * ページ遷移の共通処理 (M5-T1/T2)。
+   * 1. 範囲外/フェード進行中ならガード。
+   * 2. fading=true にして surface の opacity を 0 へフェード (180ms)。
+   * 3. flush() で編集中テキストを確定保存（データロス防止）。
+   * 4. Volume.lastOpenedPage を更新（次回復帰用）。
+   * 5. 180ms 後に navigate。遷移先の useEffect で fading / lock は解除される。
    *
    * T5.3 (スワイプ) / T5.5 (キー) / T6.3 (自動遷移) からも同じ関数を呼ぶ（配線統一）。
    */
   const goPage = useCallback(
     (delta: number) => {
       if (!volumeId) return;
+      if (transitionLockRef.current) return;
       const next = current + delta;
       if (next < 1 || next > PAGES_PER_VOLUME) return;
+      transitionLockRef.current = true;
+      setFading(true);
       void (async () => {
         try {
           await flush();
@@ -94,7 +122,10 @@ export default function EditorPage() {
         } catch {
           // 記憶更新失敗は致命的でないので握りつぶす
         }
-        navigate(`/book/${volumeId}/${next}`);
+        if (fadeTimerRef.current) clearTimeout(fadeTimerRef.current);
+        fadeTimerRef.current = setTimeout(() => {
+          navigate(`/book/${volumeId}/${next}`);
+        }, PAGE_FADE_MS);
       })();
     },
     [volumeId, current, flush, navigate]
@@ -133,17 +164,22 @@ export default function EditorPage() {
         <Link to="/settings" aria-label="設定">設定</Link>
       </header>
 
-      <textarea
-        data-testid="editor-textarea"
-        className={`notebook-surface notebook-textarea ${styles.textarea}`}
-        value={text}
-        onChange={handleChange}
-        autoComplete="off"
-        autoCorrect="off"
-        autoCapitalize="off"
-        spellCheck={false}
-        aria-label="日記本文"
-      />
+      <div
+        className={`${styles.surface} ${fading ? styles.fading : ''}`}
+        data-testid="editor-surface"
+      >
+        <textarea
+          data-testid="editor-textarea"
+          className={`notebook-surface notebook-textarea ${styles.textarea}`}
+          value={text}
+          onChange={handleChange}
+          autoComplete="off"
+          autoCorrect="off"
+          autoCapitalize="off"
+          spellCheck={false}
+          aria-label="日記本文"
+        />
+      </div>
     </div>
   );
 }

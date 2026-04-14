@@ -61,6 +61,18 @@
   cursor: default;
 }
 
+/* ページ送りフェード用ラッパ。transition は --transition-page (180ms) を使う */
+.surface {
+  flex: 1 1 auto;
+  min-height: 0;
+  display: flex;
+  flex-direction: column;
+  transition: var(--transition-page);
+}
+.fading {
+  opacity: 0;
+}
+
 .textarea {
   flex: 1 1 auto;
   min-height: 0;

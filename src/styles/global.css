@@ -25,6 +25,7 @@
   /* --- レイアウト --- */
   --padding-page: 1rem;
   --transition-soft: opacity 200ms ease;
+  --transition-page: opacity 180ms ease; /* EditorPage 専用（ページめくり） */
 
   /* --- 派生値（他所で再計算せずに参照できるよう定数化） --- */
   --line-height-px: calc(var(--line-height) * var(--font-size)); /* 28.8px */
