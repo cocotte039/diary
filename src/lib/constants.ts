@@ -21,6 +21,13 @@ export const LINE_HEIGHT_EM = 1.8;
 /** 1行の実ピクセル高 */
 export const LINE_HEIGHT_PX = FONT_SIZE_PX * LINE_HEIGHT_EM;
 
+/**
+ * ヘッダーの固定高さ (px)。本文 2 行分。
+ * CSS 側の `--header-height = calc(2 * var(--line-height-px))` と同期。
+ * EditorPage の textarea padding-top と整合させるために JS からも参照可能にする (M7-T1)。
+ */
+export const HEADER_HEIGHT_PX = 2 * LINE_HEIGHT_PX;
+
 /** 自動保存のデバウンス (ms) */
 export const AUTOSAVE_DEBOUNCE_MS = 2000;
 

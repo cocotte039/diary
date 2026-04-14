@@ -29,6 +29,26 @@
 
   /* --- 派生値（他所で再計算せずに参照できるよう定数化） --- */
   --line-height-px: calc(var(--line-height) * var(--font-size)); /* 28.8px */
+  /* ヘッダー高さ = 2 行分。本文の padding-top と罫線位置の同期に使う（M7-T1）。 */
+  --header-height: calc(2 * var(--line-height-px)); /* 57.6px */
+}
+
+/*
+ * M7-T6: 共通ヘッダーリンク。EditorPage / BookshelfPage / SettingsPage の
+ * ヘッダーに表示するリンク・ボタンで使う。フォント・opacity・色を統一する。
+ */
+.app-header-link {
+  font-family: var(--font-family-ui);
+  font-size: 0.75rem;
+  color: var(--color-text);
+  opacity: 0.3;
+  transition: opacity 120ms ease;
+  display: inline-flex;
+  align-items: center;
+  gap: 0.25rem;
+}
+.app-header-link:active {
+  opacity: 0.6;
 }
 
 * {
