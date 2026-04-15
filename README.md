@@ -12,19 +12,19 @@ B5大学ノートに万年筆で書いていた手書き日記の体験を、布
 - 本棚が起点: メイン画面が本棚。ノート（冊）タップでその冊の「最後に開いたページ」から編集再開
 - ページ単位 UI: 1 ページ = 1 textarea の独立画面。左右ボタン / スワイプ / PageUp・PageDown でめくる（180ms フェード）
 - textarea 上でも水平スワイプでページめくり可能（`|dx| > |dy|*2` かつ 50px 超で発火、IME 中はガード）
-- ノート風 UI: 罫線背景 + Klee One + ダークモード。1 ページ = 1200 文字（`CHARS_PER_PAGE`）で、紙高さは 60 行分の罫線（`LINES_PER_PAPER`）。15/30/45 行目は少し濃い線
+- ノート風 UI: 罫線背景 + Klee One + ダークモード。1 ページ = 1200 文字（`CHARS_PER_PAGE`）で、紙高さは 60 行分の罫線（`LINES_PER_PAPER`）。罫線は 1 行ごとに通常罫線で統一
 - ヘッダー直下に高さ 3px・10 分割目盛りのモノクロプログレスバー。text.length / CHARS_PER_PAGE の塗り幅でページ残量を静かに可視化（色変化・数値表示・満量アニメーションなし、`role="progressbar"` + aria-valuenow/min/max/label）
 - 3 画面（本棚 / エディタ / 設定）のヘッダーは `.app-header` 共通クラスで統一。flex 子要素として配置し、Android の仮想キーボード時もヘッダーは画面上部に残る
 - エディタのヘッダーはページ数クラスタを画面真中央に置く 3 列 grid レイアウト
 - エディタは `.surface` が外側スクロールコンテナ。非フォーカス時でもページ（紙）を上下にスクロール可能、スクロール中もヘッダー・プログレスバーは画面上部に固定表示
 - 1200 文字到達で次ページへ自動遷移（IME 変換中はガード）、60 ページ（`PAGES_PER_VOLUME`）で冊終了（静かに入力ロック、削除は通す）
-- 新ノート作成は本棚の「＋ 新しいノート」カードからのみ（確認ダイアログ付き）
+- 新ノート作成は本棚ヘッダーのメニュー（ハンバーガー）から「新しいノート」を選択（確認ダイアログ付き）
 - ノートの削除は本棚カードを 500ms 長押し → 2 段階 confirm（ページ 0 枚は 1 段階）。active ノート削除時は最大 ordinal のノートが自動昇格
 - IndexedDB によるローカル永続化（ページ単位 savePage、2 秒 debounce、遷移時 flush）
 - ノートごとに「最後に開いたページ」を記憶。カーソル位置はページ単位 localStorage 保存、未保存時は書きかけ（active）は末尾・完了済みは先頭にフォールバック
-- カレンダー日付ジャンプ（ローカル日付基準で印が付く）/ 旧 `/read` URL は `/book` へリダイレクト互換
-- 本棚のノートカードは `YYYY/MM/DD 〜 YYYY/MM/DD` 表記（書きかけは `〜` 終わり）で期間を表示
-- ヘッダー右端にモノクロ SVG の日付挿入アイコン（`YYYY年M月D日(曜)\n` を挿入）
+- 本棚ヘッダーのメニューから「カレンダー」を選択すると全画面モーダルで日付ジャンプ（ローカル日付基準で印が付く）/ 旧 `/read` URL は `/book` へリダイレクト互換
+- 本棚のノートカードは `YYYY/MM/DD 〜 YYYY/MM/DD` 表記（書きかけは `〜` 終わり）で期間を表示。並び順は作成日時の降順（新しいノートが先頭、active ノートは常に先頭）
+- エディタのヘッダー右端にはメニュー（ハンバーガー）を配置し、「日付挿入（`YYYY年M月D日(曜)\n` を挿入）」などの操作を統合
 - GitHub Private リポジトリへの自動バックアップ（オフラインキュー + online 復帰時再同期）
 - PWA 対応（vite-plugin-pwa / Workbox / Google Fonts の runtime cache）
 - JSON エクスポート（データ消失リスク緩和）/ iOS Safari の A2HS バナー
@@ -42,7 +42,7 @@ diary/
 │  ├─ hooks/        # useEditorCursor, useDebouncedCallback
 │  ├─ features/
 │  │  ├─ editor/    # EditorPage, useEditorAutoSave, DateIcon
-│  │  ├─ bookshelf/ # BookshelfPage, VolumeCard, NewVolumeCard, Calendar
+│  │  ├─ bookshelf/ # BookshelfPage, VolumeCard, BookshelfMenu(+ .module.css), Calendar
 │  │  └─ settings/  # SettingsPage
 │  ├─ types/        # 型定義 (Volume/Page/ExportPayload 他)
 │  └─ test/         # Vitest セットアップ (fake-indexeddb)
