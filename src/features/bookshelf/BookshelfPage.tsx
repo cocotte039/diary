@@ -40,8 +40,12 @@ export default function BookshelfPage() {
         [vs, ps] = await Promise.all([getAllVolumes(), getAllPages()]);
       }
       if (cancelled) return;
-      // createdAt 降順で表示
-      vs.sort((a, b) => b.createdAt.localeCompare(a.createdAt));
+      // ordinal 降順（最新作成を上）。
+      // 🟡 J7: 同 ordinal はデータ異常時の保険として createdAt で tie-break。
+      vs.sort((a, b) => {
+        if (b.ordinal !== a.ordinal) return b.ordinal - a.ordinal;
+        return b.createdAt.localeCompare(a.createdAt);
+      });
 
       // initialPage 計算: lastOpenedPage 優先、無ければ最終更新ページ、失敗時は 1
       const entries = await Promise.all(

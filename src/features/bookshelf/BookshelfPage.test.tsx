@@ -372,6 +372,27 @@ describe('BookshelfPage long-press delete (M8-4)', () => {
   });
 });
 
+describe('BookshelfPage sort order (M3-T3.1)', () => {
+  it('同時刻 createdAt でも ordinal 降順で並ぶ', async () => {
+    const sameTime = new Date('2026-04-15T12:00:00.000Z').toISOString();
+    const volumes: Volume[] = [
+      { id: 'v1', ordinal: 1, status: 'completed', createdAt: sameTime },
+      { id: 'v2', ordinal: 2, status: 'completed', createdAt: sameTime },
+      { id: 'v3', ordinal: 3, status: 'active', createdAt: sameTime },
+    ];
+    await replaceAllData(volumes, []);
+    renderPage();
+    await waitFor(() => {
+      expect(screen.getAllByRole('link', { name: /ノート \d+/ }).length).toBe(3);
+    });
+    const links = screen.getAllByRole('link', { name: /ノート \d+/ });
+    const ordinals = links.map(
+      (el) => el.getAttribute('aria-label')?.match(/ノート (\d+)/)?.[1]
+    );
+    expect(ordinals.slice(0, 3)).toEqual(['3', '2', '1']);
+  });
+});
+
 describe('BookshelfPage auto-create & header (M4-T6)', () => {
   it('does not render the old 書く header link', async () => {
     await ensureActiveVolume();

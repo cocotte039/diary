@@ -14,7 +14,11 @@ export interface Volume {
   createdAt: ISODateString;
   /** 状態 */
   status: VolumeStatus;
-  /** 何冊目か（1-indexed）。表示用に保持。 */
+  /**
+   * 何冊目か（1-indexed）。表示用・本棚ソートキーとして使用。
+   * 単調増加で付与し、削除された冊の ordinal は再利用しない
+   * （本棚の並び順が安定するため）。
+   */
   ordinal: number;
   /** 最後に開いたページ番号 (1〜PAGES_PER_VOLUME)。未設定なら最終更新ページへフォールバック。 */
   lastOpenedPage?: number;
