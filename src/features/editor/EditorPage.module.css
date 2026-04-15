@@ -40,11 +40,30 @@
   align-items: center;
   gap: 0.5rem;
 }
+/*
+ * ページ数表示を視覚的に中央揃えにするため、current / total をそれぞれ
+ * 桁数分の min-width を持つ span に分け、current は右揃え・total は左揃えにする。
+ * tabular-nums で等幅化し、どの現在ページでも " / " がクラスタ中心に来る。
+ */
 .pageNumber {
   font-family: var(--font-family-ui);
   font-size: 0.75rem;
   color: var(--color-text);
   opacity: 0.5;
+  display: inline-flex;
+  align-items: baseline;
+  font-variant-numeric: tabular-nums;
+}
+.pageCurrent {
+  min-width: 2ch;
+  text-align: right;
+}
+.pageTotal {
+  min-width: 2ch;
+  text-align: left;
+}
+.pageSeparator {
+  white-space: pre;
 }
 
 .navBtn {
