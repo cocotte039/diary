@@ -728,3 +728,53 @@ describe('EditorPage date insertion (M7-T4)', () => {
     await waitFor(() => expect(pathname).toBe(`/book/${v.id}/2`));
   });
 });
+
+describe('EditorPage progress bar (M4-T3)', () => {
+  it('progressbar 要素が常時ヘッダー直下に存在し、a11y 属性が揃っている', async () => {
+    const v = await ensureActiveVolume();
+    renderAt(`/book/${v.id}/1`);
+    const bar = await screen.findByTestId('page-progress');
+    expect(bar).toHaveAttribute('role', 'progressbar');
+    expect(bar).toHaveAttribute('aria-label', 'ページの残量');
+    expect(bar).toHaveAttribute('aria-valuemin', '0');
+    expect(bar).toHaveAttribute('aria-valuemax', '100');
+    expect(bar).toHaveAttribute('aria-valuenow', '0');
+  });
+
+  it('空ページ → aria-valuenow=0', async () => {
+    const v = await ensureActiveVolume();
+    renderAt(`/book/${v.id}/1`);
+    const bar = await screen.findByTestId('page-progress');
+    await waitFor(() => expect(bar).toHaveAttribute('aria-valuenow', '0'));
+  });
+
+  it('600 文字入力 → aria-valuenow=50', async () => {
+    const v = await ensureActiveVolume();
+    renderAt(`/book/${v.id}/1`);
+    const textarea = (await screen.findByLabelText('日記本文')) as HTMLTextAreaElement;
+    fireEvent.change(textarea, { target: { value: 'あ'.repeat(600) } });
+    const bar = screen.getByTestId('page-progress');
+    await waitFor(() => expect(bar).toHaveAttribute('aria-valuenow', '50'));
+  });
+
+  it('1200 文字入力 → aria-valuenow=100', async () => {
+    const v = await ensureActiveVolume();
+    renderAt(`/book/${v.id}/1`);
+    const textarea = (await screen.findByLabelText('日記本文')) as HTMLTextAreaElement;
+    fireEvent.change(textarea, { target: { value: 'あ'.repeat(CHARS_PER_PAGE) } });
+    const bar = screen.getByTestId('page-progress');
+    await waitFor(() => expect(bar).toHaveAttribute('aria-valuenow', '100'));
+  });
+
+  it('1300 文字の既存ページをロード → aria-valuenow=100（clamp）', async () => {
+    const v = await ensureActiveVolume();
+    // 最終ページ以外は自動遷移が走って overflow が押し出されるため、
+    // 遷移対象外の最終ページ（PAGES_PER_VOLUME）に 1300 字を直接保存してからロードする。
+    await savePage(v.id, PAGES_PER_VOLUME, 'あ'.repeat(1300));
+    renderAt(`/book/${v.id}/${PAGES_PER_VOLUME}`);
+    const textarea = (await screen.findByLabelText('日記本文')) as HTMLTextAreaElement;
+    await waitFor(() => expect(textarea.value.length).toBe(1300));
+    const bar = screen.getByTestId('page-progress');
+    expect(bar).toHaveAttribute('aria-valuenow', '100');
+  });
+});

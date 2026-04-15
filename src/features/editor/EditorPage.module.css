@@ -81,6 +81,39 @@
 }
 
 /*
+ * M4: ページ残量プログレスバー。
+ * ヘッダー直下に常時表示。高さ 3px・モノクロ・10 分割 tick。
+ * 色変化・点滅・数値表示は持たず、塗り幅のみ 120ms でゆるく追従する。
+ *
+ * 合意 opacity（plan.md D5）:
+ *   - トラック 0.15（背景の薄い面）
+ *   - tick    0.3（10 分割の縦線）
+ *   - 塗り    0.5（現在位置）
+ * `--color-text` / `--color-rule` 等のトークンは opacity が固定のため、
+ * 合意値を忠実に再現するダークテーマ用の rgba を直指定する。
+ */
+.progress {
+  position: relative;
+  flex-shrink: 0;
+  width: 100%;
+  height: 3px;
+  background-color: rgba(255, 255, 255, 0.15);
+  background-image: repeating-linear-gradient(
+    to right,
+    transparent 0,
+    transparent calc(10% - 1px),
+    rgba(255, 255, 255, 0.3) calc(10% - 1px),
+    rgba(255, 255, 255, 0.3) 10%
+  );
+  overflow: hidden;
+}
+.progressFill {
+  height: 100%;
+  background-color: rgba(255, 255, 255, 0.5);
+  transition: width 120ms ease;
+}
+
+/*
  * ページ送りフェード用ラッパ。transition は --transition-page (180ms) を使う。
  * M3: textarea 内部スクロールを廃止し、surface が外側スクロールを担う。
  *   - 非フォーカス時でも指・マウスホイールでスクロール可能

@@ -381,6 +381,13 @@ export default function EditorPage() {
   const canGoPrev = current > 1;
   const canGoNext = current < PAGES_PER_VOLUME;
 
+  // M4: ページ残量のプログレス率（0〜100 の整数パーセンテージ）。
+  // 1200 字超のページ（既存データ）をロードした場合も 100 に clamp する。
+  const progressPct = Math.min(
+    100,
+    Math.round((text.length / CHARS_PER_PAGE) * 100)
+  );
+
   // --- スワイプ (M5-T3 → M8-2 B 案) ---
   // B 案: textarea 上でも発火させ、水平優位 (|dx| > |dy| * 2) を必須にして
   // 縦スクロール・改行入力との干渉を避ける。IME 変換中は onTouchEnd 側で発火させない。
@@ -472,6 +479,26 @@ export default function EditorPage() {
           <Link to="/settings" aria-label="設定" className="app-header-link">設定</Link>
         </div>
       </header>
+
+      {/*
+       * M4: ページ残量のプログレスバー。
+       * ヘッダー直下に常時表示し、text.length / CHARS_PER_PAGE で塗りが伸びる。
+       * 色・数値・アニメーション（塗り幅 120ms transition を除く）は付けない。
+       */}
+      <div
+        className={styles.progress}
+        role="progressbar"
+        aria-label="ページの残量"
+        aria-valuemin={0}
+        aria-valuemax={100}
+        aria-valuenow={progressPct}
+        data-testid="page-progress"
+      >
+        <div
+          className={styles.progressFill}
+          style={{ width: `${progressPct}%` }}
+        />
+      </div>
 
       <div
         ref={surfaceRef}
