@@ -1,147 +1,221 @@
-# Skeptic — リスク・エッジケース・回帰
+# Skeptic 分析 — 1ページ文字数上限撤廃
 
-## 視点
+## 観点
+リスク・エッジケース・回帰・行動心理・動機づけ
 
-「Android 戻るボタン = popstate」の基本は正しいが、**HashRouter + pushState + React Router の内部履歴 + PWA standalone** の交差点には地雷が多い。見落としがちなケースを列挙し、緩和策を決める。
+## 1. Critical リスク
 
-## Critical（必ず緩和）
+### C1. 【Critical】ユーザー任意ページ送りのタイミングを誰も教えない
 
-### C1. HashRouter との pushState 相互作用 🟡→🔵
+**問題**: 自動次ページ遷移が消えると、ユーザーは「いつページを送ればよいか」を自分で判断する必要がある。合意済みの 25 行ごと強調罫線が唯一の手がかりだが、以下の懸念:
 
-HashRouter は URL 変更を `window.history.pushState` ベースで行う（内部で `createHashHistory` → `BrowserHistory` 相当）。**`window.history.pushState({}, '')` は hash を変えないので HashRouter 内部の listener は何も反応しない**（listener は `hashchange` と `popstate.state.idx` をチェック）。
+- スマホユーザーは「ページを送る」という概念自体を持たないかもしれない（自動で移ったからこそ成立していた体験）
+- 既存ユーザーは「勝手に次ページに行かなくなった」ことを違和感として感じる可能性
+- 超長文（5000 字）を 1 ページに書いてしまうユーザーが現れる可能性 → そのページの視認性が悪化
 
-ただし React Router v6 は `history` state に `{ idx: N, key, usr }` を格納している。我々が state なしで pushState すると、そのエントリには `idx` がない。戻るボタンで popstate が発火し、**React Router の HistoryRouter 内 listener も同時に発火**する。両方が `popstate` を拾うため、以下が同時に走る可能性:
+**対策**:
+- 進捗バーを「残量」ではなく「目安量インジケータ」として心理的に再位置付けする（100% 到達後も色・形を変えないことで「超過しても OK」を暗黙に伝える）→ **追加実装不要、現状のロジックで成立**
+- 25 行ごとの強調罫線が「ここで切ると良い」のヒントになる
+- **README 等のドキュメント更新は不要**（静けさ原則：説明を増やさない）
+- 実機 Verify で 1 ユーザー（主開発者 = ユーザー自身）が新 UX を体験し、不安が残るなら別サイクルで「進捗バー 100% 到達時の微妙な視覚変化（例: 色を 1 トーン暖色に）」を追加検討
 
-- 我々の onPopState: `navigate('/', { replace: true })`
-- React Router 内部: 「idx 不明の state」→ 前の Location へ戻す動作
+### C2. 【Critical】超長文ページ（1万字+）の textarea パフォーマンス
 
-結果、2 重 navigate で画面がチラつく恐れ。
+**問題**: 
+- `useLayoutEffect` の `ta.style.height = ${ta.scrollHeight}px` が毎 keystroke で走る → 1万字のテキストで scrollHeight 計算が重い可能性
+- iOS Safari の textarea は巨大文字列で frame drop しやすい
+- autosave (2 秒 debounce) で 1万字の savePage → IndexedDB put は問題ないが、GitHub sync 側で 1 ページあたりのサイズが肥大化
 
-**緩和策**:
-1. `history.state` に識別子を入れる: `pushState({ editorGuard: true, idx: -1 }, '')` とし、popstate ハンドラで `event.state?.editorGuard` をチェックする…のは逆で、**「ダミーエントリから離れる popstate」を検出する**べき。しかし戻る動作時の popstate の `event.state` は「戻った先のエントリの state」なので、ダミーから `/book/.../1` エントリに戻るなら `event.state` は `/book` エントリの state になる。
-2. **より堅牢な方法**: 我々のハンドラ内で条件判定せず、常に `navigate('/', { replace: true })` を呼ぶ。React Router が一瞬前ページを表示しても、すぐ replace で `/` に上書きされる。UX 上はフェード 180ms もないので違和感は最小。
-3. EditorPage `useEffect` の cleanup で listener を removeEventListener するので、`/` に戻った後は popstate 非捕捉。
+**検証**:
+- jsdom テストでは scrollHeight が常に 0 のためパフォーマンス計測不能 → **Verify 工程で実機測定**
+- iOS Safari 実機で 5000 字・10000 字・20000 字の 3 段階で入力遅延をチェック
 
-**採用**: 案 2。実装はシンプルで副作用もテストで検出可能。
+**対策（事前的）**:
+- `useLayoutEffect` 依存に `[text, ready]` だけで十分（現状通り）
+- もし重かったら rAF throttle を検討（今回のスコープでは実装しない、Verify で測定してから次サイクルで対応判断）
+- **Verify でカクつきが問題化したら**、`CHARS_PER_PAGE * 3 = 3600 字` 程度の「ソフトガード」として toast 表示（静けさ原則に反するため実装は別途合意必要）
 
-### C2. popstate 重複発火（goPage で pushState が積まれる問題）🔵
+### C3. 【High】既存データ整合性：1200 字超の page がロードされたときの挙動
 
-`goPage(1)` で `navigate('/book/v/2')` すると React Router が pushState する。EditorPage は同じコンポーネントのまま `useParams` のみ変わって再レンダリングされる（App.tsx のルート定義上、同じ `<EditorPage />`）。
+**問題**:
+- 現状、1200 字超のページは「最終ページに直接 savePage で直書き」するしか作れない設計
+- 本リリース後、任意のページが 1200 字超になり得る
+- `saveVolumeText`（db.ts L219-283）は `splitIntoPages` で分割する → 冊全文を一気に保存するケース（インポートなど）で既存 1200 字超ページが勝手に分割される可能性
 
-つまり **useEffect は再マウントされず、pushState(ダミー) は 1 回しか積まれない**。
+**検証**:
+- `saveVolumeText` の呼び出し元を grep で確認 → `replaceAllData` (GitHub 復元) や一部テストのみ
+- 通常編集経路 (EditorPage) は `savePage`（単一ページ put）を使うので **分割は起こらない**
 
-history: `[home, dummy, /book/v/1, /book/v/2]`
-- 戻る 1 回: `/book/v/1` 表示 → popstate 発火 → 我々の onPopState が `/` に navigate
-- その結果、ユーザーは「ページめくり後でも 1 回で本棚に戻る」
+**対策**:
+- **本件では `saveVolumeText` は触らない**（DB 復元経路でしか使われない）
+- ただし将来 GitHub 復元で問題が起きないか注意。GitHub 側の保存フォーマットが `page-NN.txt` 単位なので、復元時も `replaceAllData` で個別 page レコードを直接書き戻す → `splitIntoPages` は通らない経路がほとんど
+- **念のためのドキュメント**: `db.ts` L213 のコメント「CHARS_PER_PAGE (1200 字) ごとに分割」を「冊全文保存経路専用。通常編集は savePage を使う」と明記
 
-これは要件（🔵 エディタ内ページめくり後の戻るボタンも本棚に一本化）と合致。ただし **1 回目で `/book/v/1` が一瞬表示される**可能性は C1 と同じく replace で即座に `/` に上書きされるので許容。
+### C4. 【High】最終ページロック廃止で 60 ページ使い切り判定が変わるか
 
-**検証必須**: テストで「ページめくり後の popstate で `/` に戻る」ケースを再現する。
+**問題**:
+- 旧仕様: 最終ページで 1200 字 + 1 文字 → preventDefault でロック → 冊終了は 60 ページ使い切り時
+- 新仕様: 最終ページは 1200 字超えても書き続けられる → 冊終了の条件は？
 
-### C3. 自動遷移 (checkOverflowAndNavigate) 経路でも同じ動作か 🟡
+**確認**:
+- 現在の冊切替は `useWrite.rotateNow`（ユーザー手動）のみ（AGENTS.md #40）
+- 最終ページが「何文字あろうと最終ページである」で整合性に問題なし
+- `PAGES_PER_VOLUME = 60` の制約は「ページ番号の上限」であり、内容量制限ではない
+- 50 ページロック（AGENTS.md #17）もユーザー側の判断に委ねる設計なので、静けさ原則に沿う
 
-`checkOverflowAndNavigate` は `navigate(/book/:id/:next)` を呼ぶが、pushState は React Router の `navigate()` 経由のみで、我々のダミー pushState は影響されない。useEffect の deps に volumeId/current は含まれないので再実行されない。→ **問題なし**。
+**対策**:
+- **変更不要**。最終ページロック削除は冊切替ロジックに影響しない。
+- ただし合意済み要件「PAGES_PER_VOLUME = 60 は維持、Volume 終了は 60 ページ使い切り時」は現状のまま維持されることを再確認。
 
-### C4. deep link 直アクセス時の挙動 🟡
+### C5. 【High】IME ガードの意味が変わる
 
-ユーザーが通知や URL バーから `#/book/v/3` で直接 EditorPage を開いた場合:
-- history: `[/book/v/3]`（エントリ 1 件のみ。ブラウザが SPA の場合 initial entry は 1 つ）
-- EditorPage マウント時に pushState → history: `[/book/v/3, dummy]`
-- 戻る 1 回: popstate 発火、`/book/v/3` へ戻る途中で我々の onPopState が `navigate('/', { replace: true })` を発動 → `/` に上書き
-- **Android Chrome の場合、history の最初のエントリから戻るとアプリ終了する可能性あり**。しかし pushState でダミーを積んでいるので、戻るは 1 回成功して popstate が発火する。その後ユーザーは本棚 `/` にいる。本棚でもう一度戻るボタンを押すと履歴空でアプリ終了（または前アプリへ）。
+**問題**:
+- 旧 `isComposingRef` の主目的: 自動次ページ遷移の IME ガード（変換確定前の中間状態で誤判定しない）
+- 新仕様では自動遷移が消える → IME ガードの主目的も消える
+- しかし `isComposingRef` はスワイプ navigate（EditorPage L456）と PageUp/PageDown キー（L440）でも使用中
 
-**これは期待動作**。deep link → 戻る → 本棚 → 戻る → アプリ終了、は自然。
+**確認**:
+- スワイプの IME ガード: 日本語変換中に指が滑って誤スワイプ防止 → **維持する価値あり**
+- PageUp/PageDown の IME ガード: 変換中の PageDown で誤遷移防止 → **維持する価値あり**
 
-ただし **PWA standalone モードで「履歴が 1 件しかない状態での pushState → popstate」が Android Chrome で一貫して動作するかは実機確認が必要**。
+**対策**:
+- `isComposingRef` / `handleCompositionStart` / `handleCompositionEnd` は残す
+- `handleCompositionEnd` 内の `checkOverflowAndNavigate(e.currentTarget.value)` のみ削除し、ref リセットだけにする
 
-**緩和策**: 実機 QA（Android Chrome / PWA インストール状態）を手動確認項目として plan.md に記載。自動テストは MemoryRouter ベースなので PWA 固有挙動を検出できない。
+### C6. 【High】pendingCursorPosRef / 自動遷移後カーソル復元の依存関係
 
-### C5. 本棚カレンダーモーダルの戻るボタン挙動 🟡
+**問題**:
+- 自動遷移が消えると `pendingCursorPosRef` は不要になる
+- しかし `useEffect` 内の pendingCursorPosRef 参照コード（L125-136）も削除が必要
+- 削除漏れがあると rAF 内の処理が dead code として残る
 
-スコープ外だが、**既存挙動に悪影響がないか**をチェック:
-- `BookshelfPage` でカレンダーモーダル (`CalendarModal`) を開く → 戻るボタン → 現状はモーダル閉じではなく前ページ遷移（未対策）
-- 我々の変更は EditorPage マウント時のみ pushState するので、BookshelfPage には影響しない
-- **✅ 悪影響なし**
+**対策**:
+- 削除時に TS コンパイラが unused 警告を出すか要確認（strict モードなら出る）
+- grep で `pendingCursorPosRef` の全参照を削除
 
-### C6. autosave flush の非同期完了を待たない場合のデータロス 🔵
+### C7. 【Medium】進捗バー 100% 固定の心理的影響
 
-`onPopState` は同期的に popstate イベント内で動く。navigate も同期。`flush()` は async で IndexedDB 書き込み。
+**問題**:
+- `progressPct` が 100% で固定 → ユーザーは「書きすぎ？」と不安を感じる可能性
+- 1500 字・2000 字を書いてもバーは 100% のまま変わらない → フィードバックが無い
 
-現状案: `void flush().catch(() => {})` → fire-and-forget
+**対策（本サイクルでは採らない / 将来検討）**:
+- 将来的な案: 100% 到達後は細く水平破線や「overflow マーク」を出す（静けさ原則に反するので採用しない）
+- 本サイクルでは **現状のロジックで維持**（Math.min(100, ...)）
+- 25 行ごと強調罫線が「どれだけ書いたか」の二次的な指標となる
 
-**リスク**: navigate('/', { replace: true }) で EditorPage がアンマウント → `useEditorAutoSave` の flush を呼び出せなくなる。ただし `flush()` は呼び出し済みで、IndexedDB 書き込みは Promise chain で進行中。EditorPage のコンポーネント unmount は関係なく書き込みは完了する（IndexedDB トランザクションは window 単位）。
+### C8. 【Medium】スタンプ挿入で大量オーバーフロー
 
-**検証**: 既存の「遷移前に flush」テスト (L173-185) と同パターンで、popstate 経由の flush でもデータロスがないことを確認するテストを追加。
+**問題**:
+- `insertDate` 内で自動遷移呼び出しを削除する → 日付スタンプ挿入で 1200 字超えても現ページに留まる
+- 既存テスト `日付挿入で 1200 字を超える場合、次ページへ自動遷移する` は要廃止
+- スタンプ挿入で 1200 → 1220 字になっても UX 上の問題は無い（むしろ意図通り）
 
-### C7. 二重 pushState（StrictMode） 🟡
+**対策**:
+- テスト削除（旧仕様用）
+- 新規テスト追加: スタンプ挿入で 1200 字超でも現ページに留まることを確認
 
-React 19 でも StrictMode で useEffect が開発時に 2 回実行される。pushState が 2 回積まれる → 戻るボタン 1 回で消費されるダミーは 1 つで、残り 1 つが残る。戻る 2 回必要になる回帰。
+### C9. 【Medium】25 行ごと強調罫線が textarea スクロールで位置ズレ
 
-**緩和策**:
-- `useEffect` のフラグ or ref で「一度積んだら積み直さない」を明示
-- または `main.tsx` の StrictMode を黙認（本番ビルドでは 1 回）
+**問題**:
+- `background-attachment: local` により textarea の内部スクロールで罫線は動く
+- ただし M3 で textarea 内部スクロールは廃止、`.surface` が外側スクロールを担う（AGENTS.md M3 判断）
+- `background-attachment: local` を `.notebook-surface`（= textarea）に付けて、外側スクロール時も追従するかは jsdom では検証不能
 
-```tsx
-const guardInstalledRef = useRef(false);
-useEffect(() => {
-  if (guardInstalledRef.current) return;
-  guardInstalledRef.current = true;
-  window.history.pushState({ editorGuard: true }, '');
-  // ...
-  return () => {
-    window.removeEventListener('popstate', onPopState);
-    // guardInstalledRef はリセットしない（StrictMode の二度目マウントで再度 pushState されないように）
-  };
-}, []);
-```
+**対策**:
+- 既存の 1 行ごと罫線が同じ設定で動作している → 25 行ごとレイヤーも同じ `background-attachment: local` でピッタリ重なるはず
+- Verify で実機目視確認
 
-**注意**: これだと StrictMode の 2 回目で listener が登録されないバグが出る。正しくは listener は毎回登録 / remove し、pushState のみ 1 回に制限する:
+### C10. 【Medium】テスト実行時の回帰
 
-```tsx
-useEffect(() => {
-  if (!guardInstalledRef.current) {
-    window.history.pushState({ editorGuard: true }, '');
-    guardInstalledRef.current = true;
-  }
-  const onPopState = () => { ... };
-  window.addEventListener('popstate', onPopState);
-  return () => window.removeEventListener('popstate', onPopState);
-}, [flush, navigate]);
-```
+**問題**:
+- 削除するテスト 10+ 件 / 新規テスト 4 件
+- 削除後に「思わぬテストが実は仕様を担保していた」ことに気づくリスク
 
-**採用**: この形で実装する。
+**対策**:
+- 削除対象テストの「担保していた仕様」を改めて確認
+  - 自動遷移テスト → **仕様そのものを廃止**、担保不要
+  - 最終ページロックテスト → **仕様そのものを廃止**、担保不要
+  - 1300 字 clamp テスト → **仕様維持**、テスト維持
+- 削除後に `npm run test:run` 全緑を確認
 
-### C8. テストでの popstate 再現 🔵
+## 2. エッジケース一覧
 
-Vitest + MemoryRouter では `window.history.pushState` / `popstate` はそのまま動くが、MemoryRouter は window.history を使わない（インメモリ管理）。**テストは BrowserRouter または vitest jsdom の window.history を直接操作する必要がある**。
+| # | エッジケース | 想定挙動 | 検証方法 |
+|---|---|---|---|
+| E1 | 1200 字ちょうど入力 | 現ページに留まる、progressPct=100 | 新規テスト |
+| E2 | 1201 字入力 | 現ページに留まる、progressPct=100 | 新規テスト |
+| E3 | 5000 字ペースト | 現ページに留まる、textarea が伸びる | Verify（実機） |
+| E4 | 日付スタンプ挿入で 1200 → 1220 | 現ページに留まる | 新規テスト |
+| E5 | IME 変換中に 1300 字入力 | 現ページに留まる（composition 関係なし） | テスト追加 or Verify |
+| E6 | 最終ページで 1201 字入力 | preventDefault されない | 新規テスト |
+| E7 | 既存 1300 字ページをロード | そのまま表示、progressPct=100 | 既存テスト維持 |
+| E8 | 1200 字超のページで PageDown キー | 次ページに遷移（goPage 経路は無変更） | 既存テスト維持 |
+| E9 | 1200 字超のページでスワイプ | 次ページに遷移（goPage 経路は無変更） | 既存テスト維持 |
+| E10 | 25 行目ちょうどの罫線位置 | 1 行ごと罫線とピッタリ重なり濃く見える | Verify（実機） |
+| E11 | 25 行目に背景画像ズレ | `background-attachment: local` で同期 | Verify（実機） |
+| E12 | スクロール性能（10000 字） | フレームレート 60fps 維持 | Verify（実機） |
 
-`EditorPage.test.tsx` は MemoryRouter を使っているが、popstate ガードのテストは window.dispatchEvent(new PopStateEvent('popstate')) で onPopState ハンドラだけを検証すれば足りる。navigate の飛び先は LocationProbe（現状は MemoryRouter のみ対応）。
+## 3. 退行リスク
 
-**推奨**: 新しい describe ブロックで HashRouter + initialEntries は使わず、以下のどちらかで:
-- (a) BrowserRouter 相当の実 history で検証
-- (b) popstate ハンドラの副作用を検証するユニットテスト（navigate がモックされ、/ に飛ばすことを確認）
+### R1. 既存冊の読み返しで不具合
 
-案 (a) のほうが筋が良いが、`MemoryRouter` を使っている既存テスト資産と乖離するので、**MemoryRouter を使ったまま popstate を dispatch し、LocationProbe の pathname が `/` に変わることを検証**する。MemoryRouter は window.popstate を聞いていないが、我々の onPopState が `navigate('/')` を呼ぶ → MemoryRouter の内部 history に反映 → LocationProbe が反応、という経路で成立する。
+- 既存ページは最大 1200 字でしかないので **退行なし**
+- progressPct が 100 で固定されるのも仕様通り
 
-## Major（対処推奨）
+### R2. autosave ロジックへの影響
 
-### M1. DateIcon ボタンの aria-label 'メニュー'... ではないことを確認 🔵
+- `useEditorAutoSave` は text を 2 秒 debounce で `savePage` → 1200 字制約なし、問題なし
+- flush も同様、問題なし
 
-L487-497 の `.headerRight` は `headerDateButton`（aria-label="今日の日付を挿入"）と `<Link to="/settings">` の 2 つ。設定 Link を消しても DateIcon ボタンは残る。**視認性・tap target 44x44 は CSS 側で維持されている**（`.headerDateButton { width:44px; height:44px }`）。
+### R3. GitHub 同期への影響
 
-### M2. SafetyNet: ページ遷移 + 即 popstate のレース 🟡
+- `syncPendingPagesBackground` は page ごとに content をアップロード → 1 ページ 1200 字の暗黙前提があるか？
+- `src/lib/github.ts` を要確認。ただし本サイクルでは変更しない。GitHub 側はページ数ベースで保存するので、1 ページが 5000 字になっても「1 ファイルが大きくなるだけ」で同期は成立する想定。
 
-ユーザーが「次のページ」をタップ → フェード 180ms 中に戻るボタン → `goPage` の navigate と我々の onPopState が競合する可能性。
+### R4. export.ts への影響
 
-現実的には 180ms 以内に Android 戻るボタン押下は稀だが、`transitionLockRef.current = true` の間 popstate を無視する、という保険は入れられる。ただし **静けさ原則**からすると、戻る操作はユーザーの最終意思なので、ロックで黙殺するのは良くない。**放置する**（フェード中でも本棚に戻るのが自然）。
+- `export.test.ts` が `CHARS_PER_PAGE` を参照している → エクスポート形式が文字数前提か確認
+- たぶんページ列の結合処理のみで、文字数制約は持たない → 影響なし想定
 
-## Minor
+## 4. 動機づけ・行動心理
 
-- HashRouter で `navigate('/')` は `#/` に遷移する。Android の PWA アイコンから起動した時、初期 URL が `/` であることは App.tsx の `<Route path="/">` で担保。
-- `history.state` をアプリ側で読む箇所は現状なし（grep 結果）→ ダミー state の `editorGuard` プロパティを他コードが誤読するリスクなし。
+### 4.1 「静けさ」原則との整合
 
-## 結論
+- 自動遷移廃止 → 画面が勝手に動かなくなる → **静けさ強化**（良い方向）
+- 最終ページロック廃止 → preventDefault が減る → **静けさ強化**（良い方向）
+- 進捗バー 100% 固定 → 変化しない → **静けさ強化**（良い方向）
+- 25 行ごと強調罫線 → 視覚変化が微妙にある → **静けさを少し削る**（要慎重調整）
 
-- C1, C2, C6, C7, C8 は必ず対応。実装方針は pragmatist の案をベースに **`guardInstalledRef` で二重 pushState を防ぐ**形に修正。
-- C4 は実機確認を plan.md の QA チェックリストに含める。
-- C5, M1, M2 は確認のみで対処不要。
+### 4.2 書き手の心理変化
+
+旧: 「1200 字まで書かなきゃ」「ページが自動で送られるから気にしない」
+新: 「書きたいだけ書いていい」「区切りは自分で決める」→ 日記の自由度が上がる
+
+### 4.3 リスクのある行動
+
+- ユーザーが「ページを送らなくていい」と勘違いして全文を 1 ページに書く → 冊全体の情報構造が崩れる
+- 対策: 実機で主開発者が試して違和感があれば「目安量」表現を強化する（別サイクル）
+
+## 5. Critical 項目への対策まとめ
+
+| # | リスク | 対策タスク |
+|---|---|---|
+| C1 | 自動送りがなくなり戸惑う | 25 行ごと強調罫線（合意済み）+ Verify で開発者自身が体感 |
+| C2 | 超長文パフォーマンス | Verify で 5k/10k/20k 字の入力遅延を実機測定 |
+| C3 | saveVolumeText が 1200 字超を分割 | 編集経路は savePage を使うので影響なし、コメントで明示 |
+| C4 | 冊終了判定 | 変更なし、60 ページ使い切り維持 |
+| C5 | IME ガードの意味変化 | composition ハンドラは残し、自動遷移呼び出しのみ削除 |
+| C6 | pendingCursorPosRef dead code | grep で全参照削除、TS strict で警告確認 |
+| C7 | 進捗バー 100% 固定の心理影響 | 本サイクルでは現状維持、Verify で違和感確認 |
+| C8 | スタンプで大量オーバーフロー | テスト書き換え、現ページに留まる確認 |
+| C9 | 強調罫線の位置ズレ | Verify で実機目視 |
+
+## 6. Verify での重点確認項目
+
+1. 1200 字超を書いても入力が継続できる（iOS Safari / Android Chrome）
+2. 進捗バーが 100% で固定される
+3. 25 行ごと罫線が視認できる（濃すぎず薄すぎず）
+4. 5000 字 / 10000 字入力時のパフォーマンス（入力遅延・スクロール）
+5. 手動ページ送り（スワイプ / 矢印ボタン / PageUp/PageDown）で任意のタイミングで遷移できる
+6. 既存ページ（1200 字以下）が従来通り動作する
