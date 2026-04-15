@@ -1,5 +1,4 @@
 import { useCallback, useEffect, useState } from 'react';
-import { Link } from 'react-router-dom';
 import styles from './BookshelfPage.module.css';
 import {
   deleteVolume,
@@ -14,7 +13,7 @@ import {
 import { PAGES_PER_VOLUME } from '../../lib/constants';
 import type { Page, Volume } from '../../types';
 import VolumeCard from './VolumeCard';
-import NewVolumeCard from './NewVolumeCard';
+import BookshelfMenu from './BookshelfMenu';
 import Calendar from './Calendar';
 
 /**
@@ -115,9 +114,10 @@ export default function BookshelfPage() {
     <div className={styles.root}>
       <header className={`app-header ${styles.header}`}>
         <h1 className={styles.title}>本棚</h1>
-        <div style={{ display: 'flex', gap: '0.75rem' }}>
-          <Link to="/settings" className="app-header-link">設定</Link>
-        </div>
+        <BookshelfMenu
+          onCreateNew={handleCreateNew}
+          onOpenCalendar={() => setShowCalendar(true)}
+        />
       </header>
 
       <div className={styles.body}>
@@ -134,7 +134,6 @@ export default function BookshelfPage() {
                 onDelete={handleDelete}
               />
             ))}
-            <NewVolumeCard onCreate={handleCreateNew} />
           </div>
         )}
 

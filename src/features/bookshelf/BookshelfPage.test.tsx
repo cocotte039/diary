@@ -52,6 +52,14 @@ function renderPage() {
   );
 }
 
+/**
+ * M5: 新ノート作成はヘッダーメニュー経由に統合された。
+ * 共通ヘルパ: ハンバーガー（メニュートリガー）をクリックしてメニューを開く。
+ */
+async function openMenu() {
+  fireEvent.click(screen.getByRole('button', { name: 'メニューを開く' }));
+}
+
 describe('BookshelfPage link targets (M4-T5)', () => {
   it('links to /book/{id}/{lastOpenedPage} when lastOpenedPage is set', async () => {
     const v = await ensureActiveVolume();
@@ -110,22 +118,24 @@ describe('BookshelfPage link targets (M4-T5)', () => {
   });
 });
 
-describe('BookshelfPage new volume card (M6-T5)', () => {
-  it('冊が 1 件以上あると「新しいノート」ボタンが表示される', async () => {
+describe('BookshelfPage new volume via header menu (M5-T5.1)', () => {
+  it('冊が 1 件以上あるときメニューから「新しいノート」を選べる', async () => {
     await ensureActiveVolume();
     renderPage();
     await screen.findByRole('link', { name: /ノート 1/ });
+    await openMenu();
     expect(
-      screen.getByRole('button', { name: '新しいノートを作る' })
+      screen.getByRole('menuitem', { name: '新しいノート' })
     ).toBeInTheDocument();
   });
 
-  it('冊 0 件 → 自動作成後に「新しいノート」ボタンが表示される（1 件以上になったため）', async () => {
-    // DB は wipe 済み。自動作成ロジックが走り、1 冊目ができた後にカードが出る。
+  it('冊 0 件 → 自動作成後もメニューから「新しいノート」を選べる', async () => {
+    // DB は wipe 済み。自動作成ロジックが走り、1 冊目ができた後にメニューが使える。
     renderPage();
     await screen.findByRole('link', { name: /ノート 1/ });
+    await openMenu();
     expect(
-      screen.getByRole('button', { name: '新しいノートを作る' })
+      screen.getByRole('menuitem', { name: '新しいノート' })
     ).toBeInTheDocument();
   });
 
@@ -136,8 +146,8 @@ describe('BookshelfPage new volume card (M6-T5)', () => {
     const confirmSpy = vi.spyOn(window, 'confirm').mockReturnValue(true);
     renderPage();
     await screen.findByRole('link', { name: /ノート 1/ });
-    const btn = screen.getByRole('button', { name: '新しいノートを作る' });
-    btn.click();
+    await openMenu();
+    fireEvent.click(screen.getByRole('menuitem', { name: '新しいノート' }));
     await waitFor(() => {
       expect(screen.getAllByRole('link', { name: /ノート \d+/ }).length).toBe(2);
     });
@@ -153,8 +163,8 @@ describe('BookshelfPage new volume card (M6-T5)', () => {
     const confirmSpy = vi.spyOn(window, 'confirm').mockReturnValue(false);
     renderPage();
     await screen.findByRole('link', { name: new RegExp(`ノート ${v.ordinal}`) });
-    const btn = screen.getByRole('button', { name: '新しいノートを作る' });
-    btn.click();
+    await openMenu();
+    fireEvent.click(screen.getByRole('menuitem', { name: '新しいノート' }));
     // 十分待っても冊は増えない
     await new Promise((r) => setTimeout(r, 200));
     expect(screen.getAllByRole('link', { name: /ノート \d+/ }).length).toBe(1);
@@ -169,7 +179,8 @@ describe('BookshelfPage new volume card (M6-T5)', () => {
     const confirmSpy = vi.spyOn(window, 'confirm').mockReturnValue(false);
     renderPage();
     await screen.findByRole('link', { name: new RegExp(`ノート ${v.ordinal}`) });
-    screen.getByRole('button', { name: '新しいノートを作る' }).click();
+    await openMenu();
+    fireEvent.click(screen.getByRole('menuitem', { name: '新しいノート' }));
     await waitFor(() => expect(confirmSpy).toHaveBeenCalled());
     expect(confirmSpy).toHaveBeenCalledWith(
       expect.stringContaining(

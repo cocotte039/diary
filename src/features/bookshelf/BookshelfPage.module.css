@@ -19,19 +19,6 @@
   /* 共通プロパティは .app-header に集約。ベースライン揃えのみ残す。 */
   align-items: baseline;
 }
-/*
- * ヘッダー内のリンク・ボタンは global.css の .app-header-link に寄せた (M7-T6)。
- * ここでは `h1.title` のみフォントサイズを大きくするスタイルを残す。
- */
-.header button {
-  opacity: 0.3;
-  font-size: 0.75rem;
-  font-family: var(--font-family-ui);
-  color: var(--color-text);
-}
-.header button:active {
-  opacity: 0.6;
-}
 
 .title {
   font-family: var(--font-family);
@@ -87,32 +74,6 @@
   font-size: 0.625rem;
   opacity: 0.5;
   font-family: var(--font-family-ui);
-}
-
-/* M6-T5: 新しい冊カード（A案・破線境界）。既存 .card と視覚的に区別する */
-.newCard {
-  background: transparent;
-  border: 1px dashed var(--color-rule);
-  opacity: 0.5;
-  color: var(--color-text);
-  justify-content: center;
-  align-items: center;
-  gap: 0.25rem;
-  transition: opacity 200ms ease;
-  cursor: pointer;
-}
-.newCard:hover,
-.newCard:focus-visible {
-  opacity: 0.75;
-}
-.newCardGlyph {
-  font-family: var(--font-family);
-  font-size: 2rem;
-  line-height: 1;
-}
-.newCardLabel {
-  font-family: var(--font-family-ui);
-  font-size: 0.75rem;
 }
 
 .empty {
