@@ -23,6 +23,11 @@ import {
   PAGES_PER_VOLUME,
   SWIPE_THRESHOLD_PX,
 } from '../../lib/constants';
+
+/** 紙 1 ページぶんのピクセル高さ。60 行 × line-height = 1728px。
+ *  textarea の scrollHeight を下限としてこの値に保ち、空ページでも
+ *  60 本の罫線が描画されるように padding-bottom で調整する。 */
+const PAGE_HEIGHT_PX = LINES_PER_PAGE * LINE_HEIGHT_PX;
 import { splitAtLine30 } from '../../lib/pagination';
 import { useEditorAutoSave } from './useEditorAutoSave';
 import { useEditorCursor } from '../../hooks/useEditorCursor';
@@ -86,8 +91,6 @@ export default function EditorPage() {
   const touchStartYRef = useRef<number | null>(null);
   // textarea 参照（カーソル復元 M5-T4 用）
   const textareaRef = useRef<HTMLTextAreaElement | null>(null);
-  // surface（スクロールコンテナ）参照。60 行固定の紙を内包しスクロールを担う。
-  const surfaceRef = useRef<HTMLDivElement | null>(null);
   // IME 変換中フラグ (M6-T2)。true の間は自動次ページ遷移を発動させない。
   const isComposingRef = useRef(false);
   // 自動遷移後、次ページでカーソルを overflow.length 位置に置くための pending 値 (M6-T3)。
@@ -242,43 +245,31 @@ export default function EditorPage() {
   );
 
   /**
-   * カーソルが surface の可視領域に入るようスクロール調整する。
-   * 紙が 60 行固定 (1728px) でビューポートより高いとき、カーソルが画面外に
-   * 出たままだとキー入力やキーボード出現で見えなくなるため。
+   * textarea の padding-bottom を調整し、scrollHeight が常に
+   * PAGE_HEIGHT_PX (60 行ぶん) 以上になるようにする。
+   * これにより background-attachment: local で tile される罫線が
+   * 空ページでも 60 本ぶん描画される。
    *
-   * 行位置の算出は論理行（\n 区切り）ベース。視覚的な折り返し行は考慮しないが、
-   * 60 行ぶんの紙の中で大幅にズレることはない（折り返しが多くても 1〜2 行差）。
+   * 測定手順:
+   *  1. paddingBottom を 0 にリセット → scrollHeight = 実コンテンツ高さ
+   *  2. 不足分を paddingBottom にセット
+   *  コンテンツが 60 行を超える場合 (=> scrollHeight > PAGE_HEIGHT_PX) は 0。
+   *  この場合 checkOverflowAndNavigate 側で自動ページ送りが発火する。
    */
-  const ensureCursorVisible = useCallback(() => {
-    const surface = surfaceRef.current;
+  const ensurePaperHeight = useCallback(() => {
     const ta = textareaRef.current;
-    if (!surface || !ta) return;
-    const start = ta.selectionStart ?? 0;
-    const linesBefore = ta.value.slice(0, start).split('\n').length - 1;
-    const cursorTop = linesBefore * LINE_HEIGHT_PX;
-    const cursorBottom = cursorTop + LINE_HEIGHT_PX;
-    const margin = LINE_HEIGHT_PX * 2; // 上下 2 行ぶんの余白を確保
-    const visibleTop = surface.scrollTop;
-    const visibleBottom = visibleTop + surface.clientHeight;
-    if (cursorTop < visibleTop + margin) {
-      surface.scrollTop = Math.max(0, cursorTop - margin);
-    } else if (cursorBottom > visibleBottom - margin) {
-      surface.scrollTop = cursorBottom - surface.clientHeight + margin;
-    }
+    if (!ta) return;
+    ta.style.paddingBottom = '0px';
+    const contentHeight = ta.scrollHeight;
+    const needed = Math.max(0, PAGE_HEIGHT_PX - contentHeight);
+    ta.style.paddingBottom = `${needed}px`;
   }, []);
 
-  // モバイルでキーボード出現/回転等で visualViewport が変わったとき、
-  // フォーカス中ならカーソル位置までスクロールする。
+  // 初回ロード / ページ遷移 / 外部入力（日付挿入等）でも padding を追従させる
   useEffect(() => {
-    const vv = typeof window !== 'undefined' ? window.visualViewport : null;
-    if (!vv) return;
-    const onResize = () => {
-      if (document.activeElement !== textareaRef.current) return;
-      requestAnimationFrame(ensureCursorVisible);
-    };
-    vv.addEventListener('resize', onResize);
-    return () => vv.removeEventListener('resize', onResize);
-  }, [ensureCursorVisible]);
+    if (!ready) return;
+    ensurePaperHeight();
+  }, [text, ready, ensurePaperHeight]);
 
   const handleChange = useCallback(
     (e: ChangeEvent<HTMLTextAreaElement>) => {
@@ -289,20 +280,17 @@ export default function EditorPage() {
       // IME 変換中は自動遷移判定をスキップ (M6-T2)。
       // composition 終了時に onCompositionEnd から再判定する。
       if (isComposingRef.current) return;
+      // 自動遷移判定前に padding を再計算しておくと scrollHeight が正しく読める
+      ensurePaperHeight();
       checkOverflowAndNavigate(value);
-      // DOM 反映後にスクロール調整（rAF で 1 フレーム遅延）
-      requestAnimationFrame(ensureCursorVisible);
     },
-    [onSelectionChange, checkOverflowAndNavigate, ensureCursorVisible]
+    [onSelectionChange, checkOverflowAndNavigate, ensurePaperHeight]
   );
 
   const handleSelect = useCallback(
     (e: React.SyntheticEvent<HTMLTextAreaElement>) => {
       const t = e.currentTarget;
       onSelectionChange(t.selectionStart ?? 0);
-      // タップ/クリックで意図的に可視位置を選んだ場合の自動スクロールは
-      // 「勝手に画面が動く」体験になるため発火させない。
-      // 入力 (handleChange) と visualViewport resize でのみ追従する。
     },
     [onSelectionChange]
   );
@@ -526,7 +514,6 @@ export default function EditorPage() {
       </header>
 
       <div
-        ref={surfaceRef}
         className={`${styles.surface} ${fading ? styles.fading : ''}`}
         data-testid="editor-surface"
       >

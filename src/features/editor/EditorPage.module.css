@@ -1,10 +1,11 @@
 /*
- * iOS Safari で position: fixed 親 + overflow: auto 子 + textarea の組み合わせは
- * タッチスクロール伝播が壊れやすい。通常の flex 縦積みで 100dvh を占有する。
- * body の overflow: hidden で全体のはみ出しは抑止済み。
+ * position: fixed でヘッダーの安定性を確保（iOS Safari のフォーム focus で
+ * body が勝手にスクロールする挙動を抑止するため）。
  */
 .root {
-  width: 100%;
+  position: fixed;
+  inset: 0;
+  width: 100vw;
   height: 100%;
   height: 100dvh;
   display: flex;
@@ -81,16 +82,14 @@
 
 /*
  * ページ送りフェード用ラッパ。transition は --transition-page (180ms) を使う。
- * 紙（textarea）は 60 行ぶんの固定高さで、surface がスクロールコンテナになる。
- * display: block で素直なブロックレイアウトにしてモバイルのスクロール伝播を確実にする。
- * iOS Safari の慣性スクロール対応で -webkit-overflow-scrolling: touch も付ける。
+ * surface 自体はスクロールを持たず、textarea が内部スクロールを担う。
+ * これにより iOS Safari のネイティブ textarea タッチスクロールが素直に効く。
  */
 .surface {
   flex: 1 1 auto;
   min-height: 0;
-  display: block;
-  overflow-y: auto;
-  -webkit-overflow-scrolling: touch;
+  display: flex;
+  flex-direction: column;
   transition: var(--transition-page);
 }
 .fading {
@@ -98,21 +97,16 @@
 }
 
 /*
- * 紙は常に 60 行ぶんの固定高さ。文字数や viewport に依らず罫線が 60 本見える。
- * スクロールは親 .surface が担う。textarea 自身は overflow: hidden で内部スクロール抑止。
- *
- * touch-action: pan-y を指定することで、textarea 上での縦パンジェスチャを
- * 親 .surface のスクロールへ伝播させる（モバイルで紙全体をスクロールするため）。
- * 横パン・ピンチは抑止して、ページ送りスワイプ判定 (onTouchEnd) と協調する。
+ * textarea が内部スクロールを担う（iOS ネイティブ挙動）。
+ * padding-bottom は JS 側で動的調整し、scrollHeight が常に
+ * --page-height-px (60 行ぶん) 以上になるようにする。
+ * 結果、空ページでも 60 本の罫線が描画される。
  */
 .textarea {
-  display: block;
-  width: 100%;
-  height: var(--page-height-px);
+  flex: 1 1 auto;
+  min-height: 0;
   padding-top: 0;
-  padding-bottom: 0;
   padding-left: max(var(--padding-page), env(safe-area-inset-left));
   padding-right: max(var(--padding-page), env(safe-area-inset-right));
-  overflow: hidden;
-  touch-action: pan-y;
+  overflow-y: auto;
 }
