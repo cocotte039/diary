@@ -251,6 +251,18 @@ npm run preview      # ビルド結果のプレビュー
 
 ## 自律判断ログ
 
+### M4（2026-04-15 spec-improvements）
+
+- **🟡 M4 単独では配線なし、M5 で結線**: spec-improvements サイクルの M4 は
+  `BookshelfMenu.tsx` / `BookshelfMenu.module.css` の新規作成のみ。BookshelfPage
+  からの import は M5-T5.1 の責務のため、M4 時点では dead code 相当となる。
+  build/test は通過するが「未使用エクスポート」警告が lint で出た場合は M5 で解消する想定。
+- **🟡 単体テスト追加は見送り**: spec 明記どおり、UI ハンドラの検証は M5/M6 の
+  統合テスト（BookshelfPage.test.tsx に対する更新）で行う。M4 時点は build 通過で十分。
+- **🟡 working tree に他 wave の変更が混在していたため、コミットは BookshelfMenu の
+  2 ファイルのみを明示的に `git add`**: `git add -A` や `git add .` は使わず、
+  新規 2 ファイルのみを stage して M4-T4.1 のコミット範囲を純粋に保った。
+
 ### M8-3（2026-04-14）
 
 - **🟡 active 昇格時の ordinal タイブレーク**: `all.sort((a, b) => b.ordinal - a.ordinal)` の
