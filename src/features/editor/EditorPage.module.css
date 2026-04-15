@@ -79,15 +79,15 @@
 /*
  * ページ送りフェード用ラッパ。transition は --transition-page (180ms) を使う。
  * 紙（textarea）は 60 行ぶんの固定高さで、surface がスクロールコンテナになる。
- * 上揃え（align-items: flex-start）で、画面が紙より高いときは下に余白が出る。
+ * display: block で素直なブロックレイアウトにしてモバイルのスクロール伝播を確実にする。
+ * iOS Safari の慣性スクロール対応で -webkit-overflow-scrolling: touch も付ける。
  */
 .surface {
   flex: 1 1 auto;
   min-height: 0;
-  display: flex;
-  flex-direction: column;
-  align-items: stretch;
+  display: block;
   overflow-y: auto;
+  -webkit-overflow-scrolling: touch;
   transition: var(--transition-page);
 }
 .fading {
@@ -96,14 +96,20 @@
 
 /*
  * 紙は常に 60 行ぶんの固定高さ。文字数や viewport に依らず罫線が 60 本見える。
- * スクロールは親 .surface が担う。textarea 自身の overflow-y は不要。
+ * スクロールは親 .surface が担う。textarea 自身は overflow: hidden で内部スクロール抑止。
+ *
+ * touch-action: pan-y を指定することで、textarea 上での縦パンジェスチャを
+ * 親 .surface のスクロールへ伝播させる（モバイルで紙全体をスクロールするため）。
+ * 横パン・ピンチは抑止して、ページ送りスワイプ判定 (onTouchEnd) と協調する。
  */
 .textarea {
-  flex: 0 0 auto;
+  display: block;
+  width: 100%;
   height: var(--page-height-px);
   padding-top: 0;
   padding-bottom: 0;
   padding-left: max(var(--padding-page), env(safe-area-inset-left));
   padding-right: max(var(--padding-page), env(safe-area-inset-right));
   overflow: hidden;
+  touch-action: pan-y;
 }

@@ -300,9 +300,11 @@ export default function EditorPage() {
     (e: React.SyntheticEvent<HTMLTextAreaElement>) => {
       const t = e.currentTarget;
       onSelectionChange(t.selectionStart ?? 0);
-      requestAnimationFrame(ensureCursorVisible);
+      // タップ/クリックで意図的に可視位置を選んだ場合の自動スクロールは
+      // 「勝手に画面が動く」体験になるため発火させない。
+      // 入力 (handleChange) と visualViewport resize でのみ追従する。
     },
-    [onSelectionChange, ensureCursorVisible]
+    [onSelectionChange]
   );
 
   // M6-T2: IME (composition) ガード。
