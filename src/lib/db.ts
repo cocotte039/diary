@@ -215,6 +215,8 @@ export async function getPage(
  * - 既存ページは content/updatedAt/syncStatus=pending で更新
  * - ページ数が増えた場合は新しい Page を作成
  * - ページ数が減った場合は余剰の Page を削除（ただし Page #1 は残す）
+ *
+ * 注意: 冊全文保存経路（DB 復元等）でのみ使用。通常の編集経路では savePage を使う。
  */
 export async function saveVolumeText(
   volumeId: string,

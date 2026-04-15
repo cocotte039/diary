@@ -53,28 +53,6 @@ export function joinPages(pages: string[]): string {
 }
 
 /**
- * CHARS_PER_PAGE 境界で「このページに残す部分」(keep) と
- * 「次ページへ持ち越す部分」(overflow) に分離する。
- * - `text.length <= CHARS_PER_PAGE` → overflow は空文字。
- * - 1200 字超 → keep は先頭 1200 字、overflow は残り。
- * - round-trip: `keep + overflow === text`（常に成立）。
- *
- * 用途: M6 の自動次ページ送り (T6.3) と最終ページロック (T6.4)。
- */
-export function splitAtCharLimit(text: string): {
-  keep: string;
-  overflow: string;
-} {
-  if (text.length <= CHARS_PER_PAGE) {
-    return { keep: text, overflow: '' };
-  }
-  return {
-    keep: text.slice(0, CHARS_PER_PAGE),
-    overflow: text.slice(CHARS_PER_PAGE),
-  };
-}
-
-/**
  * selectionStart 位置に対応するスクロールコンテナの scrollTop を返す。
  * 表示上の折り返しは考慮しない（仕様: 折り返し行はカウントしない）。
  * y = 行インデックス * LINE_HEIGHT_PX。

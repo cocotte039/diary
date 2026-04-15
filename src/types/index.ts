@@ -31,7 +31,7 @@ export interface Page {
   volumeId: string;
   /** ページ番号 1〜PAGES_PER_VOLUME */
   pageNumber: number;
-  /** 本文（\n 区切り、最大 CHARS_PER_PAGE=1200 文字） */
+  /** 本文（\n 区切り、目安 1200 文字、上限なし。進捗バー計算でのみ参照） */
   content: string;
   /** 初回書き込み日時 */
   createdAt: ISODateString;
