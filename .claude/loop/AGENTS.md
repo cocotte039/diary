@@ -395,6 +395,36 @@ npm run preview      # ビルド結果のプレビュー
   比較コストの方が重くなる可能性があり、静けさ原則（最小限の間接層）にも反するため
   インライン計算で十分。
 
+### M5（2026-04-15 page-char-basis）
+
+- **🟡 `constants.test.ts` の「削除検証」回帰テストは残す**: `LINES_PER_PAGE` /
+  `LINES_PER_VOLUME` を import して `undefined` を検証するテスト 2 件は、識別子を
+  grep 対象とした場合に残留と同じ形になるが、「旧識別子が再度 export されていない
+  こと」の回帰テストとして機能するため保持する。これにより将来 constants.ts へ
+  誤って旧定数を追加する事故を防げる。
+- **🟡 BookshelfPage.test.tsx の confirm 文言テストを `PAGES_PER_VOLUME` 参照へ
+  リテラル化**: 以前は `/2 \/ 50/` のリテラルだったが、PAGES_PER_VOLUME が今後
+  さらに変わった場合に追随できるよう `new RegExp(\`2 \\/ ${PAGES_PER_VOLUME}\`)` /
+  テンプレートリテラル参照に書き換えた。定数変更時にテストが自動追随する。
+- **🟡 `--lines-per-page` CSS 変数名は残す**: M1 以降の罫線用視覚行数（60）は
+  CHARS_PER_PAGE とは独立した概念なので、変数名は `--lines-per-page` のまま
+  維持しコメントで `LINES_PER_PAPER と同期` と明記するだけに留める。命名変更
+  （例: `--lines-per-paper`）は CSS 差分が増える割にメリットが薄く、静けさ原則
+  （最小差分）を優先する。
+- **🟡 `src/features/editor/EditorPage.module.css` の `60 行ぶん` 表記は維持**:
+  `min-height: var(--page-height-px)` が罫線 60 本ぶんの高さであることの説明
+  文脈であり、LINES_PER_PAPER=60 を参照している旨をコメントに追記するだけで、
+  数値自体は視覚仕様の根拠として残す。
+- **🟡 npm run test は watch モードで終了しない**: package.json の `test` は
+  `vitest`（watch）、`test:run` が `vitest run`（1 回のみ）。M5 の検証では
+  `test:run` を使って終了を待つ。watch モード残留のプロセスは手動で kill する
+  ハザードがあるため、CI や自律ループでは必ず `test:run` 相当を使う。
+- **🟡 flaky テスト (`編集中のテキストが flush で保存される`) は 2 回目で緑**:
+  1 回目に `expected '' to be 'unsaved draft'` で落ちたが、同条件で再実行すると緑。
+  M5 の変更範囲外（M5 で触った箇所は JSDoc・CSS コメント・BookshelfPage.test.tsx
+  の confirm 文言のみ）なので、既存の flush タイミング依存のテスト不安定さと判断。
+  個別対応は別途課題化を推奨するが、今回の M5 受入条件は連続 2 回 175/175 緑で満たす。
+
 ### M8-4（2026-04-14）
 
 - **🟡 VolumeCard の Pointer Events 実装範囲**: `onPointerDown/Move/Up/Cancel/Leave`

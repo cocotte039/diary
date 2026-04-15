@@ -60,12 +60,12 @@
       "id": "M5",
       "name": "仕上げ・整合確認",
       "goal": "grep 残留ゼロ、JSDoc/CSS変数コメント整合、lint/build/test 全緑、README整合。",
-      "status": "pending",
+      "status": "completed",
       "verification": "npm run lint && npm run build && npm run test",
       "tasks": [
-        { "id": "T5.1", "name": "旧識別子 grep 残留ゼロ化", "spec": "specs/m5-t1.md", "wave": 1, "status": "pending", "assignee": "build" },
-        { "id": "T5.2", "name": "JSDoc / CSS コメント更新", "spec": "specs/m5-t2.md", "wave": 1, "status": "pending", "assignee": "build" },
-        { "id": "T5.3", "name": "lint/build/test 全緑確認", "spec": "specs/m5-t3.md", "wave": 2, "status": "pending", "assignee": "build" }
+        { "id": "T5.1", "name": "旧識別子 grep 残留ゼロ化", "spec": "specs/m5-t1.md", "wave": 1, "status": "completed", "assignee": "build" },
+        { "id": "T5.2", "name": "JSDoc / CSS コメント更新", "spec": "specs/m5-t2.md", "wave": 1, "status": "completed", "assignee": "build" },
+        { "id": "T5.3", "name": "lint/build/test 全緑確認", "spec": "specs/m5-t3.md", "wave": 2, "status": "completed", "assignee": "build" }
       ]
     }
   ],
@@ -77,12 +77,15 @@
       "issue": "confirm 文言テスト 2 件が `50 ページ` のまま残っている（M1 の 50→60 ページ移行で本体側のみ更新済み）。M5 T5.1 の grep 残留ゼロ化で修正すべき。",
       "detected_at": "2026-04-15T17:55:00Z",
       "severity": "minor",
-      "target_milestone": "M5"
+      "target_milestone": "M5",
+      "status": "completed",
+      "resolved_at": "2026-04-15T19:02:00Z",
+      "resolution": "M5-T5.1 で PAGES_PER_VOLUME 参照に書き換え完了。"
     }
   ],
   "metadata": {
     "created_at": "2026-04-15T00:00:00Z",
-    "last_updated": "2026-04-15T18:25:00Z",
+    "last_updated": "2026-04-15T19:02:00Z",
     "current_iteration": 0,
     "total_iterations": 0
   }
