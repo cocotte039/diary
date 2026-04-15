@@ -1,7 +1,10 @@
+/*
+ * iOS Safari で position: fixed 親 + overflow: auto 子 + textarea の組み合わせは
+ * タッチスクロール伝播が壊れやすい。通常の flex 縦積みで 100dvh を占有する。
+ * body の overflow: hidden で全体のはみ出しは抑止済み。
+ */
 .root {
-  position: fixed;
-  inset: 0;
-  width: 100vw;
+  width: 100%;
   height: 100%;
   height: 100dvh;
   display: flex;
