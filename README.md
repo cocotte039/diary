@@ -12,12 +12,12 @@ B5大学ノートに万年筆で書いていた手書き日記の体験を、布
 - 本棚が起点: メイン画面が本棚。ノート（冊）タップでその冊の「最後に開いたページ」から編集再開
 - ページ単位 UI: 1 ページ = 1 textarea の独立画面。左右ボタン / スワイプ / PageUp・PageDown でめくる（180ms フェード）
 - textarea 上でも水平スワイプでページめくり可能（`|dx| > |dy|*2` かつ 50px 超で発火、IME 中はガード）
-- ノート風 UI: 罫線背景 + Klee One + ダークモード。1 ページ = 1200 文字（`CHARS_PER_PAGE`）で、紙高さは 60 行分の罫線（`LINES_PER_PAPER`）。罫線は 1 行ごとに通常罫線で統一
-- ヘッダー直下に高さ 3px・10 分割目盛りのモノクロプログレスバー。text.length / CHARS_PER_PAGE の塗り幅でページ残量を静かに可視化（色変化・数値表示・満量アニメーションなし、`role="progressbar"` + aria-valuenow/min/max/label）
+- ノート風 UI: 罫線背景 + Klee One + ダークモード。紙高さは 60 行分の罫線（`LINES_PER_PAPER`）。罫線は 1 行ごとに通常罫線 + 25 行ごとに微強調罫線（ボリューム感を静かに表現）。1 ページあたりの文字数上限はなし（`CHARS_PER_PAGE=1200` は進捗バーの目盛り単位としてのみ残存）
+- ヘッダー直下に高さ 3px・10 分割目盛りのモノクロプログレスバー。text.length / CHARS_PER_PAGE の塗り幅で書いた量の目安を静かに可視化（1200 字超は 100% で固定、色変化・数値表示・満量アニメーションなし、`role="progressbar"` + aria-valuenow/min/max/label）
 - 3 画面（本棚 / エディタ / 設定）のヘッダーは `.app-header` 共通クラスで統一。flex 子要素として配置し、Android の仮想キーボード時もヘッダーは画面上部に残る
 - エディタのヘッダーはページ数クラスタを画面真中央に置く 3 列 grid レイアウト
 - エディタは `.surface` が外側スクロールコンテナ。非フォーカス時でもページ（紙）を上下にスクロール可能、スクロール中もヘッダー・プログレスバーは画面上部に固定表示
-- 1200 文字到達で次ページへ自動遷移（IME 変換中はガード）、60 ページ（`PAGES_PER_VOLUME`）で冊終了（静かに入力ロック、削除は通す）
+- ページ送りはユーザー任意のタイミング（スワイプ / 左右ボタン / PageUp・PageDown）で行う。1 ページあたりの文字数は無制限。60 ページ（`PAGES_PER_VOLUME`）で冊終了（静かに入力ロック、削除は通す）
 - 新ノート作成は本棚ヘッダーのメニュー（ハンバーガー）から「新しいノート」を選択（確認ダイアログ付き）
 - ノートの削除は本棚カードを 500ms 長押し → 2 段階 confirm（ページ 0 枚は 1 段階）。active ノート削除時は最大 ordinal のノートが自動昇格
 - IndexedDB によるローカル永続化（ページ単位 savePage、2 秒 debounce、遷移時 flush）
@@ -39,7 +39,7 @@ diary/
 ├─ public/          # manifest.json / icon.svg / (PNG は別PCで生成)
 ├─ src/
 │  ├─ styles/       # global.css (CSS変数 / --header-height / .app-header / .app-header-link), notebook.css (罫線共通)
-│  ├─ lib/          # constants (CHARS_PER_PAGE=1200, LINES_PER_PAPER=60, PAGES_PER_VOLUME=60), pagination (splitAtCharLimit), db (idb v2), github, export, pwa
+│  ├─ lib/          # constants (CHARS_PER_PAGE=1200 は進捗バー目安、LINES_PER_PAPER=60, PAGES_PER_VOLUME=60), pagination (splitIntoPages/countPages 他), db (idb v2), github, export, pwa
 │  ├─ hooks/        # useEditorCursor, useDebouncedCallback
 │  ├─ features/
 │  │  ├─ editor/    # EditorPage, useEditorAutoSave, DateIcon
