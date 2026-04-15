@@ -22,14 +22,14 @@
       "id": "M2",
       "name": "EditorPage ロジックを文字数基準へ",
       "goal": "checkOverflowAndNavigate を splitAtCharLimit のみに単純化、handleBeforeInput を nextValue.length 基準に、ensurePaperHeight 削除、textarea高さ useLayoutEffect 追従。EditorPage.test.tsx 書き換え。",
-      "status": "pending",
+      "status": "completed",
       "verification": "npm run test -- src/features/editor/EditorPage.test.tsx && npm run build",
       "tasks": [
-        { "id": "T2.1", "name": "import・不要ロジック削除", "spec": "specs/m2-t1.md", "wave": 1, "status": "pending", "assignee": "build" },
-        { "id": "T2.2", "name": "checkOverflowAndNavigate 単純化", "spec": "specs/m2-t2.md", "wave": 2, "status": "pending", "assignee": "build" },
-        { "id": "T2.3", "name": "handleBeforeInput 書き換え", "spec": "specs/m2-t3.md", "wave": 2, "status": "pending", "assignee": "build" },
-        { "id": "T2.4", "name": "textarea高さ useLayoutEffect 追従", "spec": "specs/m2-t4.md", "wave": 3, "status": "pending", "assignee": "build" },
-        { "id": "T2.5", "name": "EditorPage.test.tsx 書き換え", "spec": "specs/m2-t5.md", "wave": 4, "status": "pending", "assignee": "build" }
+        { "id": "T2.1", "name": "import・不要ロジック削除", "spec": "specs/m2-t1.md", "wave": 1, "status": "completed", "assignee": "build" },
+        { "id": "T2.2", "name": "checkOverflowAndNavigate 単純化", "spec": "specs/m2-t2.md", "wave": 2, "status": "completed", "assignee": "build" },
+        { "id": "T2.3", "name": "handleBeforeInput 書き換え", "spec": "specs/m2-t3.md", "wave": 2, "status": "completed", "assignee": "build" },
+        { "id": "T2.4", "name": "textarea高さ useLayoutEffect 追従", "spec": "specs/m2-t4.md", "wave": 3, "status": "completed", "assignee": "build" },
+        { "id": "T2.5", "name": "EditorPage.test.tsx 書き換え", "spec": "specs/m2-t5.md", "wave": 4, "status": "completed", "assignee": "build" }
       ]
     },
     {
@@ -72,7 +72,7 @@
   "fix_queue": [],
   "metadata": {
     "created_at": "2026-04-15T00:00:00Z",
-    "last_updated": "2026-04-15T17:10:00Z",
+    "last_updated": "2026-04-15T17:20:00Z",
     "current_iteration": 0,
     "total_iterations": 0
   }

@@ -1,5 +1,6 @@
 import {
   useEffect,
+  useLayoutEffect,
   useRef,
   useState,
   useCallback,
@@ -18,17 +19,11 @@ import {
   updateVolumeLastOpenedPage,
 } from '../../lib/db';
 import {
-  LINES_PER_PAGE,
-  LINE_HEIGHT_PX,
+  CHARS_PER_PAGE,
   PAGES_PER_VOLUME,
   SWIPE_THRESHOLD_PX,
 } from '../../lib/constants';
-
-/** 紙 1 ページぶんのピクセル高さ。60 行 × line-height = 1728px。
- *  textarea の scrollHeight を下限としてこの値に保ち、空ページでも
- *  60 本の罫線が描画されるように padding-bottom で調整する。 */
-const PAGE_HEIGHT_PX = LINES_PER_PAGE * LINE_HEIGHT_PX;
-import { splitAtLine30 } from '../../lib/pagination';
+import { splitAtCharLimit } from '../../lib/pagination';
 import { useEditorAutoSave } from './useEditorAutoSave';
 import { useEditorCursor } from '../../hooks/useEditorCursor';
 import DateIcon from './DateIcon';
@@ -168,43 +163,21 @@ export default function EditorPage() {
   );
 
   /**
-   * M6-T3: 30 行超過時の自動次ページ遷移。
-   * - 現ページを keep で即時 savePage (flush 相当)
+   * M10-M2: 1200 文字超過時の自動次ページ遷移。
+   * - 現ページを keep (先頭 1200 字) で即時 savePage (flush 相当)
    * - 次ページ既存 content の先頭に overflow を prepend して savePage
    * - lastOpenedPage を next に更新し /book/:id/:next に navigate
    * - 遷移後、textarea にカーソル位置 `overflow.length` を復元する (pendingCursorPosRef)
    *
    * 呼び出しは `onChange`（composition 中でない時）と `onCompositionEnd` から。
-   * 50 ページ目は T6.4 の onBeforeInput 側でロックされるためここでは発動させない。
+   * 最終ページは T6.4 の onBeforeInput 側でロックされるためここでは発動させない。
    */
   const checkOverflowAndNavigate = useCallback(
     (value: string) => {
       if (!volumeId) return;
       if (current >= PAGES_PER_VOLUME) return; // T6.4 ロック対象は発動させない
       if (transitionLockRef.current) return;
-      // 1) 論理行ベースの overflow（既存）
-      let { keep, overflow } = splitAtLine30(value);
-
-      // 2) M9-M5: 視覚行（折り返し込み）ベースの overflow 検出。
-      //    論理行は 60 以下でも 1 行が長いと折り返しで視覚行が 60 を超える。
-      //    textarea.scrollHeight / LINE_HEIGHT_PX で視覚行数を推定し、
-      //    上限超過なら最後の改行で分割（なければ末尾半分をフォールバック持ち越し）。
-      if (overflow.length === 0) {
-        const el = textareaRef.current;
-        const maxPx = LINES_PER_PAGE * LINE_HEIGHT_PX;
-        if (el && el.scrollHeight > maxPx + 1) {
-          const lastNl = value.lastIndexOf('\n');
-          if (lastNl >= 0 && lastNl < value.length - 1) {
-            keep = value.slice(0, lastNl);
-            overflow = value.slice(lastNl + 1);
-          } else {
-            const mid = Math.floor(value.length / 2);
-            keep = value.slice(0, mid);
-            overflow = value.slice(mid);
-          }
-        }
-      }
-
+      const { keep, overflow } = splitAtCharLimit(value);
       if (overflow.length === 0) return;
 
       transitionLockRef.current = true;
@@ -245,31 +218,16 @@ export default function EditorPage() {
   );
 
   /**
-   * textarea の padding-bottom を調整し、scrollHeight が常に
-   * PAGE_HEIGHT_PX (60 行ぶん) 以上になるようにする。
-   * これにより background-attachment: local で tile される罫線が
-   * 空ページでも 60 本ぶん描画される。
-   *
-   * 測定手順:
-   *  1. paddingBottom を 0 にリセット → scrollHeight = 実コンテンツ高さ
-   *  2. 不足分を paddingBottom にセット
-   *  コンテンツが 60 行を超える場合 (=> scrollHeight > PAGE_HEIGHT_PX) は 0。
-   *  この場合 checkOverflowAndNavigate 側で自動ページ送りが発火する。
+   * M10-M2-T4: textarea 高さを内容の scrollHeight に追従させる。
+   * 紙高さの下限（空ページでも 60 本の罫線を描画するための min-height）は
+   * CSS 側（M3 の `.textarea { min-height: var(--page-height-px) }`）で保証する。
    */
-  const ensurePaperHeight = useCallback(() => {
+  useLayoutEffect(() => {
     const ta = textareaRef.current;
     if (!ta) return;
-    ta.style.paddingBottom = '0px';
-    const contentHeight = ta.scrollHeight;
-    const needed = Math.max(0, PAGE_HEIGHT_PX - contentHeight);
-    ta.style.paddingBottom = `${needed}px`;
-  }, []);
-
-  // 初回ロード / ページ遷移 / 外部入力（日付挿入等）でも padding を追従させる
-  useEffect(() => {
-    if (!ready) return;
-    ensurePaperHeight();
-  }, [text, ready, ensurePaperHeight]);
+    ta.style.height = 'auto';
+    ta.style.height = `${ta.scrollHeight}px`;
+  }, [text, ready]);
 
   const handleChange = useCallback(
     (e: ChangeEvent<HTMLTextAreaElement>) => {
@@ -280,11 +238,9 @@ export default function EditorPage() {
       // IME 変換中は自動遷移判定をスキップ (M6-T2)。
       // composition 終了時に onCompositionEnd から再判定する。
       if (isComposingRef.current) return;
-      // 自動遷移判定前に padding を再計算しておくと scrollHeight が正しく読める
-      ensurePaperHeight();
       checkOverflowAndNavigate(value);
     },
-    [onSelectionChange, checkOverflowAndNavigate, ensurePaperHeight]
+    [onSelectionChange, checkOverflowAndNavigate]
   );
 
   const handleSelect = useCallback(
@@ -310,9 +266,10 @@ export default function EditorPage() {
   );
 
   /**
-   * M6-T4: 50 ページ目末尾ロック。
-   * 最終ページで overflow が発生する入力（改行・長文ペースト）を `onBeforeInput` で先読みキャンセル。
-   * - 削除や 30 行以内の入力は素通り（overflow が発生しないので preventDefault しない）。
+   * M6-T4 / M10-M2-T3: 最終ページ末尾ロック。
+   * 最終ページで 1200 字を超える入力（改行・通常文字・長文ペースト）を
+   * `onBeforeInput` で先読みキャンセルする。
+   * - 削除や 1200 字以内の入力は素通り（preventDefault しない）。
    * - IME 変換中（composition）は判定をスキップ（確定前の中間状態で誤判定しないため）。
    * - 静けさ原則: トースト・点滅・触覚フィードバックは出さない（AGENTS.md #17）。
    */
@@ -341,9 +298,8 @@ export default function EditorPage() {
       const end = el.selectionEnd ?? el.value.length;
       const nextValue =
         el.value.slice(0, start) + inserted + el.value.slice(end);
-      // `overflow.length > 0` だと「30 行＋末尾改行」のケース (overflow="" だが lines=31) を
-      // 取りこぼす。行数ベースで `> LINES_PER_PAGE` なら常にロック対象とする。
-      if (nextValue.split('\n').length > LINES_PER_PAGE) {
+      // 文字数ベースのロック: 1200 字を超える入力をキャンセル。
+      if (nextValue.length > CHARS_PER_PAGE) {
         e.preventDefault();
       }
     },

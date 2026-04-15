@@ -318,6 +318,29 @@ npm run preview      # ビルド結果のプレビュー
   名前空間を取得し、`(constants as Record<string, unknown>).LINES_PER_PAGE` が
   undefined であることを検証。残留復活防止のリグレッションテスト。
 
+### M2（2026-04-15 page-char-basis）
+
+- **🟡 ensurePaperHeight 全削除**: plan 通り関数定義・呼び出し・関連 useEffect
+  すべて削除。M3 の CSS（`.textarea { min-height: var(--page-height-px) }`）で紙高さ
+  下限を保証する前提。M3 が未完のため一時的に空ページで罫線が 60 本描画されない
+  ケースがあり得るが、テストは glass-box な CSS 依存が無いため全緑で通過確認済み。
+- **🟡 useLayoutEffect の依存配列は [text, ready]**: `text` 変更（入力・日付挿入・
+  fetch 後の初期流し込み）と `ready` 切替（初回ロード完了）の両方で高さを追従させる。
+  textareaRef は ref なので依存に含めない（React ESLint 既存規約と整合）。
+- **🟡 視覚行 overflow テスト (M9-M5) 2 件は削除**: spec T2.5 および plan の「仕様廃止」に
+  従い、scrollHeight をモックする 2 テストを削除。文字数ベースでは scrollHeight 依存
+  しないため意味が無い。代わりに「1200 字ちょうどでは遷移しない」という境界テストを
+  新設し、文字数境界の回帰を防ぐ。
+- **🟡 最終ページロックのテストを「1200 字末尾で 1 文字/改行」の 2 形態に拡張**: 旧テスト
+  は改行のみ検証だったが、M2-T3 で `nextValue.length > CHARS_PER_PAGE` に変えたことで
+  通常文字もロック対象になったため、通常文字 1 文字 ('x') と改行 '\n' の両ケースを
+  追加で検証する。49 ページ目テストは `PAGES_PER_VOLUME - 1 = 59` ページ目に書き換え。
+- **🟡 テストで使う overflow 生成は `'あ'.repeat(...)`**: 日本語 1 文字 = `string.length` 1
+  なので CHARS_PER_PAGE と直接対応する。M1 の db.test.ts と表記統一。
+- **🟡 import の並べ替え**: `CHARS_PER_PAGE`, `PAGES_PER_VOLUME`, `SWIPE_THRESHOLD_PX`
+  のアルファベット順を優先し、`splitAtCharLimit` の import 行を定数 import の直後に
+  再配置（元コードでは PAGE_HEIGHT_PX ローカル定数の定義に挟まれて散らばっていた）。
+
 ### M8-4（2026-04-14）
 
 - **🟡 VolumeCard の Pointer Events 実装範囲**: `onPointerDown/Move/Up/Cancel/Leave`

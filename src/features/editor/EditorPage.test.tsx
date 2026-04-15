@@ -9,8 +9,8 @@ import {
   savePage,
 } from '../../lib/db';
 import {
+  CHARS_PER_PAGE,
   DB_NAME,
-  LINES_PER_PAGE,
   PAGES_PER_VOLUME,
   SWIPE_THRESHOLD_PX,
 } from '../../lib/constants';
@@ -351,7 +351,7 @@ describe('EditorPage swipe navigation (M5-T3)', () => {
 });
 
 describe('EditorPage IME composition guard (M6-T2)', () => {
-  it('composition 中は LINES_PER_PAGE 超の入力で navigate しない', async () => {
+  it('composition 中は 1201 字の入力で navigate しない', async () => {
     const v = await ensureActiveVolume();
     let pathname = '';
     renderWithLocationProbe(`/book/${v.id}/1`, (p) => {
@@ -359,14 +359,13 @@ describe('EditorPage IME composition guard (M6-T2)', () => {
     });
     const textarea = (await screen.findByLabelText('日記本文')) as HTMLTextAreaElement;
     fireEvent.compositionStart(textarea);
-    const overflowText =
-      Array.from({ length: LINES_PER_PAGE + 1 }, (_, i) => `l${i}`).join('\n');
+    const overflowText = 'あ'.repeat(CHARS_PER_PAGE + 1);
     fireEvent.change(textarea, { target: { value: overflowText } });
     await new Promise((r) => setTimeout(r, 250));
     expect(pathname).toBe(`/book/${v.id}/1`);
   });
 
-  it('compositionEnd で最新値が LINES_PER_PAGE 超なら遷移する', async () => {
+  it('compositionEnd で最新値が 1201 字なら遷移する', async () => {
     const v = await ensureActiveVolume();
     let pathname = '';
     renderWithLocationProbe(`/book/${v.id}/1`, (p) => {
@@ -374,8 +373,7 @@ describe('EditorPage IME composition guard (M6-T2)', () => {
     });
     const textarea = (await screen.findByLabelText('日記本文')) as HTMLTextAreaElement;
     fireEvent.compositionStart(textarea);
-    const overflowText =
-      Array.from({ length: LINES_PER_PAGE + 1 }, (_, i) => `l${i}`).join('\n');
+    const overflowText = 'あ'.repeat(CHARS_PER_PAGE + 1);
     fireEvent.change(textarea, { target: { value: overflowText } });
     fireEvent.compositionEnd(textarea, { target: { value: overflowText } });
     await waitFor(() => expect(pathname).toBe(`/book/${v.id}/2`));
@@ -394,47 +392,58 @@ describe('EditorPage IME composition guard (M6-T2)', () => {
     expect(pathname).toBe(`/book/${v.id}/1`);
   });
 
-  it('composition 無しで LINES_PER_PAGE 超の change は即 navigate する', async () => {
+  it('composition 無しで 1201 字の change は即 navigate する', async () => {
     const v = await ensureActiveVolume();
     let pathname = '';
     renderWithLocationProbe(`/book/${v.id}/1`, (p) => {
       pathname = p;
     });
     const textarea = (await screen.findByLabelText('日記本文')) as HTMLTextAreaElement;
-    const overflowText =
-      Array.from({ length: LINES_PER_PAGE + 1 }, (_, i) => `l${i}`).join('\n');
+    const overflowText = 'あ'.repeat(CHARS_PER_PAGE + 1);
     fireEvent.change(textarea, { target: { value: overflowText } });
     await waitFor(() => expect(pathname).toBe(`/book/${v.id}/2`));
   });
 });
 
 describe('EditorPage auto next-page on overflow (M6-T3)', () => {
-  it('LINES_PER_PAGE を越えると次ページへ遷移する', async () => {
+  it('1201 字入力で次ページへ遷移する', async () => {
     const v = await ensureActiveVolume();
     let pathname = '';
     renderWithLocationProbe(`/book/${v.id}/1`, (p) => {
       pathname = p;
     });
     const textarea = (await screen.findByLabelText('日記本文')) as HTMLTextAreaElement;
-    const overflowText =
-      Array.from({ length: LINES_PER_PAGE + 1 }, (_, i) => `line-${i}`).join('\n');
+    const overflowText = 'あ'.repeat(CHARS_PER_PAGE + 1);
     fireEvent.change(textarea, { target: { value: overflowText } });
     await waitFor(() => expect(pathname).toBe(`/book/${v.id}/2`));
   });
 
-  it('遷移前のページは keep (LINES_PER_PAGE 行) で保存される', async () => {
+  it('1200 字ちょうどでは遷移しない', async () => {
     const v = await ensureActiveVolume();
     let pathname = '';
     renderWithLocationProbe(`/book/${v.id}/1`, (p) => {
       pathname = p;
     });
     const textarea = (await screen.findByLabelText('日記本文')) as HTMLTextAreaElement;
-    const overflowText =
-      Array.from({ length: LINES_PER_PAGE + 1 }, (_, i) => `l${i}`).join('\n');
+    const justText = 'あ'.repeat(CHARS_PER_PAGE);
+    fireEvent.change(textarea, { target: { value: justText } });
+    await new Promise((r) => setTimeout(r, 250));
+    expect(pathname).toBe(`/book/${v.id}/1`);
+  });
+
+  it('遷移前のページは keep (先頭 1200 字) で保存される', async () => {
+    const v = await ensureActiveVolume();
+    let pathname = '';
+    renderWithLocationProbe(`/book/${v.id}/1`, (p) => {
+      pathname = p;
+    });
+    const textarea = (await screen.findByLabelText('日記本文')) as HTMLTextAreaElement;
+    const overflowText = 'あ'.repeat(CHARS_PER_PAGE) + 'い';
     fireEvent.change(textarea, { target: { value: overflowText } });
     await waitFor(() => expect(pathname).toBe(`/book/${v.id}/2`));
     const page1 = await getPage(v.id, 1);
-    expect(page1?.content.split('\n').length).toBe(LINES_PER_PAGE);
+    expect(page1?.content.length).toBe(CHARS_PER_PAGE);
+    expect(page1?.content).toBe('あ'.repeat(CHARS_PER_PAGE));
   });
 
   it('overflow 分が次ページ先頭に書き込まれる', async () => {
@@ -444,12 +453,11 @@ describe('EditorPage auto next-page on overflow (M6-T3)', () => {
       pathname = p;
     });
     const textarea = (await screen.findByLabelText('日記本文')) as HTMLTextAreaElement;
-    const overflowText =
-      Array.from({ length: LINES_PER_PAGE + 1 }, (_, i) => `l${i}`).join('\n');
+    const overflowText = 'あ'.repeat(CHARS_PER_PAGE) + 'い';
     fireEvent.change(textarea, { target: { value: overflowText } });
     await waitFor(() => expect(pathname).toBe(`/book/${v.id}/2`));
     const page2 = await getPage(v.id, 2);
-    expect(page2?.content).toBe(`l${LINES_PER_PAGE}`);
+    expect(page2?.content).toBe('い');
   });
 
   it('次ページに既存 content があれば overflow は先頭に prepend される', async () => {
@@ -460,15 +468,14 @@ describe('EditorPage auto next-page on overflow (M6-T3)', () => {
       pathname = p;
     });
     const textarea = (await screen.findByLabelText('日記本文')) as HTMLTextAreaElement;
-    const overflowText =
-      Array.from({ length: LINES_PER_PAGE + 1 }, (_, i) => `l${i}`).join('\n');
+    const overflowText = 'あ'.repeat(CHARS_PER_PAGE) + 'い';
     fireEvent.change(textarea, { target: { value: overflowText } });
     await waitFor(() => expect(pathname).toBe(`/book/${v.id}/2`));
     const page2 = await getPage(v.id, 2);
-    expect(page2?.content).toBe(`l${LINES_PER_PAGE}\nexisting`);
+    expect(page2?.content).toBe('い\nexisting');
   });
 
-  it('50 ページ目では自動遷移が発動しない', async () => {
+  it('最終ページでは自動遷移が発動しない', async () => {
     const v = await ensureActiveVolume();
     await savePage(v.id, PAGES_PER_VOLUME, '');
     let pathname = '';
@@ -476,55 +483,12 @@ describe('EditorPage auto next-page on overflow (M6-T3)', () => {
       pathname = p;
     });
     const textarea = (await screen.findByLabelText('日記本文')) as HTMLTextAreaElement;
-    // NOTE: 50 ページ目は onBeforeInput でロックされる設計（T6.4）。
-    // ここでは onChange 経路で overflow が発生しても navigate が起きないことだけ確認する。
-    const overflowText =
-      Array.from({ length: 31 }, (_, i) => `l${i}`).join('\n');
+    // 最終ページは onBeforeInput でロックされる設計（T6.4）。
+    // onChange 経路で overflow が発生しても navigate が起きないことだけ確認する。
+    const overflowText = 'あ'.repeat(CHARS_PER_PAGE + 1);
     fireEvent.change(textarea, { target: { value: overflowText } });
     await new Promise((r) => setTimeout(r, 250));
     expect(pathname).toBe(`/book/${v.id}/${PAGES_PER_VOLUME}`);
-  });
-});
-
-describe('EditorPage visual row overflow (M9-M5)', () => {
-  /**
-   * jsdom は textarea.scrollHeight を 0 で返すので、Object.defineProperty で
-   * 強制的に大きい値を返すように上書きしてから change を発火する。
-   * これにより「論理行は 60 以下でも視覚行が超過している状態」を再現する。
-   */
-  it('視覚行が LINES_PER_PAGE を超えると次ページへ遷移する', async () => {
-    const v = await ensureActiveVolume();
-    let pathname = '';
-    renderWithLocationProbe(`/book/${v.id}/1`, (p) => {
-      pathname = p;
-    });
-    const textarea = (await screen.findByLabelText('日記本文')) as HTMLTextAreaElement;
-    // 論理行は 3 行だけだが scrollHeight を超過状態で返す
-    Object.defineProperty(textarea, 'scrollHeight', {
-      configurable: true,
-      get: () => 999999,
-    });
-    const text = 'first line\nsecond line\nthird line';
-    fireEvent.change(textarea, { target: { value: text } });
-    await waitFor(() => expect(pathname).toBe(`/book/${v.id}/2`));
-  });
-
-  it('視覚行超過でも改行なし長文は半分で分割される', async () => {
-    const v = await ensureActiveVolume();
-    let pathname = '';
-    renderWithLocationProbe(`/book/${v.id}/1`, (p) => {
-      pathname = p;
-    });
-    const textarea = (await screen.findByLabelText('日記本文')) as HTMLTextAreaElement;
-    Object.defineProperty(textarea, 'scrollHeight', {
-      configurable: true,
-      get: () => 999999,
-    });
-    const text = 'a'.repeat(200);
-    fireEvent.change(textarea, { target: { value: text } });
-    await waitFor(() => expect(pathname).toBe(`/book/${v.id}/2`));
-    const page1 = await getPage(v.id, 1);
-    expect(page1?.content.length).toBe(100);
   });
 });
 
@@ -568,31 +532,43 @@ describe('EditorPage final page lock (M6-T4)', () => {
     return { defaultPrevented: ev.defaultPrevented };
   }
 
-  it('50 ページ目 30 行末尾で改行を beforeInput すると preventDefault される', async () => {
+  it('最終ページ 1200 字末尾で 1 文字を beforeInput すると preventDefault される', async () => {
     const v = await ensureActiveVolume();
-    const thirtyLines = Array.from({ length: LINES_PER_PAGE }, (_, i) => `l${i}`).join('\n');
-    await savePage(v.id, PAGES_PER_VOLUME, thirtyLines);
+    const fullPage = 'あ'.repeat(CHARS_PER_PAGE);
+    await savePage(v.id, PAGES_PER_VOLUME, fullPage);
     renderAt(`/book/${v.id}/${PAGES_PER_VOLUME}`);
     const textarea = (await screen.findByLabelText('日記本文')) as HTMLTextAreaElement;
-    await waitFor(() => expect(textarea.value).toBe(thirtyLines));
-    textarea.setSelectionRange(thirtyLines.length, thirtyLines.length);
+    await waitFor(() => expect(textarea.value).toBe(fullPage));
+    textarea.setSelectionRange(fullPage.length, fullPage.length);
+    const result = fireBeforeInput(textarea, 'x');
+    expect(result.defaultPrevented).toBe(true);
+  });
+
+  it('最終ページ 1200 字末尾で改行 beforeInput も preventDefault される', async () => {
+    const v = await ensureActiveVolume();
+    const fullPage = 'あ'.repeat(CHARS_PER_PAGE);
+    await savePage(v.id, PAGES_PER_VOLUME, fullPage);
+    renderAt(`/book/${v.id}/${PAGES_PER_VOLUME}`);
+    const textarea = (await screen.findByLabelText('日記本文')) as HTMLTextAreaElement;
+    await waitFor(() => expect(textarea.value).toBe(fullPage));
+    textarea.setSelectionRange(fullPage.length, fullPage.length);
     const result = fireBeforeInput(textarea, '\n');
     expect(result.defaultPrevented).toBe(true);
   });
 
-  it('49 ページ目では同じ beforeInput は preventDefault されない', async () => {
+  it('最終 1 つ前のページでは同じ beforeInput は preventDefault されない', async () => {
     const v = await ensureActiveVolume();
-    const thirtyLines = Array.from({ length: LINES_PER_PAGE }, (_, i) => `l${i}`).join('\n');
-    await savePage(v.id, 49, thirtyLines);
-    renderAt(`/book/${v.id}/49`);
+    const fullPage = 'あ'.repeat(CHARS_PER_PAGE);
+    await savePage(v.id, PAGES_PER_VOLUME - 1, fullPage);
+    renderAt(`/book/${v.id}/${PAGES_PER_VOLUME - 1}`);
     const textarea = (await screen.findByLabelText('日記本文')) as HTMLTextAreaElement;
-    await waitFor(() => expect(textarea.value).toBe(thirtyLines));
-    textarea.setSelectionRange(thirtyLines.length, thirtyLines.length);
-    const result = fireBeforeInput(textarea, '\n');
+    await waitFor(() => expect(textarea.value).toBe(fullPage));
+    textarea.setSelectionRange(fullPage.length, fullPage.length);
+    const result = fireBeforeInput(textarea, 'x');
     expect(result.defaultPrevented).toBe(false);
   });
 
-  it('50 ページ目でも 30 行以内の文字挿入は妨げられない', async () => {
+  it('最終ページでも 1200 字以内の文字挿入は妨げられない', async () => {
     const v = await ensureActiveVolume();
     await savePage(v.id, PAGES_PER_VOLUME, 'hello');
     renderAt(`/book/${v.id}/${PAGES_PER_VOLUME}`);
@@ -603,14 +579,14 @@ describe('EditorPage final page lock (M6-T4)', () => {
     expect(result.defaultPrevented).toBe(false);
   });
 
-  it('50 ページ目の削除操作 (data なし) は preventDefault されない', async () => {
+  it('最終ページの削除操作 (data なし) は preventDefault されない', async () => {
     const v = await ensureActiveVolume();
-    const thirtyLines = Array.from({ length: LINES_PER_PAGE }, (_, i) => `l${i}`).join('\n');
-    await savePage(v.id, PAGES_PER_VOLUME, thirtyLines);
+    const fullPage = 'あ'.repeat(CHARS_PER_PAGE);
+    await savePage(v.id, PAGES_PER_VOLUME, fullPage);
     renderAt(`/book/${v.id}/${PAGES_PER_VOLUME}`);
     const textarea = (await screen.findByLabelText('日記本文')) as HTMLTextAreaElement;
-    await waitFor(() => expect(textarea.value).toBe(thirtyLines));
-    textarea.setSelectionRange(thirtyLines.length, thirtyLines.length);
+    await waitFor(() => expect(textarea.value).toBe(fullPage));
+    textarea.setSelectionRange(fullPage.length, fullPage.length);
     const result = fireBeforeInput(textarea, null);
     expect(result.defaultPrevented).toBe(false);
   });
@@ -735,16 +711,16 @@ describe('EditorPage date insertion (M7-T4)', () => {
     expect(btn.className).toMatch(/headerDateButton/);
   });
 
-  it('日付挿入で LINES_PER_PAGE を超える場合、次ページへ自動遷移する', async () => {
+  it('日付挿入で 1200 字を超える場合、次ページへ自動遷移する', async () => {
     const v = await ensureActiveVolume();
     let pathname = '';
     renderWithLocationProbe(`/book/${v.id}/1`, (p) => {
       pathname = p;
     });
     const textarea = (await screen.findByLabelText('日記本文')) as HTMLTextAreaElement;
-    // LINES_PER_PAGE 行を埋めてからスタンプを先頭に挿入 → 最終行が余剰として押し出される
-    const thirtyLines = Array.from({ length: LINES_PER_PAGE }, (_, i) => `l${i}`).join('\n');
-    fireEvent.change(textarea, { target: { value: thirtyLines } });
+    // 1200 字を埋めてからスタンプを先頭に挿入 → 末尾が overflow として押し出される
+    const fullPage = 'あ'.repeat(CHARS_PER_PAGE);
+    fireEvent.change(textarea, { target: { value: fullPage } });
     textarea.setSelectionRange(0, 0);
     withFixedDate('2026-04-14T09:00:00', () =>
       fireEvent.click(screen.getByRole('button', { name: '今日の日付を挿入' }))
