@@ -59,10 +59,10 @@
       "id": "M6",
       "name": "カレンダーモーダル化",
       "goal": "本棚下部のカレンダー開閉ボタンを撤去し、ヘッダーメニューから全画面モーダルで起動",
-      "status": "pending",
+      "status": "completed",
       "verification": "npm run test -- --run src/features/bookshelf/BookshelfPage.test.tsx && npm run build",
       "tasks": [
-        { "id": "T6.1", "name": "モーダル実装＋Esc対応＋CSS＋テスト3件追加", "spec": "specs/m6-t1.md", "wave": 1, "status": "pending", "assignee": "build" }
+        { "id": "T6.1", "name": "モーダル実装＋Esc対応＋CSS＋テスト3件追加", "spec": "specs/m6-t1.md", "wave": 1, "status": "completed", "assignee": "build" }
       ]
     },
     {
@@ -79,7 +79,7 @@
   "fix_queue": [],
   "metadata": {
     "created_at": "2026-04-15T20:00:00+09:00",
-    "last_updated": "2026-04-15T20:40:00+09:00",
+    "last_updated": "2026-04-15T20:29:07+09:00",
     "current_iteration": 0,
     "total_iterations": 0
   }
