@@ -5,7 +5,6 @@ import {
   getPageNumber,
   getScrollTopForCursor,
   joinPages,
-  splitAtCharLimit,
   splitIntoPages,
 } from './pagination';
 import { CHARS_PER_PAGE, LINE_HEIGHT_PX, PAGES_PER_VOLUME } from './constants';
@@ -83,56 +82,6 @@ describe('pagination (M10 char-based)', () => {
       expect(pages.length).toBe(2);
       expect(pages[0].length).toBe(CHARS_PER_PAGE);
       expect(pages[1].length).toBe(5);
-    });
-  });
-
-  describe('splitAtCharLimit (M10)', () => {
-    it('empty text -> empty keep / empty overflow', () => {
-      expect(splitAtCharLimit('')).toEqual({ keep: '', overflow: '' });
-    });
-
-    it('1 char -> keep=text, overflow=""', () => {
-      expect(splitAtCharLimit('a')).toEqual({ keep: 'a', overflow: '' });
-    });
-
-    it('CHARS_PER_PAGE - 1 chars -> overflow empty, keep == original', () => {
-      const text = 'a'.repeat(CHARS_PER_PAGE - 1);
-      expect(splitAtCharLimit(text)).toEqual({ keep: text, overflow: '' });
-    });
-
-    it('exactly CHARS_PER_PAGE chars -> overflow empty, keep == original', () => {
-      const text = 'a'.repeat(CHARS_PER_PAGE);
-      const result = splitAtCharLimit(text);
-      expect(result.keep).toBe(text);
-      expect(result.overflow).toBe('');
-    });
-
-    it('CHARS_PER_PAGE + 1 chars -> keep=1200, overflow=1 char', () => {
-      const text = 'a'.repeat(CHARS_PER_PAGE) + 'X';
-      const { keep, overflow } = splitAtCharLimit(text);
-      expect(keep.length).toBe(CHARS_PER_PAGE);
-      expect(keep).toBe('a'.repeat(CHARS_PER_PAGE));
-      expect(overflow).toBe('X');
-    });
-
-    it('long text (3000 chars) -> keep=1200, overflow=1800', () => {
-      const text = 'a'.repeat(3000);
-      const { keep, overflow } = splitAtCharLimit(text);
-      expect(keep.length).toBe(CHARS_PER_PAGE);
-      expect(overflow.length).toBe(3000 - CHARS_PER_PAGE);
-    });
-
-    it('round-trip: keep + overflow === text (overflow case)', () => {
-      const text = 'あ'.repeat(CHARS_PER_PAGE + 50);
-      const { keep, overflow } = splitAtCharLimit(text);
-      expect(keep + overflow).toBe(text);
-    });
-
-    it('handles multi-byte (Japanese) characters at boundary', () => {
-      const text = 'あ'.repeat(CHARS_PER_PAGE + 5);
-      const { keep, overflow } = splitAtCharLimit(text);
-      expect(keep.length).toBe(CHARS_PER_PAGE);
-      expect(overflow.length).toBe(5);
     });
   });
 
