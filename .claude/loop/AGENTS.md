@@ -371,6 +371,30 @@ npm run preview      # ビルド結果のプレビュー
   commit c2e4d5f で既に入っており、surface スクロール時は textarea 全体が動くため
   罫線とテキストは同期する。追加の CSS 変更は不要。
 
+### M4（2026-04-15 page-char-basis）
+
+- **🟡 色トークンではなく rgba 直指定を採用**: plan.md D5 は `--color-text` /
+  `--color-rule` / `--color-page-divider` の流用を許容し、spec m4-t2.md は rgba
+  直指定を指示。global.css のトークンは opacity が固定（`--color-rule` = 0.08、
+  `--color-page-divider` = 0.15）で、合意値（トラック 0.15 / tick 0.3 / 塗り 0.5）を
+  正確に再現できない。静けさ原則と合意 opacity の忠実再現を優先し、ダークテーマ用の
+  `rgba(255,255,255, {0.15|0.3|0.5})` を EditorPage.module.css にローカル直指定。
+  将来カラーテーマを増やす際はトークン化を再検討する。
+- **🟡 プログレスバーに `data-testid="page-progress"` を付与**: spec m4-t3 の
+  「常時存在確認」で `role="progressbar"` を検索すると他の将来要素（ARIA live 等）と
+  衝突する可能性があるため、安定セレクタとして testid を併用。`role` / `aria-*` は
+  合わせて付与するので semantic a11y は損なわない。
+- **🟡 1300 字 clamp テストは最終ページに直接保存してロード**: 通常ページで 1300 字を
+  setValue すると `checkOverflowAndNavigate` が走って overflow が次ページへ押し出される
+  ため、「1300 字を保持したまま表示」が検証できない。最終ページ（PAGES_PER_VOLUME）は
+  T6.4 の onBeforeInput ロック対象で自動遷移の対象外、かつ既存 1200 字超データ
+  （旧基準データの移行後想定）をロードするケースと実質同じなので、この経路で clamp を
+  検証する。
+- **🟡 progressPct は毎レンダ計算（memo しない）**: `text.length / CHARS_PER_PAGE` は
+  数値演算 2 回 + `Math.round` + `Math.min` のみで O(1)。useMemo を挟むと依存配列の
+  比較コストの方が重くなる可能性があり、静けさ原則（最小限の間接層）にも反するため
+  インライン計算で十分。
+
 ### M8-4（2026-04-14）
 
 - **🟡 VolumeCard の Pointer Events 実装範囲**: `onPointerDown/Move/Up/Cancel/Leave`

@@ -48,12 +48,12 @@
       "id": "M4",
       "name": "プログレスバー追加",
       "goal": "ヘッダー直下に高さ3px・10分割tick・モノクロのプログレスバー。role=progressbar + aria-valuenow/min/max/label。数値表示・色変化・アニメーションなし。",
-      "status": "pending",
+      "status": "completed",
       "verification": "npm run test -- src/features/editor/EditorPage.test.tsx && npm run build",
       "tasks": [
-        { "id": "T4.1", "name": "EditorPage.tsx にバー要素追加", "spec": "specs/m4-t1.md", "wave": 1, "status": "pending", "assignee": "build" },
-        { "id": "T4.2", "name": "EditorPage.module.css .progress / .progressFill", "spec": "specs/m4-t2.md", "wave": 1, "status": "pending", "assignee": "build" },
-        { "id": "T4.3", "name": "EditorPage.test.tsx に a11y/valuenow ケース追加", "spec": "specs/m4-t3.md", "wave": 2, "status": "pending", "assignee": "build" }
+        { "id": "T4.1", "name": "EditorPage.tsx にバー要素追加", "spec": "specs/m4-t1.md", "wave": 1, "status": "completed", "assignee": "build" },
+        { "id": "T4.2", "name": "EditorPage.module.css .progress / .progressFill", "spec": "specs/m4-t2.md", "wave": 1, "status": "completed", "assignee": "build" },
+        { "id": "T4.3", "name": "EditorPage.test.tsx に a11y/valuenow ケース追加", "spec": "specs/m4-t3.md", "wave": 2, "status": "completed", "assignee": "build" }
       ]
     },
     {
@@ -82,7 +82,7 @@
   ],
   "metadata": {
     "created_at": "2026-04-15T00:00:00Z",
-    "last_updated": "2026-04-15T17:58:00Z",
+    "last_updated": "2026-04-15T18:25:00Z",
     "current_iteration": 0,
     "total_iterations": 0
   }
