@@ -293,6 +293,32 @@ npm run preview      # ビルド結果のプレビュー
   `|dx| < SWIPE_THRESHOLD_PX` で先に弾かれるため、2:1 判定より手前で終了する。
   B 案の厳格化後も挙動が変わらず、リグレッションテストとして有効。
 
+### M1（2026-04-16 char-limit-removal）
+
+- **🟡 25 行強調罫線の grep 件数は 4 件（spec T1.7 の「2 件」とは不一致）**:
+  spec T1.5 に記載の CSS（`calc(25 * var(--line-height-px) ...)`）をそのまま採用した結果、
+  background-image 内の `repeating-linear-gradient` 3 stops + background-size 1 ヶ所 = 計 4 件。
+  T1.7 の期待値「2 件（background-image + background-size）」は、3 stops のうち 1 つだけ
+  カウントしていると思われるが、spec T1.5 の CSS 定義（ブロック全体）を忠実に実装する方を優先。
+  強調罫線の視覚動作・Y 座標の配置は spec 通りなので機能的問題はない。
+- **🟡 handleCompositionEnd は完全に「ref リセットのみ」に縮小**:
+  spec 通り `isComposingRef.current = false` のみ残し、composition end イベントの
+  value 引数は不要になったため受け取らない。スワイプ・PageUp/PageDown の IME ガード
+  （L456, L440）は引き続き `isComposingRef` を参照する。
+- **🟡 CompositionEvent/FormEvent 型 import の同時削除**:
+  `handleBeforeInput` 削除により `FormEvent` 参照が無くなり、`handleCompositionEnd` の
+  引数削除で `CompositionEvent as ReactCompositionEvent` 参照も無くなったため、
+  React type imports から両方削除。`savePage` / `getPage` 共に T3 削除範囲で
+  checkOverflowAndNavigate 経路からは外れたが、EditorPage 本体では直接未使用に
+  なるため import 一覧を整理。`updateVolumeLastOpenedPage` / `getVolume` / `getPage` は
+  初期ロード useEffect と goPage 経路で依然必要なので残す。`savePage` は
+  checkOverflowAndNavigate 専用だったため削除。
+- **🟡 RED 確認時点で「最終ページで 1201 字入力しても preventDefault されない」テストは
+  先に PASS**: `fireEvent.change` は onBeforeInput を経由しないため、React 上の value は
+  そのまま更新される（ブラウザネイティブの preventDefault ではなく React の change イベント
+  経路）。spec の RED 期待どおり動いているが、実装的には 3/5 が FAIL、2/5 が PASS で RED
+  確認成立。
+
 ### M8-1（2026-04-14）
 
 - **🟡 EditorPage.module.css の .header は空のクラスとして残置**: JSX 側で
