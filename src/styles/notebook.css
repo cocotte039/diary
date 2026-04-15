@@ -44,6 +44,10 @@
   background-size:
     100% calc(var(--line-height-px) * 15),
     100% var(--line-height-px);
+  /* スクロール時に罫線がテキストと一緒に動くようにする。
+     これがないと textarea/reader の内部スクロール時に文字だけが動き、
+     罫線とベースラインがズレて不自然になる。 */
+  background-attachment: local;
   /* テキストのベースラインと罫線を合わせるため、上下 padding は
      line-height の整数倍にする。左右はノート余白を演出。 */
   padding: 0 var(--padding-page);
