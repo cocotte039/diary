@@ -25,9 +25,9 @@ export interface Page {
   id: string;
   /** 属する Volume の id */
   volumeId: string;
-  /** ページ番号 1-50 */
+  /** ページ番号 1〜PAGES_PER_VOLUME */
   pageNumber: number;
-  /** 30行分の本文（\n 区切り、最大 LINES_PER_PAGE 行） */
+  /** 本文（\n 区切り、最大 CHARS_PER_PAGE=1200 文字） */
   content: string;
   /** 初回書き込み日時 */
   createdAt: ISODateString;

@@ -50,13 +50,14 @@ const PAGE_FADE_MS = 180;
  * URL: /book/:volumeId/:pageNumber
  * - ロード: getPage(volumeId, current) → textarea に content を流し込む
  * - 保存: useEditorAutoSave(volumeId, current, text) で 2 秒 debounce + flush
- * - ヘッダー: 左「本棚」/ 中央「‹ n / 50 ›」/ 右「設定」
+ * - ヘッダー: 左「本棚」/ 中央「‹ n / PAGES_PER_VOLUME ›」/ 右「設定」
  * - ページ遷移 (M5-T1/T2/T3/T5): 左右ボタン + 180ms フェード (--transition-page)
  *   + 左右スワイプ（B 案: textarea 上でも水平優位 2:1 のスワイプで反応, M8-2）
  *   + PageUp/PageDown キー（textarea にフォーカスがある時のみ）。
  *   遷移前に autosave flush + lastOpenedPage 更新。
  *
- * 30 行ロック・IME ガード等は M6/M7 で追加。
+ * 文字数ロック（CHARS_PER_PAGE=1200）・IME ガード等は M6/M7 で追加（M10 で
+ * 行数ベースから文字数ベースに移行）。
  */
 export default function EditorPage() {
   const params = useParams<{ volumeId: string; pageNumber: string }>();
@@ -352,8 +353,8 @@ export default function EditorPage() {
    * M7-T4: カーソル位置に今日の日付スタンプを挿入する。
    * - 挿入後は textarea の selectionRange をスタンプ末尾に移動
    * - state も即時に更新（onChange と同じ経路で IME ガード・自動遷移と協調）
-   * - 挿入で 30 行を超えた場合は T6.3 の自動次ページ遷移ロジック
-   *   (`checkOverflowAndNavigate`) を発火させる。
+   * - 挿入で CHARS_PER_PAGE (1200 字) を超えた場合は T6.3 の自動次ページ遷移
+   *   ロジック (`checkOverflowAndNavigate`) を発火させる。
    */
   const insertDate = useCallback(() => {
     const el = textareaRef.current;

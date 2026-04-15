@@ -31,8 +31,9 @@
   --line-height-px: calc(var(--line-height) * var(--font-size)); /* 28.8px */
   /* ヘッダー高さ = 2 行分。本文の padding-top と罫線位置の同期に使う（M7-T1）。 */
   --header-height: calc(2 * var(--line-height-px)); /* 57.6px */
-  /* 1 ページあたりの行数。constants.ts の LINES_PER_PAGE と同期させること。
-     紙の固定高さ（= 60 行ぶん = 1728px）の算出に使う。 */
+  /* 罫線描画用の視覚行数（紙の固定高さ = 60 行ぶん = 1728px の算出に使う）。
+     constants.ts の LINES_PER_PAPER と同期させること。
+     ページ容量（CHARS_PER_PAGE=1200 字）とは独立。 */
   --lines-per-page: 60;
   --page-height-px: calc(var(--lines-per-page) * var(--line-height-px));
 }

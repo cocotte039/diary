@@ -210,11 +210,11 @@ export async function getPage(
 }
 
 /**
- * アクティブな Volume のテキスト全体を 30 行ごとに分割し、
+ * アクティブな Volume のテキスト全体を CHARS_PER_PAGE (1200 字) ごとに分割し、
  * IndexedDB の Page レコードを作成・更新する。
  * - 既存ページは content/updatedAt/syncStatus=pending で更新
- * - 行数が増えた場合は新しい Page を作成
- * - 行数が減った場合は余剰の Page を削除（ただし Page #1 は残す）
+ * - ページ数が増えた場合は新しい Page を作成
+ * - ページ数が減った場合は余剰の Page を削除（ただし Page #1 は残す）
  */
 export async function saveVolumeText(
   volumeId: string,

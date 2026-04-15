@@ -135,8 +135,8 @@
 
 /*
  * M3: textarea は内部スクロールを持たず、内容の scrollHeight に追従して
- * 高さが伸びる。紙の下限高さ (60 行ぶん = var(--page-height-px)) は
- * min-height で保証し、空ページでも 60 本の罫線が描画される。
+ * 高さが伸びる。紙の下限高さ (LINES_PER_PAPER = 60 行ぶん = var(--page-height-px)) は
+ * min-height で保証し、空ページでも罫線が 60 本描画される。
  * スクロール制御は surface 側が担う。
  */
 .textarea {
