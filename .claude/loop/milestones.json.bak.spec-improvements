@@ -1,0 +1,92 @@
+{
+  "version": "2.0",
+  "project": {
+    "name": "diary page-char-basis",
+    "description": "ページ単位を文字数基準(1200字/60ページ)に移行 + スクロール構造改善 + プログレスバー追加"
+  },
+  "milestones": [
+    {
+      "id": "M1",
+      "name": "定数と pagination.ts を文字数基準へ",
+      "goal": "LINES_PER_PAGE を撤廃し CHARS_PER_PAGE=1200 / LINES_PER_PAPER=60 / PAGES_PER_VOLUME=60 に。splitAtLine30→splitAtCharLimit。pagination.test.ts / db.test.ts 書き換え。",
+      "status": "completed",
+      "verification": "npm run test -- src/lib/pagination.test.ts src/lib/constants.test.ts src/lib/db.test.ts",
+      "tasks": [
+        { "id": "T1.1", "name": "constants.ts 定数差し替え", "spec": "specs/m1-t1.md", "wave": 1, "status": "completed", "assignee": "build" },
+        { "id": "T1.2", "name": "pagination.ts 関数書き換え", "spec": "specs/m1-t2.md", "wave": 2, "status": "completed", "assignee": "build" },
+        { "id": "T1.3", "name": "pagination.test.ts 書き換え", "spec": "specs/m1-t3.md", "wave": 3, "status": "completed", "assignee": "build" },
+        { "id": "T1.4", "name": "constants.test.ts / db.test.ts 書き換え", "spec": "specs/m1-t4.md", "wave": 3, "status": "completed", "assignee": "build" }
+      ]
+    },
+    {
+      "id": "M2",
+      "name": "EditorPage ロジックを文字数基準へ",
+      "goal": "checkOverflowAndNavigate を splitAtCharLimit のみに単純化、handleBeforeInput を nextValue.length 基準に、ensurePaperHeight 削除、textarea高さ useLayoutEffect 追従。EditorPage.test.tsx 書き換え。",
+      "status": "completed",
+      "verification": "npm run test -- src/features/editor/EditorPage.test.tsx && npm run build",
+      "tasks": [
+        { "id": "T2.1", "name": "import・不要ロジック削除", "spec": "specs/m2-t1.md", "wave": 1, "status": "completed", "assignee": "build" },
+        { "id": "T2.2", "name": "checkOverflowAndNavigate 単純化", "spec": "specs/m2-t2.md", "wave": 2, "status": "completed", "assignee": "build" },
+        { "id": "T2.3", "name": "handleBeforeInput 書き換え", "spec": "specs/m2-t3.md", "wave": 2, "status": "completed", "assignee": "build" },
+        { "id": "T2.4", "name": "textarea高さ useLayoutEffect 追従", "spec": "specs/m2-t4.md", "wave": 3, "status": "completed", "assignee": "build" },
+        { "id": "T2.5", "name": "EditorPage.test.tsx 書き換え", "spec": "specs/m2-t5.md", "wave": 4, "status": "completed", "assignee": "build" }
+      ]
+    },
+    {
+      "id": "M3",
+      "name": "スクロール構造を外側スクロールへ",
+      "goal": ".surface が overflow-y:auto、textarea は内部スクロール廃止。空ページでも罫線60本保証。useEditorCursor の scrollTop 操作を .surface 側に差し替え。",
+      "status": "completed",
+      "verification": "npm run test && npm run build",
+      "tasks": [
+        { "id": "T3.1", "name": "EditorPage.module.css 改修", "spec": "specs/m3-t1.md", "wave": 1, "status": "completed", "assignee": "build" },
+        { "id": "T3.2", "name": "useEditorCursor の scrollTop 宛先変更", "spec": "specs/m3-t2.md", "wave": 2, "status": "completed", "assignee": "build" },
+        { "id": "T3.3", "name": "罫線・min-height 動作確認", "spec": "specs/m3-t3.md", "wave": 3, "status": "completed", "assignee": "build" }
+      ]
+    },
+    {
+      "id": "M4",
+      "name": "プログレスバー追加",
+      "goal": "ヘッダー直下に高さ3px・10分割tick・モノクロのプログレスバー。role=progressbar + aria-valuenow/min/max/label。数値表示・色変化・アニメーションなし。",
+      "status": "completed",
+      "verification": "npm run test -- src/features/editor/EditorPage.test.tsx && npm run build",
+      "tasks": [
+        { "id": "T4.1", "name": "EditorPage.tsx にバー要素追加", "spec": "specs/m4-t1.md", "wave": 1, "status": "completed", "assignee": "build" },
+        { "id": "T4.2", "name": "EditorPage.module.css .progress / .progressFill", "spec": "specs/m4-t2.md", "wave": 1, "status": "completed", "assignee": "build" },
+        { "id": "T4.3", "name": "EditorPage.test.tsx に a11y/valuenow ケース追加", "spec": "specs/m4-t3.md", "wave": 2, "status": "completed", "assignee": "build" }
+      ]
+    },
+    {
+      "id": "M5",
+      "name": "仕上げ・整合確認",
+      "goal": "grep 残留ゼロ、JSDoc/CSS変数コメント整合、lint/build/test 全緑、README整合。",
+      "status": "completed",
+      "verification": "npm run lint && npm run build && npm run test",
+      "tasks": [
+        { "id": "T5.1", "name": "旧識別子 grep 残留ゼロ化", "spec": "specs/m5-t1.md", "wave": 1, "status": "completed", "assignee": "build" },
+        { "id": "T5.2", "name": "JSDoc / CSS コメント更新", "spec": "specs/m5-t2.md", "wave": 1, "status": "completed", "assignee": "build" },
+        { "id": "T5.3", "name": "lint/build/test 全緑確認", "spec": "specs/m5-t3.md", "wave": 2, "status": "completed", "assignee": "build" }
+      ]
+    }
+  ],
+  "fix_queue": [
+    {
+      "id": "FIX-1",
+      "source": "M3 全体テスト実行時",
+      "file": "src/features/bookshelf/BookshelfPage.test.tsx",
+      "issue": "confirm 文言テスト 2 件が `50 ページ` のまま残っている（M1 の 50→60 ページ移行で本体側のみ更新済み）。M5 T5.1 の grep 残留ゼロ化で修正すべき。",
+      "detected_at": "2026-04-15T17:55:00Z",
+      "severity": "minor",
+      "target_milestone": "M5",
+      "status": "completed",
+      "resolved_at": "2026-04-15T19:02:00Z",
+      "resolution": "M5-T5.1 で PAGES_PER_VOLUME 参照に書き換え完了。"
+    }
+  ],
+  "metadata": {
+    "created_at": "2026-04-15T00:00:00Z",
+    "last_updated": "2026-04-15T19:02:00Z",
+    "current_iteration": 0,
+    "total_iterations": 0
+  }
+}

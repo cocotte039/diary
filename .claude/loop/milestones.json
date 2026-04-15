@@ -2,84 +2,52 @@
   "version": "2.0",
   "project": {
     "name": "diary",
-    "description": "仕様改善5件: 罫線均一化/日付挿入スクロール維持/本棚並び順修正/新ノート作成UI刷新/カレンダーUI刷新"
+    "description": "EditorPage ヘッダー整理（設定リンク削除）と Android 戻るボタン動線修正（本棚へ直結）"
   },
   "milestones": [
     {
       "id": "M1",
-      "name": "罫線均一化",
-      "goal": "notebook.css の強調罫線レイヤーを削除し、--color-rule の通常罫線のみに統一",
+      "name": "ヘッダー整理と戻るボタン動線修正",
+      "goal": "EditorPage から設定リンクを削除し、端末戻るボタンで常に本棚 (/) に戻るガードを追加する",
       "status": "completed",
-      "verification": "npm run build && npm run test -- --run",
+      "verification": "npm run test:run && npm run lint",
       "tasks": [
-        { "id": "T1.1", "name": "notebook.css 書き換え", "spec": "specs/m1-t1.md", "wave": 0, "status": "completed", "assignee": "build" }
-      ]
-    },
-    {
-      "id": "M2",
-      "name": "日付挿入時 scrollTop 保持",
-      "goal": "insertDate で surfaceRef の scrollTop を保存→rAF 内で復元し、ページ先頭リセットを防ぐ",
-      "status": "completed",
-      "verification": "npm run test -- --run src/features/editor/EditorPage.test.tsx && npm run build",
-      "tasks": [
-        { "id": "T2.1", "name": "TDD テスト追加＋EditorPage.insertDate 改修", "spec": "specs/m2-t1.md", "wave": 0, "status": "completed", "assignee": "build" }
-      ]
-    },
-    {
-      "id": "M3",
-      "name": "本棚並び順修正",
-      "goal": "BookshelfPage のソートを ordinal 降順（createdAt tie-break）に変更",
-      "status": "completed",
-      "verification": "npm run test -- --run src/features/bookshelf/BookshelfPage.test.tsx",
-      "tasks": [
-        { "id": "T3.1", "name": "TDD テスト追加＋ソート変更", "spec": "specs/m3-t1.md", "wave": 0, "status": "completed", "assignee": "build" }
-      ]
-    },
-    {
-      "id": "M4",
-      "name": "ヘッダーメニュー基盤",
-      "goal": "BookshelfMenu コンポーネント（ハンバーガー + ドロップダウン）を新規作成",
-      "status": "completed",
-      "verification": "npm run build",
-      "tasks": [
-        { "id": "T4.1", "name": "BookshelfMenu.tsx と CSS 新規作成", "spec": "specs/m4-t1.md", "wave": 0, "status": "completed", "assignee": "build" }
-      ]
-    },
-    {
-      "id": "M5",
-      "name": "新ノート作成メニュー統合",
-      "goal": "NewVolumeCard 削除、BookshelfPage にヘッダーメニューを結線、テスト更新",
-      "status": "completed",
-      "verification": "npm run test -- --run src/features/bookshelf/BookshelfPage.test.tsx && npm run build",
-      "tasks": [
-        { "id": "T5.1", "name": "BookshelfPage 結線＋NewVolumeCard 削除＋CSS掃除＋テスト更新", "spec": "specs/m5-t1.md", "wave": 1, "status": "completed", "assignee": "build" }
-      ]
-    },
-    {
-      "id": "M6",
-      "name": "カレンダーモーダル化",
-      "goal": "本棚下部のカレンダー開閉ボタンを撤去し、ヘッダーメニューから全画面モーダルで起動",
-      "status": "completed",
-      "verification": "npm run test -- --run src/features/bookshelf/BookshelfPage.test.tsx && npm run build",
-      "tasks": [
-        { "id": "T6.1", "name": "モーダル実装＋Esc対応＋CSS＋テスト3件追加", "spec": "specs/m6-t1.md", "wave": 1, "status": "completed", "assignee": "build" }
-      ]
-    },
-    {
-      "id": "M7",
-      "name": "全体検証・README 更新",
-      "goal": "grep 残骸チェック、README の仕様反映、lint/build/test 全通過",
-      "status": "completed",
-      "verification": "npm run lint && npm run build && npm run test -- --run",
-      "tasks": [
-        { "id": "T7.1", "name": "残骸grep確認＋README更新＋全テスト実行", "spec": "specs/m7-t1.md", "wave": 2, "status": "completed", "assignee": "build" }
+        {
+          "id": "T1.1",
+          "name": "設定リンク削除 + テスト書換",
+          "spec": "specs/m1-t1.md",
+          "wave": 1,
+          "status": "completed",
+          "assignee": "build"
+        },
+        {
+          "id": "T1.2",
+          "name": "戻るボタンガード実装 + 追加テスト（TDD）",
+          "spec": "specs/m1-t2.md",
+          "wave": 2,
+          "status": "completed",
+          "assignee": "build"
+        }
       ]
     }
   ],
-  "fix_queue": [],
+  "fix_queue": [
+    {
+      "id": "FIX-1",
+      "severity": "minor",
+      "origin": "verify-M1",
+      "title": "EditorPage pageNumber の span 分割が spec 外で追加されている",
+      "detail": "コミット 42daf52 で .pageNumber の中身が <span.pageCurrent>{current}</span><span.pageSeparator> / </span><span.pageTotal>{PAGES_PER_VOLUME}</span> に変更されたが、m1-t1 spec の「CSS は触らない」「data-testid の追加のみで十分」という方針から逸脱している。さらに対応する .pageCurrent / .pageSeparator / .pageTotal のスタイル定義が src/features/editor/EditorPage.module.css に作業ツリー上で modified となっているが 未コミット であり、そのまま push すると本番ビルドで未定義クラスが当たる（中央揃え意図のレイアウトが適用されない）。テスト・lint・build は全件通過しているが、span 分割を元に戻して単純な `{current} / {PAGES_PER_VOLUME}` + `data-testid=\"page-indicator\"` に収めるか、CSS の未コミット変更をコミットに含める（ただし spec 外）かのどちらかに寄せる。推奨: span 分割を戻して CSS 差分も revert（=spec 準拠に戻す）。",
+      "files": [
+        "src/features/editor/EditorPage.tsx",
+        "src/features/editor/EditorPage.module.css"
+      ],
+      "created_at": "2026-04-15T23:15:00Z"
+    }
+  ],
   "metadata": {
-    "created_at": "2026-04-15T20:00:00+09:00",
-    "last_updated": "2026-04-15T20:32:19+09:00",
+    "created_at": "2026-04-15T00:00:00Z",
+    "last_updated": "2026-04-15T23:15:00Z",
     "current_iteration": 0,
     "total_iterations": 0
   }

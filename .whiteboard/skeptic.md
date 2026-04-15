@@ -1,212 +1,147 @@
-# Skeptic 視点 — 仕様改善5件（2026-04-15）
+# Skeptic — リスク・エッジケース・回帰
 
-## 視点宣言
+## 視点
 
-リスク・エッジケース・回帰・行動心理・動機づけ。
-「動くだろう」を疑い、壊れる経路と既存挙動を破壊しないかを徹底点検する。
+「Android 戻るボタン = popstate」の基本は正しいが、**HashRouter + pushState + React Router の内部履歴 + PWA standalone** の交差点には地雷が多い。見落としがちなケースを列挙し、緩和策を決める。
 
----
+## Critical（必ず緩和）
 
-## 1. 罫線均一化（①）
+### C1. HashRouter との pushState 相互作用 🟡→🔵
 
-### Critical: 無し
-### Major: 無し
-### Minor:
-- `--color-page-divider`（`global.css` L13）が他で参照されていなければトークン定義も削除候補（cleanup）。ただし `--color-page-divider-end`（冊終わり用）と命名類似のため、削除は慎重に。**保守性のため、定義は残す方が安全**
-- 罫線 1 種類になることで「ページ内 1/4 区切り」の視覚アンカーが消える。**ユーザー要望なので問題なし**
+HashRouter は URL 変更を `window.history.pushState` ベースで行う（内部で `createHashHistory` → `BrowserHistory` 相当）。**`window.history.pushState({}, '')` は hash を変えないので HashRouter 内部の listener は何も反応しない**（listener は `hashchange` と `popstate.state.idx` をチェック）。
 
-### 回帰テスト
-- 視覚 regression（手動 / DevTools）: 空ページ・1 行・1200 字満量で罫線本数 60、強調無し
-- ダークモードのみのアプリなので contrast の確認は 1 パターンでよい
+ただし React Router v6 は `history` state に `{ idx: N, key, usr }` を格納している。我々が state なしで pushState すると、そのエントリには `idx` がない。戻るボタンで popstate が発火し、**React Router の HistoryRouter 内 listener も同時に発火**する。両方が `popstate` を拾うため、以下が同時に走る可能性:
 
----
+- 我々の onPopState: `navigate('/', { replace: true })`
+- React Router 内部: 「idx 不明の state」→ 前の Location へ戻す動作
 
-## 2. 日付挿入時のスクロール保持（②）
+結果、2 重 navigate で画面がチラつく恐れ。
 
-### Critical: 無し（合意設計で対策済み）
-### Major:
+**緩和策**:
+1. `history.state` に識別子を入れる: `pushState({ editorGuard: true, idx: -1 }, '')` とし、popstate ハンドラで `event.state?.editorGuard` をチェックする…のは逆で、**「ダミーエントリから離れる popstate」を検出する**べき。しかし戻る動作時の popstate の `event.state` は「戻った先のエントリの state」なので、ダミーから `/book/.../1` エントリに戻るなら `event.state` は `/book` エントリの state になる。
+2. **より堅牢な方法**: 我々のハンドラ内で条件判定せず、常に `navigate('/', { replace: true })` を呼ぶ。React Router が一瞬前ページを表示しても、すぐ replace で `/` に上書きされる。UX 上はフェード 180ms もないので違和感は最小。
+3. EditorPage `useEffect` の cleanup で listener を removeEventListener するので、`/` に戻った後は popstate 非捕捉。
 
-#### M2.1 オーバーフロー時の競合
-日付挿入で 1200 字超えると `checkOverflowAndNavigate` が発火 → 別ページへ遷移する。
-このとき `requestAnimationFrame` 内の `scrollTop = saved` は遷移元コンポーネントが unmount されているので `surfaceRef.current` が null になり no-op。**安全**だが、設計意図として「遷移するときは scrollTop 復元しない」ことを JSDoc に明示すべき。
+**採用**: 案 2。実装はシンプルで副作用もテストで検出可能。
 
-#### M2.2 navigate と rAF のレース
-`checkOverflowAndNavigate` は navigate を 180ms 後に発火する `setTimeout` を使う。`requestAnimationFrame` (1 frame ≈ 16ms) のほうが先に走る → scrollTop は一旦復元される → fade が走り → navigate される。**動作上の問題は無い**が、テストでこのレースを再現する場合 `vi.useFakeTimers` で setTimeout/rAF を別々に flush する必要があり、テスト記述が複雑になる。
+### C2. popstate 重複発火（goPage で pushState が積まれる問題）🔵
 
-**対策**: テストはオーバーフロー無しケース（800 字 + 日付挿入で 800 + 13 字程度）で scrollTop 保持を検証すれば十分。
+`goPage(1)` で `navigate('/book/v/2')` すると React Router が pushState する。EditorPage は同じコンポーネントのまま `useParams` のみ変わって再レンダリングされる（App.tsx のルート定義上、同じ `<EditorPage />`）。
 
-#### M2.3 既存の M6-T3 pendingCursorPosRef との競合（オーバーフロー時）
-オーバーフロー時に navigate された次ページの初回ロード `useEffect` で `pendingCursorPosRef` が rAF 内で setSelectionRange する。日付挿入由来の rAF は遷移元の textarea を対象にしているので干渉しない。**安全**。
+つまり **useEffect は再マウントされず、pushState(ダミー) は 1 回しか積まれない**。
 
-### Minor:
-- `surfaceRef` は読み取りのみで `current` が null の可能性あり（条件: アンマウント中）。`?? 0` で防御済み。
-- iOS Safari でテキスト入力中の `focus()` がキーボードを再表示する場合がある。`focus()` は既存挙動なので **追加リスクは無い**
+history: `[home, dummy, /book/v/1, /book/v/2]`
+- 戻る 1 回: `/book/v/1` 表示 → popstate 発火 → 我々の onPopState が `/` に navigate
+- その結果、ユーザーは「ページめくり後でも 1 回で本棚に戻る」
 
-### 回帰テスト追加
-- 800 字入力 + scrollTop=400 → 日付挿入 → scrollTop ≈ 400 維持
-- focus 時の自動スクロールが scrollTop を上書きしないことの検証
+これは要件（🔵 エディタ内ページめくり後の戻るボタンも本棚に一本化）と合致。ただし **1 回目で `/book/v/1` が一瞬表示される**可能性は C1 と同じく replace で即座に `/` に上書きされるので許容。
 
----
+**検証必須**: テストで「ページめくり後の popstate で `/` に戻る」ケースを再現する。
 
-## 3. 本棚並び順修正（③）
+### C3. 自動遷移 (checkOverflowAndNavigate) 経路でも同じ動作か 🟡
 
-### Critical: 無し
-### Major:
+`checkOverflowAndNavigate` は `navigate(/book/:id/:next)` を呼ぶが、pushState は React Router の `navigate()` 経由のみで、我々のダミー pushState は影響されない。useEffect の deps に volumeId/current は含まれないので再実行されない。→ **問題なし**。
 
-#### M3.1 同 ordinal の不在保証
-`db.ts` の `rotateVolume` (L392-393) と `ensureActiveVolume` (L149-150) はいずれも `Math.max(...) + 1` で ordinal を採番する。**履歴がある冊を削除して再作成しても、`Math.max` で過去の最大値より +1 になるので衝突しない**。安全。
+### C4. deep link 直アクセス時の挙動 🟡
 
-#### M3.2 既存ユーザーデータの整合
-過去に何らかの不具合で同 ordinal の冊が複数できている場合、`b.ordinal - a.ordinal` が 0 を返し、配列順が undefined になる。
-**対策**: tie-break として `createdAt` を併用すべき:
+ユーザーが通知や URL バーから `#/book/v/3` で直接 EditorPage を開いた場合:
+- history: `[/book/v/3]`（エントリ 1 件のみ。ブラウザが SPA の場合 initial entry は 1 つ）
+- EditorPage マウント時に pushState → history: `[/book/v/3, dummy]`
+- 戻る 1 回: popstate 発火、`/book/v/3` へ戻る途中で我々の onPopState が `navigate('/', { replace: true })` を発動 → `/` に上書き
+- **Android Chrome の場合、history の最初のエントリから戻るとアプリ終了する可能性あり**。しかし pushState でダミーを積んでいるので、戻るは 1 回成功して popstate が発火する。その後ユーザーは本棚 `/` にいる。本棚でもう一度戻るボタンを押すと履歴空でアプリ終了（または前アプリへ）。
 
-```ts
-vs.sort((a, b) => {
-  if (b.ordinal !== a.ordinal) return b.ordinal - a.ordinal;
-  return b.createdAt.localeCompare(a.createdAt);
-});
-```
+**これは期待動作**。deep link → 戻る → 本棚 → 戻る → アプリ終了、は自然。
 
-これで万一の重複でも順序が安定する。
+ただし **PWA standalone モードで「履歴が 1 件しかない状態での pushState → popstate」が Android Chrome で一貫して動作するかは実機確認が必要**。
 
-### Minor:
-- ordinal の単調増加性は db.ts の実装に依存。今後 db.ts をリファクタする際にも壊さないよう、`ordinal` のドキュメントに「採番は単調増加・削除しても再利用しない」を明記すべき
+**緩和策**: 実機 QA（Android Chrome / PWA インストール状態）を手動確認項目として plan.md に記載。自動テストは MemoryRouter ベースなので PWA 固有挙動を検出できない。
 
-### 回帰テスト追加
-- 同時刻 createdAt（テストデータで `'2025-01-01T00:00:00.000Z'` を 2 件入れる）でも ordinal 順
-- ordinal 1, 5, 3 の 3 件 → 表示順 5, 3, 1
-- 同 ordinal が万一 2 件あっても落ちない（tie-break が効く）
+### C5. 本棚カレンダーモーダルの戻るボタン挙動 🟡
 
----
+スコープ外だが、**既存挙動に悪影響がないか**をチェック:
+- `BookshelfPage` でカレンダーモーダル (`CalendarModal`) を開く → 戻るボタン → 現状はモーダル閉じではなく前ページ遷移（未対策）
+- 我々の変更は EditorPage マウント時のみ pushState するので、BookshelfPage には影響しない
+- **✅ 悪影響なし**
 
-## 4. 新ノート作成 UI のメニュー統合（④）
+### C6. autosave flush の非同期完了を待たない場合のデータロス 🔵
 
-### Critical:
-#### C4.1 メニュー UI の品質要求
-ハンバーガーメニューはモバイル UX で「最後の手段」とされる。**使用頻度が低いため OK**（要件④に明記）だが、以下を保証しないと体験が落ちる:
-- アイコンが「メニュー」と認識されること（3 本線が標準）
-- タップ後の出現位置が画面外にはみ出ないこと（右ドロップダウン）
-- 1 タップで開き、メニュー外タップ or Esc で閉じること
-- 開いたメニューが本棚スクロールで追従しないこと（`position: absolute` で OK）
+`onPopState` は同期的に popstate イベント内で動く。navigate も同期。`flush()` は async で IndexedDB 書き込み。
 
-### Major:
+現状案: `void flush().catch(() => {})` → fire-and-forget
 
-#### M4.1 「使用頻度が低い」前提の検証
-要件④で「使用頻度は低いが、ノート数が増えたとき末尾までスクロールが必要なのが辛い」と明記。
-**現状**: 末尾の `NewVolumeCard` まで毎回スクロール
-**新規**: ヘッダー右のメニュー → 1 タップ + 1 タップで起動
+**リスク**: navigate('/', { replace: true }) で EditorPage がアンマウント → `useEditorAutoSave` の flush を呼び出せなくなる。ただし `flush()` は呼び出し済みで、IndexedDB 書き込みは Promise chain で進行中。EditorPage のコンポーネント unmount は関係なく書き込みは完了する（IndexedDB トランザクションは window 単位）。
 
-これは **2 タップ vs スクロール + 1 タップ**。スクロール量が増えるほど新方式が有利になる。
-**前提が崩れる懸念**: もし「初回ユーザーが新ノート作成方法を見つけられない」事態は要件④の「使用頻度低い」前提に反する。**対策**: メニュー項目名は「新しいノート」と明記（アイコンのみは禁止）
+**検証**: 既存の「遷移前に flush」テスト (L173-185) と同パターンで、popstate 経由の flush でもデータロスがないことを確認するテストを追加。
 
-#### M4.2 confirm ダイアログの維持
-`window.confirm` 経路は維持。ただし、メニューを **閉じてから confirm を出す**順番が重要（メニュー開いたまま confirm が出ると視覚的にうるさい）。
+### C7. 二重 pushState（StrictMode） 🟡
+
+React 19 でも StrictMode で useEffect が開発時に 2 回実行される。pushState が 2 回積まれる → 戻るボタン 1 回で消費されるダミーは 1 つで、残り 1 つが残る。戻る 2 回必要になる回帰。
+
+**緩和策**:
+- `useEffect` のフラグ or ref で「一度積んだら積み直さない」を明示
+- または `main.tsx` の StrictMode を黙認（本番ビルドでは 1 回）
 
 ```tsx
-onClick={() => { setOpen(false); onCreateNew(); }}
+const guardInstalledRef = useRef(false);
+useEffect(() => {
+  if (guardInstalledRef.current) return;
+  guardInstalledRef.current = true;
+  window.history.pushState({ editorGuard: true }, '');
+  // ...
+  return () => {
+    window.removeEventListener('popstate', onPopState);
+    // guardInstalledRef はリセットしない（StrictMode の二度目マウントで再度 pushState されないように）
+  };
+}, []);
 ```
 
-`setOpen(false)` を先に呼ぶ。confirm はブロッキングだが、React のレンダーは setOpen 後の click handler 終了で flush されるので、視覚順は「メニュー閉→confirm」になる。**問題なし**。
+**注意**: これだと StrictMode の 2 回目で listener が登録されないバグが出る。正しくは listener は毎回登録 / remove し、pushState のみ 1 回に制限する:
 
-#### M4.3 既存テストの破壊
-`BookshelfPage.test.tsx` L113-181「冊が 1 件以上あると『新しいノート』ボタンが表示される」5 ケースが破壊される。書き換え必要:
-
-```ts
-// 旧
-const btn = screen.getByRole('button', { name: '新しいノートを作る' });
-btn.click();
-// 新
-fireEvent.click(screen.getByRole('button', { name: 'メニューを開く' }));
-const item = screen.getByRole('menuitem', { name: '新しいノート' });
-fireEvent.click(item);
+```tsx
+useEffect(() => {
+  if (!guardInstalledRef.current) {
+    window.history.pushState({ editorGuard: true }, '');
+    guardInstalledRef.current = true;
+  }
+  const onPopState = () => { ... };
+  window.addEventListener('popstate', onPopState);
+  return () => window.removeEventListener('popstate', onPopState);
+}, [flush, navigate]);
 ```
 
-**作業量**: 5 ケース × 2-3 行追加。容易だが見落としに注意。
+**採用**: この形で実装する。
 
-### Minor:
-- 「冊 0 件 → 自動作成後にカードが出る」テスト（L123-130）はメニューが「新しいノート」項目を持っているか、で代替可能
-- ハンバーガーアイコンの SVG は inline で問題なし（DateIcon と同パターン）
+### C8. テストでの popstate 再現 🔵
 
-### 回帰リスク
-- ヘッダー左の `<h1>本棚</h1>` と右のメニューがレイアウト崩壊しないこと（`.header { display: flex; justify-content: space-between }` で吸収）
-- メニューが画面右端からはみ出ないか（`right: 0` で安全だが `padding-right` との競合に注意）
+Vitest + MemoryRouter では `window.history.pushState` / `popstate` はそのまま動くが、MemoryRouter は window.history を使わない（インメモリ管理）。**テストは BrowserRouter または vitest jsdom の window.history を直接操作する必要がある**。
 
----
+`EditorPage.test.tsx` は MemoryRouter を使っているが、popstate ガードのテストは window.dispatchEvent(new PopStateEvent('popstate')) で onPopState ハンドラだけを検証すれば足りる。navigate の飛び先は LocationProbe（現状は MemoryRouter のみ対応）。
 
-## 5. カレンダー UI のメニュー＋モーダル化（⑤）
+**推奨**: 新しい describe ブロックで HashRouter + initialEntries は使わず、以下のどちらかで:
+- (a) BrowserRouter 相当の実 history で検証
+- (b) popstate ハンドラの副作用を検証するユニットテスト（navigate がモックされ、/ に飛ばすことを確認）
 
-### Critical:
+案 (a) のほうが筋が良いが、`MemoryRouter` を使っている既存テスト資産と乖離するので、**MemoryRouter を使ったまま popstate を dispatch し、LocationProbe の pathname が `/` に変わることを検証**する。MemoryRouter は window.popstate を聞いていないが、我々の onPopState が `navigate('/')` を呼ぶ → MemoryRouter の内部 history に反映 → LocationProbe が反応、という経路で成立する。
 
-#### C5.1 モーダル外クリックでの閉じ動作の正確性
-`onClick={(e) => { if (e.target === e.currentTarget) setShowCalendar(false); }}` パターン:
-- overlay 自体（背景）クリック → 閉じる
-- panel 内クリック → 閉じない
-これは標準パターンだが、**Calendar 内のセル button をクリックして navigate されたケース**で BookshelfPage が unmount される → モーダル消滅。問題なし。
+## Major（対処推奨）
 
-#### C5.2 Esc での閉じ
-`useEffect` で document.keydown を listen。BookshelfMenu でも同じパターン → **両方に書く**か、custom hook 化を検討。
+### M1. DateIcon ボタンの aria-label 'メニュー'... ではないことを確認 🔵
 
-### Major:
+L487-497 の `.headerRight` は `headerDateButton`（aria-label="今日の日付を挿入"）と `<Link to="/settings">` の 2 つ。設定 Link を消しても DateIcon ボタンは残る。**視認性・tap target 44x44 は CSS 側で維持されている**（`.headerDateButton { width:44px; height:44px }`）。
 
-#### M5.1 z-index の確認
-overlay は z-index 100、メニューは z-index 50 を提案。
-ヘッダー (`.app-header`) は z-index 指定なし（自然 stacking）。`position: fixed` のメニューは overlay より下だが、メニューを開いてからカレンダーを開くと「メニュー閉じて overlay 表示」になるので、**両者が同時に存在することはない**。z-index 競合は無し。
+### M2. SafetyNet: ページ遷移 + 即 popstate のレース 🟡
 
-#### M5.2 モーダル内でのカレンダー操作
-`Calendar.tsx` の前月/次月ボタン、日付セル click は既存通り動作。
-`navigate(/read/...)` で BookshelfPage が unmount → モーダルも消える。**問題なし**。
+ユーザーが「次のページ」をタップ → フェード 180ms 中に戻るボタン → `goPage` の navigate と我々の onPopState が競合する可能性。
 
-#### M5.3 モーダル開閉と body スクロール
-overlay 表示中でも `body` は変わらず（既存 `body { overflow: hidden }` だが `.body { overflow-y: auto }` がある）。
-overlay 自体に padding 1rem を入れているので、small viewport でもスクロール可能。
-**iOS Safari で overlay の中でもピンチズームが可能**だが、これは無害。
+現実的には 180ms 以内に Android 戻るボタン押下は稀だが、`transitionLockRef.current = true` の間 popstate を無視する、という保険は入れられる。ただし **静けさ原則**からすると、戻る操作はユーザーの最終意思なので、ロックで黙殺するのは良くない。**放置する**（フェード中でも本棚に戻るのが自然）。
 
-### Minor:
+## Minor
 
-#### m5.1 カレンダーモーダルの初回開閉アニメーション
-合意「200ms トランジション準拠」。fade-in をつけるなら `opacity 0 → 1` の 200ms。
-**Aesthete 案件**だが、Skeptic 視点では fade なしでもよい（即時表示で問題なし）。
+- HashRouter で `navigate('/')` は `#/` に遷移する。Android の PWA アイコンから起動した時、初期 URL が `/` であることは App.tsx の `<Route path="/">` で担保。
+- `history.state` をアプリ側で読む箇所は現状なし（grep 結果）→ ダミー state の `editorGuard` プロパティを他コードが誤読するリスクなし。
 
-#### m5.2 既存「カレンダーを開く」ボタンを削除する範囲
-`BookshelfPage.tsx` L137-145 と `BookshelfPage.module.css` L125-131 のみ。**`showCalendar` state は維持**（モーダル制御に使う）。
+## 結論
 
-### 回帰リスク
-- Calendar 内で navigate されると BookshelfPage が unmount。新しい route で `/read/...` → `/book/...` リダイレクトが効いて editor が開く（既存挙動）
-- モーダル開いたまま Calendar.useEffect で `getDateSetInMonth` が走る。fake-indexeddb のテストでも問題なし
-
----
-
-## 全体: Critical 一覧
-
-1. **C4.1 ハンバーガーメニュー UX 最低品質**（メニュー認識・開閉動作・閉じる手段）→ BookshelfMenu 実装で satisfied
-2. **C5.1 モーダル外クリック判定の正確性** → `e.target === e.currentTarget` パターンで satisfied
-3. **C5.2 Esc 閉じ** → useEffect で document.keydown 配線で satisfied
-
-## Major 一覧
-
-1. M2.1 オーバーフロー時の rAF が遷移元 textarea を対象にする問題 → JSDoc 明示
-2. M2.2 navigate と rAF のレース → テストではオーバーフロー無しケースで検証
-3. M3.2 同 ordinal 重複時の tie-break → createdAt フォールバック追加
-4. M4.1 メニューの発見性 → 「新しいノート」と明記のテキストラベル必須
-5. M4.2 confirm 順序 → setOpen(false) 先、onCreateNew 後
-6. M4.3 既存テスト破壊 → 5 ケース書き換え
-7. M5.1 z-index 整理 → overlay > menu の階層を明示
-
-## Minor 一覧
-
-- ① 罫線トークンの cleanup は保守性のため見送り
-- ② focus 時の自動スクロール上書きはテストで verify
-- ③ ordinal 単調増加を JSDoc に明記
-- ⑤ モーダル fade-in は任意
-
-## 削除 vs 保留
-
-- 削除: NewVolumeCard.tsx, .calendarToggle ブロック, .newCard*, 強調罫線レイヤー
-- 保留: --color-page-divider トークン定義（end 系と命名類似で誤削除リスク）
-- 保留: showCalendar state（モーダル制御に転用）
-
-## テスト方針
-
-- TDD: ②③ は失敗テストを先に書いてから修正
-- ①④⑤ は実装＋テスト書き換えが同時
-- 全体は `npm run test` でグリーン、`npm run build` で型通過
+- C1, C2, C6, C7, C8 は必ず対応。実装方針は pragmatist の案をベースに **`guardInstalledRef` で二重 pushState を防ぐ**形に修正。
+- C4 は実機確認を plan.md の QA チェックリストに含める。
+- C5, M1, M2 は確認のみで対処不要。

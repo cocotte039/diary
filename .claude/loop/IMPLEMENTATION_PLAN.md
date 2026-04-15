@@ -1,58 +1,34 @@
-# 実装計画 — 仕様改善 5 件
+# 実装計画 — EditorPage ヘッダー整理と戻るボタン動線修正
 
 ## 概要
 
-5 件の UX/バグ修正を統合で実装する。
+日記を書く画面（EditorPage）について、2 件の仕様改善を実装する。
 
-1. **罫線均一化**: 15/30/45 行目の強調罫線を廃し、`--color-rule` 通常罫線のみに
-2. **日付挿入時スクロール維持**: `EditorPage.insertDate` で surface の scrollTop を保存→復元
-3. **本棚並び順修正**: `createdAt` 文字列順 → `ordinal` 降順 (`createdAt` tie-break) に
-4. **新ノート作成 UI**: 末尾「＋」カード撤去、ヘッダーハンバーガーメニューから起動
-5. **カレンダー UI**: 本棚下部の開閉ボタン撤去、ヘッダーメニューから全画面モーダル
+1. ヘッダー右端の「設定」リンクを削除（本棚ハンバーガーメニュー経由に一本化）
+2. Android 端末の戻るボタンを押したら、前ページ履歴ではなく本棚 (`/`) に戻るようにする
 
-共通: 本棚ヘッダー右端に `BookshelfMenu`（ハンバーガー + 右ドロップダウン）を新設し、「新しいノート / カレンダー / 設定」を集約。
+詳細は `.whiteboard/plan.md` を参照。
 
-## マイルストーン一覧
+## マイルストーン
 
-| ID | 名前 | Wave | 目的 |
-|----|------|------|------|
-| M1 | 罫線均一化 | 0 | `notebook.css` のレイヤー1 削除 |
-| M2 | 日付挿入 scrollTop 保持 | 0 | `insertDate` で scrollTop を保存→復元 |
-| M3 | 本棚並び順修正 | 0 | `ordinal` 降順 + createdAt tie-break |
-| M4 | ヘッダーメニュー基盤 | 0 | `BookshelfMenu` コンポーネント新設 |
-| M5 | 新ノート作成メニュー統合 | 1 (M4依存) | NewVolumeCard 撤去、メニュー結線 |
-| M6 | カレンダーモーダル化 | 1 (M4依存) | fixed overlay モーダル + Esc 閉じ |
-| M7 | 全体検証 + README 更新 | 2 (全完了後) | grep 確認・README 整合・全テスト |
+### M1: ヘッダー整理と戻るボタン動線修正
 
-## Wave 構成
+| タスク | 内容 | 仕様ファイル | Wave |
+|---|---|---|---|
+| M1-T1 | 設定リンク削除 + テスト書換 | `specs/m1-t1.md` | 1 |
+| M1-T2 | 戻るボタンガード実装 + 追加テスト（TDD） | `specs/m1-t2.md` | 2 |
 
-- Wave 0: M1, M2, M3, M4（並列可）
-- Wave 1: M5, M6（M4 完了後、並列可）
-- Wave 2: M7（M1〜M6 完了後）
+**検証**: `npm run test:run && npm run lint`
 
-## 🟡 判断箇所（Build Agent 向け）
+## 変更対象ファイル
 
-1. **J1 scrollTop テスト**: jsdom で `scrollTop = 200` 直接設定→assert で OK。ダメなら `data-testid="editor-surface"` 直取得
-2. **J2 `.header button` CSS 削除**: BookshelfMenu 結線後は `.header button` 指定を削除（trigger と衝突防止）
-3. **J3 モーダル fade-in**: 200ms opacity 0→1（静けさ準拠）
-4. **J4 ハンバーガー opacity**: 0.5（発見性確保、既存リンク 0.3 より少し強め）
-5. **J5 モーダル overlay 色**: `rgba(0, 0, 0, 0.6)`
-6. **J6 BookshelfMenu 単体テスト**: 追加しない（BookshelfPage 統合テスト経由）
-7. **J7 ソート tie-break**: `createdAt` をセカンダリキーに（データ異常時の保険）
+- `src/features/editor/EditorPage.tsx`
+- `src/features/editor/EditorPage.test.tsx`
+- `src/features/editor/EditorPage.module.css`（変更なしの想定）
 
-## リスク
+## 実装フロー
 
-- jsdom の scrollTop 挙動: 不発時はテスト方針を見直し
-- iOS Safari のモーダル `position: fixed` : `100dvh` 使用、内部 `overflow-y: auto`
-- 既存テストの書き換え漏れ: grep で `NewVolumeCard` / `新しいノートを作る` の残留ゼロを確認
-
-## ロールバック
-
-- M1, M2, M3 は独立コミットで個別 revert 可
-- M4〜M6 は連動（途中状態だと UI が壊れる）。問題時は 3 つ同時 revert
-
-## 詳細
-
-詳細設計は `.whiteboard/plan.md` を参照。
-
-各タスクの spec は `.claude/loop/specs/m{N}-t{K}.md`。
+1. M1-T1: 既存テスト書換 → 設定リンク削除 → テスト緑
+2. M1-T2: 新テスト 4 件を先に書いて RED → 戻るボタンガード実装で GREEN
+3. 全体検証: `npm run test:run && npm run lint`
+4. 実機 QA（オプション、ユーザー側で実施）
