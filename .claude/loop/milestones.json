@@ -19,10 +19,10 @@
       "id": "M2",
       "name": "日付挿入時 scrollTop 保持",
       "goal": "insertDate で surfaceRef の scrollTop を保存→rAF 内で復元し、ページ先頭リセットを防ぐ",
-      "status": "pending",
+      "status": "completed",
       "verification": "npm run test -- --run src/features/editor/EditorPage.test.tsx && npm run build",
       "tasks": [
-        { "id": "T2.1", "name": "TDD テスト追加＋EditorPage.insertDate 改修", "spec": "specs/m2-t1.md", "wave": 0, "status": "pending", "assignee": "build" }
+        { "id": "T2.1", "name": "TDD テスト追加＋EditorPage.insertDate 改修", "spec": "specs/m2-t1.md", "wave": 0, "status": "completed", "assignee": "build" }
       ]
     },
     {
