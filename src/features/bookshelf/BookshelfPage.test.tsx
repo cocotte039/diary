@@ -5,6 +5,7 @@ import {
   render,
   screen,
   waitFor,
+  within,
 } from '@testing-library/react';
 import { MemoryRouter } from 'react-router-dom';
 import {
@@ -428,5 +429,46 @@ describe('BookshelfPage auto-create & header (M4-T6)', () => {
     // Only one card should be rendered
     const cards = screen.getAllByRole('link', { name: /ノート \d+/ });
     expect(cards.length).toBe(1);
+  });
+});
+
+/**
+ * M6-T6.1: カレンダーはヘッダーメニュー経由で全画面モーダル (dialog) として開く。
+ * × ボタン / Esc キーで閉じる。
+ */
+describe('BookshelfPage calendar modal', () => {
+  it('メニューの「カレンダー」項目で dialog が出現する', async () => {
+    await ensureActiveVolume();
+    renderPage();
+    await screen.findByRole('link', { name: /ノート 1/ });
+    await openMenu();
+    fireEvent.click(screen.getByRole('menuitem', { name: 'カレンダー' }));
+    expect(
+      await screen.findByRole('dialog', { name: 'カレンダー' })
+    ).toBeInTheDocument();
+  });
+
+  it('× ボタンで dialog が閉じる', async () => {
+    await ensureActiveVolume();
+    renderPage();
+    await screen.findByRole('link', { name: /ノート 1/ });
+    await openMenu();
+    fireEvent.click(screen.getByRole('menuitem', { name: 'カレンダー' }));
+    const dialog = await screen.findByRole('dialog', { name: 'カレンダー' });
+    fireEvent.click(
+      within(dialog).getByRole('button', { name: 'カレンダーを閉じる' })
+    );
+    await waitFor(() => expect(screen.queryByRole('dialog')).toBeNull());
+  });
+
+  it('Esc キーで dialog が閉じる', async () => {
+    await ensureActiveVolume();
+    renderPage();
+    await screen.findByRole('link', { name: /ノート 1/ });
+    await openMenu();
+    fireEvent.click(screen.getByRole('menuitem', { name: 'カレンダー' }));
+    await screen.findByRole('dialog', { name: 'カレンダー' });
+    fireEvent.keyDown(document, { key: 'Escape' });
+    await waitFor(() => expect(screen.queryByRole('dialog')).toBeNull());
   });
 });

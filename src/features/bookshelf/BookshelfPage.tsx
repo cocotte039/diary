@@ -70,6 +70,16 @@ export default function BookshelfPage() {
     };
   }, [reloadKey]);
 
+  // M6-T6.1: カレンダーモーダル表示中は Esc キーで閉じる。
+  useEffect(() => {
+    if (!showCalendar) return;
+    const onKey = (e: KeyboardEvent) => {
+      if (e.key === 'Escape') setShowCalendar(false);
+    };
+    document.addEventListener('keydown', onKey);
+    return () => document.removeEventListener('keydown', onKey);
+  }, [showCalendar]);
+
   /**
    * M6-T5: 新しい冊を作る。
    * 現在 active 冊のページ数を確認ダイアログに含めて confirm し、
@@ -137,16 +147,27 @@ export default function BookshelfPage() {
           </div>
         )}
 
-        <div className={styles.calendarToggle}>
-          <button
-            type="button"
-            onClick={() => setShowCalendar((s) => !s)}
-            aria-expanded={showCalendar}
+        {showCalendar && (
+          <div
+            className={styles.calendarOverlay}
+            role="dialog"
+            aria-modal="true"
+            aria-label="カレンダー"
+            onClick={(e) => {
+              if (e.target === e.currentTarget) setShowCalendar(false);
+            }}
           >
-            {showCalendar ? 'カレンダーを閉じる' : 'カレンダーを開く'}
-          </button>
-        </div>
-        {showCalendar && <Calendar />}
+            <div className={styles.calendarPanel}>
+              <button
+                type="button"
+                className={styles.calendarClose}
+                aria-label="カレンダーを閉じる"
+                onClick={() => setShowCalendar(false)}
+              >×</button>
+              <Calendar />
+            </div>
+          </div>
+        )}
       </div>
     </div>
   );

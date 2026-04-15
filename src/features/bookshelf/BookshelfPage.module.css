@@ -83,10 +83,51 @@
   font-family: var(--font-family-ui);
 }
 
-.calendarToggle {
-  margin-top: 1.5rem;
-  text-align: center;
-  opacity: 0.5;
-  font-size: 0.875rem;
-  font-family: var(--font-family-ui);
+/*
+ * M6-T6.1: カレンダーは fixed overlay + panel の全画面モーダルで表示する。
+ * 🟡 J3: fade-in 200ms。🟡 J5: overlay 色は rgba(0,0,0,0.6)。
+ */
+.calendarOverlay {
+  position: fixed;
+  inset: 0;
+  background-color: rgba(0, 0, 0, 0.6);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  z-index: 100;
+  padding: 1rem;
+  animation: fadeIn 200ms ease;
 }
+@keyframes fadeIn {
+  from { opacity: 0; }
+  to { opacity: 1; }
+}
+.calendarPanel {
+  position: relative;
+  background-color: var(--color-bg);
+  border: 1px solid var(--color-rule);
+  border-radius: 4px;
+  padding: 1rem;
+  max-width: 360px;
+  width: 100%;
+  max-height: calc(100dvh - 4rem);
+  overflow-y: auto;
+}
+.calendarClose {
+  position: absolute;
+  top: 0.25rem;
+  right: 0.25rem;
+  width: 44px;
+  height: 44px;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 1.25rem;
+  color: var(--color-text);
+  opacity: 0.5;
+  transition: opacity 120ms ease;
+  background: transparent;
+  border: none;
+  cursor: pointer;
+}
+.calendarClose:active { opacity: 0.8; }
