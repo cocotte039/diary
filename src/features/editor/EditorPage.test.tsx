@@ -629,3 +629,60 @@ describe('EditorPage progress bar (M4-T3)', () => {
     expect(bar).toHaveAttribute('aria-valuenow', '100');
   });
 });
+
+describe('EditorPage: no auto-navigation nor final-page lock (char-limit-removal)', () => {
+  it('1201 字入力しても遷移せず、text はそのまま保持される', async () => {
+    const v = await ensureActiveVolume();
+    let pathname = '';
+    renderWithLocationProbe(`/book/${v.id}/1`, (p) => { pathname = p; });
+    const textarea = (await screen.findByLabelText('日記本文')) as HTMLTextAreaElement;
+    fireEvent.change(textarea, { target: { value: 'あ'.repeat(CHARS_PER_PAGE + 1) } });
+    await new Promise((r) => setTimeout(r, 250));
+    expect(pathname).toBe(`/book/${v.id}/1`);
+    expect(textarea.value.length).toBe(CHARS_PER_PAGE + 1);
+  });
+
+  it('5000 字を一気に入力しても遷移しない', async () => {
+    const v = await ensureActiveVolume();
+    let pathname = '';
+    renderWithLocationProbe(`/book/${v.id}/1`, (p) => { pathname = p; });
+    const textarea = (await screen.findByLabelText('日記本文')) as HTMLTextAreaElement;
+    fireEvent.change(textarea, { target: { value: 'あ'.repeat(5000) } });
+    await new Promise((r) => setTimeout(r, 250));
+    expect(pathname).toBe(`/book/${v.id}/1`);
+    expect(textarea.value.length).toBe(5000);
+  });
+
+  it('最終ページで 1201 字入力しても preventDefault されない', async () => {
+    const v = await ensureActiveVolume();
+    const fullPage = 'あ'.repeat(CHARS_PER_PAGE);
+    await savePage(v.id, PAGES_PER_VOLUME, fullPage);
+    renderAt(`/book/${v.id}/${PAGES_PER_VOLUME}`);
+    const textarea = (await screen.findByLabelText('日記本文')) as HTMLTextAreaElement;
+    await waitFor(() => expect(textarea.value).toBe(fullPage));
+    fireEvent.change(textarea, { target: { value: fullPage + 'x' } });
+    expect(textarea.value).toBe(fullPage + 'x');
+  });
+
+  it('日付挿入で 1200 字超になっても現ページに留まる', async () => {
+    const v = await ensureActiveVolume();
+    let pathname = '';
+    renderWithLocationProbe(`/book/${v.id}/1`, (p) => { pathname = p; });
+    const textarea = (await screen.findByLabelText('日記本文')) as HTMLTextAreaElement;
+    fireEvent.change(textarea, { target: { value: 'あ'.repeat(CHARS_PER_PAGE) } });
+    textarea.setSelectionRange(0, 0);
+    fireEvent.click(screen.getByRole('button', { name: '今日の日付を挿入' }));
+    await new Promise((r) => setTimeout(r, 250));
+    expect(pathname).toBe(`/book/${v.id}/1`);
+    expect(textarea.value.length).toBeGreaterThan(CHARS_PER_PAGE);
+  });
+
+  it('1200 字超でも進捗バー aria-valuenow は 100 固定', async () => {
+    const v = await ensureActiveVolume();
+    renderAt(`/book/${v.id}/1`);
+    const textarea = (await screen.findByLabelText('日記本文')) as HTMLTextAreaElement;
+    fireEvent.change(textarea, { target: { value: 'あ'.repeat(CHARS_PER_PAGE + 300) } });
+    const bar = screen.getByTestId('page-progress');
+    await waitFor(() => expect(bar).toHaveAttribute('aria-valuenow', '100'));
+  });
+});
