@@ -33,7 +33,14 @@ export function useEditorCursor(
    * - 'start': 先頭（完了済みの冊を読み返す想定）
    * デフォルトは 'end'（既存挙動と同じ）。
    */
-  fallback: 'end' | 'start' = 'end'
+  fallback: 'end' | 'start' = 'end',
+  /**
+   * M3: スクロールコンテナ (`.surface`) への参照。
+   * カーソル復元時に scrollTop を書く宛先。textarea が内部スクロールを
+   * 持たなくなったため、外側スクロールコンテナ側でカーソル行を可視範囲に
+   * 入れる必要がある。未指定時は scrollTop を書かない（safety）。
+   */
+  surfaceRef?: React.RefObject<HTMLElement | null>
 ) {
   const restoredRef = useRef(false);
 
@@ -80,9 +87,14 @@ export function useEditorCursor(
 
     el.focus();
     el.setSelectionRange(pos, pos);
-    el.scrollTop = getScrollTopForCursor(text, pos);
+    // M3: scrollTop 宛先は textarea ではなく .surface（外側スクロールコンテナ）。
+    // surfaceRef 未指定時は NOP（呼び出し側の意思で scroll 制御を省略可能）。
+    const surface = surfaceRef?.current ?? null;
+    if (surface) {
+      surface.scrollTop = getScrollTopForCursor(text, pos);
+    }
     restoredRef.current = true;
-  }, [restoreReady, text, textareaRef, storageKey, fallback]);
+  }, [restoreReady, text, textareaRef, storageKey, fallback, surfaceRef]);
 
   // 保存トリガ（呼び出し元が selection 変更時に呼ぶ）
   const onSelectionChange = (pos: number) => save(pos);

@@ -86,6 +86,8 @@ export default function EditorPage() {
   const touchStartYRef = useRef<number | null>(null);
   // textarea 参照（カーソル復元 M5-T4 用）
   const textareaRef = useRef<HTMLTextAreaElement | null>(null);
+  // M3: 外側スクロールコンテナ (.surface) 参照。カーソル復元時の scrollTop 宛先。
+  const surfaceRef = useRef<HTMLDivElement | null>(null);
   // IME 変換中フラグ (M6-T2)。true の間は自動次ページ遷移を発動させない。
   const isComposingRef = useRef(false);
   // 自動遷移後、次ページでカーソルを overflow.length 位置に置くための pending 値 (M6-T3)。
@@ -152,14 +154,16 @@ export default function EditorPage() {
   // autosave 配線（本番コードパス）
   const { flush } = useEditorAutoSave(ready ? volumeId : null, current, text);
 
-  // カーソル復元 (M5-T4 / M9-M4): ページ単位でスコープ化された localStorage キーを使う
+  // カーソル復元 (M5-T4 / M9-M4): ページ単位でスコープ化された localStorage キーを使う。
+  // M3: scrollTop 宛先として .surface ref を渡す（外側スクロール化に追随）。
   const { onSelectionChange } = useEditorCursor(
     textareaRef,
     text,
     ready,
     volumeId,
     current,
-    cursorFallback
+    cursorFallback,
+    surfaceRef
   );
 
   /**
@@ -470,6 +474,7 @@ export default function EditorPage() {
       </header>
 
       <div
+        ref={surfaceRef}
         className={`${styles.surface} ${fading ? styles.fading : ''}`}
         data-testid="editor-surface"
       >

@@ -82,8 +82,10 @@
 
 /*
  * ページ送りフェード用ラッパ。transition は --transition-page (180ms) を使う。
- * surface 自体はスクロールを持たず、textarea が内部スクロールを担う。
- * これにより iOS Safari のネイティブ textarea タッチスクロールが素直に効く。
+ * M3: textarea 内部スクロールを廃止し、surface が外側スクロールを担う。
+ *   - 非フォーカス時でも指・マウスホイールでスクロール可能
+ *   - ヘッダー (.app-header) は flex 上段に残り、スクロールしても動かない
+ *   - -webkit-overflow-scrolling: touch で iOS Safari の慣性スクロールを確保
  */
 .surface {
   flex: 1 1 auto;
@@ -91,22 +93,25 @@
   display: flex;
   flex-direction: column;
   transition: var(--transition-page);
+  overflow-y: auto;
+  -webkit-overflow-scrolling: touch;
 }
 .fading {
   opacity: 0;
 }
 
 /*
- * textarea が内部スクロールを担う（iOS ネイティブ挙動）。
- * padding-bottom は JS 側で動的調整し、scrollHeight が常に
- * --page-height-px (60 行ぶん) 以上になるようにする。
- * 結果、空ページでも 60 本の罫線が描画される。
+ * M3: textarea は内部スクロールを持たず、内容の scrollHeight に追従して
+ * 高さが伸びる。紙の下限高さ (60 行ぶん = var(--page-height-px)) は
+ * min-height で保証し、空ページでも 60 本の罫線が描画される。
+ * スクロール制御は surface 側が担う。
  */
 .textarea {
-  flex: 1 1 auto;
-  min-height: 0;
+  flex: 0 0 auto;
+  height: auto;
+  min-height: var(--page-height-px);
   padding-top: 0;
   padding-left: max(var(--padding-page), env(safe-area-inset-left));
   padding-right: max(var(--padding-page), env(safe-area-inset-right));
-  overflow-y: auto;
+  overflow: visible;
 }
