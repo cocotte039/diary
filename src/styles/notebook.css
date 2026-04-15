@@ -17,33 +17,19 @@
   background-color: var(--color-bg);
 
   /*
-   * 罫線: 2 層の repeating-linear-gradient。
-   * レイヤー 1（上）: 15 行目ごとに少し濃い罫線（紙の 1/4 区切り）。
-   *                  LINES_PER_PAPER=60 で 15/30/45 行目が強調される。
-   *                  `--color-page-divider` トークンを再利用。
-   * レイヤー 2（下）: 1 行ごとに通常罫線。
-   *
-   * CSS では順序が早いほど上に重なる。強調罫線を上に置くことで、
-   * 同じ y 位置の通常罫線を覆う形になる。
+   * 罫線: 1 行ごとに通常罫線（--color-rule）。
+   * repeating-linear-gradient で line-height と同期した横線を描く。
+   * 変更する場合は background-size と line-height を同期させること。
+   * （旧実装にあった 15/30/45 行目の強調罫線レイヤーは仕様変更により廃止）
    */
-  background-image:
-    repeating-linear-gradient(
-      to bottom,
-      transparent 0,
-      transparent calc(var(--line-height-px) * 15 - 1px),
-      var(--color-page-divider) calc(var(--line-height-px) * 15 - 1px),
-      var(--color-page-divider) calc(var(--line-height-px) * 15)
-    ),
-    repeating-linear-gradient(
-      to bottom,
-      transparent 0,
-      transparent calc(var(--line-height-px) - 1px),
-      var(--color-rule) calc(var(--line-height-px) - 1px),
-      var(--color-rule) var(--line-height-px)
-    );
-  background-size:
-    100% calc(var(--line-height-px) * 15),
-    100% var(--line-height-px);
+  background-image: repeating-linear-gradient(
+    to bottom,
+    transparent 0,
+    transparent calc(var(--line-height-px) - 1px),
+    var(--color-rule) calc(var(--line-height-px) - 1px),
+    var(--color-rule) var(--line-height-px)
+  );
+  background-size: 100% var(--line-height-px);
   /* スクロール時に罫線がテキストと一緒に動くようにする。
      これがないと textarea/reader の内部スクロール時に文字だけが動き、
      罫線とベースラインがズレて不自然になる。 */
