@@ -465,8 +465,14 @@ export default function EditorPage() {
           >
             ‹
           </button>
-          <div className={styles.pageNumber} aria-live="off">
-            {current} / {PAGES_PER_VOLUME}
+          <div
+            className={styles.pageNumber}
+            aria-live="off"
+            data-testid="page-indicator"
+          >
+            <span className={styles.pageCurrent}>{current}</span>
+            <span className={styles.pageSeparator}>{' / '}</span>
+            <span className={styles.pageTotal}>{PAGES_PER_VOLUME}</span>
           </div>
           <button
             type="button"
@@ -487,7 +493,6 @@ export default function EditorPage() {
           >
             <DateIcon />
           </button>
-          <Link to="/settings" aria-label="設定" className="app-header-link">設定</Link>
         </div>
       </header>
 

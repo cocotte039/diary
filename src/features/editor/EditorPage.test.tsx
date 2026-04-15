@@ -92,12 +92,13 @@ describe('EditorPage (M4-T3)', () => {
     expect(textarea.value).toBe('typing…');
   });
 
-  it('header contains 本棚 link to /, current page number, and 設定 link', async () => {
+  it('header contains 本棚 link to /, current page number, 日付挿入ボタン (設定 link は無い)', async () => {
     const v = await ensureActiveVolume();
     renderAt(`/book/${v.id}/7`);
     expect(await screen.findByRole('link', { name: '本棚に戻る' })).toHaveAttribute('href', '/');
-    expect(screen.getByRole('link', { name: '設定' })).toHaveAttribute('href', '/settings');
-    expect(screen.getByText(`7 / ${PAGES_PER_VOLUME}`)).toBeInTheDocument();
+    expect(screen.getByRole('button', { name: '今日の日付を挿入' })).toBeInTheDocument();
+    expect(screen.queryByRole('link', { name: '設定' })).not.toBeInTheDocument();
+    expect(screen.getByTestId('page-indicator')).toHaveTextContent(`7 / ${PAGES_PER_VOLUME}`);
   });
 
   it('falls back to page 1 for out-of-range page numbers', async () => {
@@ -106,7 +107,9 @@ describe('EditorPage (M4-T3)', () => {
     renderAt(`/book/${v.id}/999`);
     const textarea = (await screen.findByLabelText('日記本文')) as HTMLTextAreaElement;
     await waitFor(() => expect(textarea.value).toBe('first'));
-    expect(screen.getByText(`1 / ${PAGES_PER_VOLUME}`)).toBeInTheDocument();
+    expect(screen.getByTestId('page-indicator')).toHaveTextContent(
+      `1 / ${PAGES_PER_VOLUME}`,
+    );
   });
 
   it('falls back to page 1 for non-numeric page numbers', async () => {
@@ -115,7 +118,9 @@ describe('EditorPage (M4-T3)', () => {
     renderAt(`/book/${v.id}/abc`);
     const textarea = (await screen.findByLabelText('日記本文')) as HTMLTextAreaElement;
     await waitFor(() => expect(textarea.value).toBe('first'));
-    expect(screen.getByText(`1 / ${PAGES_PER_VOLUME}`)).toBeInTheDocument();
+    expect(screen.getByTestId('page-indicator')).toHaveTextContent(
+      `1 / ${PAGES_PER_VOLUME}`,
+    );
   });
 });
 
