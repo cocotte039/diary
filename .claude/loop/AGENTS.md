@@ -297,6 +297,27 @@ npm run preview      # ビルド結果のプレビュー
   フローから外れ margin-bottom は効かない。代わりに `.root` の `padding-top` で
   ヘッダー＋1rem の逃げを確保する（spec 準拠）。
 
+### M1（2026-04-15 page-char-basis）
+
+- **🟡 LINES_PER_VOLUME は削除**: grep 結果、定義箇所 (constants.ts) 以外で参照無し。
+  spec 通り削除し、`CHARS_PER_VOLUME` への置換も行わない（呼び出し側が無いため不要）。
+- **🟡 splitIntoPages / joinPages は維持して文字数ベースに書き換え**: `db.ts` の
+  `saveVolumeText` から呼ばれている。削除すると DB 層の冊保存が壊れる。
+  チャンクを `text.slice(i, i + CHARS_PER_PAGE)` で 1200 文字ごとに切る方式へ変更。
+  joinPages は `pages.join('')`（区切り文字なしの単純連結）で round-trip 成立。
+- **🟡 getPageNumber は維持**: spec で「使われていれば書き換え」とあるが、現状
+  pagination.test.ts でのみ参照。M2 以降の Editor で再活用される可能性も考え、
+  文字数ベースに書き換えて残置。実装は `Math.floor(clamped / CHARS_PER_PAGE) + 1`。
+- **🟡 getScrollTopForCursor はロジック維持**: `useEditorCursor.ts` から参照。M3 で
+  scroll target が `.surface` に変わるが、y = lineIndex * LINE_HEIGHT_PX の計算は同じ。
+  JSDoc に「外側スクロールでも同じ計算」と明記。
+- **🟡 db.test.ts の「3ページ生成」テスト**: `'あ'.repeat(CHARS_PER_PAGE * 2 + 1)` で
+  3 ページに分割される（1200/1200/1）。日本語文字を使うことで「文字数ベース」が
+  バイト数でないことも暗黙に検証。
+- **🟡 constants.test.ts に削除済みエクスポート検査を追加**: `import * as constants` で
+  名前空間を取得し、`(constants as Record<string, unknown>).LINES_PER_PAGE` が
+  undefined であることを検証。残留復活防止のリグレッションテスト。
+
 ### M8-4（2026-04-14）
 
 - **🟡 VolumeCard の Pointer Events 実装範囲**: `onPointerDown/Move/Up/Cancel/Leave`

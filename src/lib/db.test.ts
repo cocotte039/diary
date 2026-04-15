@@ -67,13 +67,10 @@ describe('db.saveVolumeText / loadVolumeText', () => {
     expect(loaded).toBe(text);
   });
 
-  it('creates additional pages when text grows past LINES_PER_PAGE lines', async () => {
+  it('creates additional pages when text grows past CHARS_PER_PAGE chars', async () => {
     const v = await ensureActiveVolume();
-    const { LINES_PER_PAGE } = await import('./constants');
-    const text = Array.from(
-      { length: LINES_PER_PAGE + 1 },
-      (_, i) => `L${i}`
-    ).join('\n');
+    const { CHARS_PER_PAGE } = await import('./constants');
+    const text = 'あ'.repeat(CHARS_PER_PAGE + 1);
     await saveVolumeText(v.id, text);
     const pages = await getPagesByVolume(v.id);
     expect(pages.length).toBe(2);
@@ -90,10 +87,9 @@ describe('db.saveVolumeText / loadVolumeText', () => {
 
   it('deletes surplus pages when text shrinks (but keeps page 1)', async () => {
     const v = await ensureActiveVolume();
-    const { LINES_PER_PAGE } = await import('./constants');
-    // LINES_PER_PAGE * 2.5 行 → 3 ページ相当
-    const lines = Math.floor(LINES_PER_PAGE * 2.5);
-    const big = Array.from({ length: lines }, (_, i) => `line-${i}`).join('\n');
+    const { CHARS_PER_PAGE } = await import('./constants');
+    // CHARS_PER_PAGE * 2 + 1 文字 → 3 ページ相当
+    const big = 'あ'.repeat(CHARS_PER_PAGE * 2 + 1);
     await saveVolumeText(v.id, big);
     let pages = await getPagesByVolume(v.id);
     expect(pages.length).toBe(3);

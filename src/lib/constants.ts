@@ -3,15 +3,21 @@
  * マジックナンバーはここに集約すること。
  */
 
-/** 1ページあたりの論理行数（\n 区切りの行数）。
- *  視覚行ベース判定（折り返し込み）の閾値としても使われる。M9 で 30→60 に拡大。 */
-export const LINES_PER_PAGE = 60;
+/**
+ * 1ページあたりの文字上限（text.length ベース、改行含む）。
+ * M10 で「論理行数 60」基準から「文字数 1200」基準に変更。
+ * EditorPage の overflow / 最終ページロックの判定単位。
+ */
+export const CHARS_PER_PAGE = 1200;
 
-/** 1冊あたりのページ数 */
-export const PAGES_PER_VOLUME = 50;
+/**
+ * 罫線描画用の視覚上の行数。1 ページの紙に描く罫線の本数。
+ * CSS `--lines-per-page` と同期させること。CHARS_PER_PAGE とは独立。
+ */
+export const LINES_PER_PAPER = 60;
 
-/** 1冊の総論理行数 */
-export const LINES_PER_VOLUME = LINES_PER_PAGE * PAGES_PER_VOLUME;
+/** 1冊あたりのページ数。M10 で 50 → 60。 */
+export const PAGES_PER_VOLUME = 60;
 
 /** フォントサイズ (px)。iOS Safari でフォーカス時のズームを防ぐため 16px 固定 */
 export const FONT_SIZE_PX = 16;
