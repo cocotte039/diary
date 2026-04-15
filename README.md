@@ -12,10 +12,12 @@ B5大学ノートに万年筆で書いていた手書き日記の体験を、布
 - 本棚が起点: メイン画面が本棚。ノート（冊）タップでその冊の「最後に開いたページ」から編集再開
 - ページ単位 UI: 1 ページ = 1 textarea の独立画面。左右ボタン / スワイプ / PageUp・PageDown でめくる（180ms フェード）
 - textarea 上でも水平スワイプでページめくり可能（`|dx| > |dy|*2` かつ 50px 超で発火、IME 中はガード）
-- ノート風 UI: 罫線背景 + Klee One + ダークモード。1 ページ 60 行の罫線で、15/30/45 行目は少し濃い線で進捗が見える
+- ノート風 UI: 罫線背景 + Klee One + ダークモード。1 ページ = 1200 文字（`CHARS_PER_PAGE`）で、紙高さは 60 行分の罫線（`LINES_PER_PAPER`）。15/30/45 行目は少し濃い線
+- ヘッダー直下に高さ 3px・10 分割目盛りのモノクロプログレスバー。text.length / CHARS_PER_PAGE の塗り幅でページ残量を静かに可視化（色変化・数値表示・満量アニメーションなし、`role="progressbar"` + aria-valuenow/min/max/label）
 - 3 画面（本棚 / エディタ / 設定）のヘッダーは `.app-header` 共通クラスで統一。flex 子要素として配置し、Android の仮想キーボード時もヘッダーは画面上部に残る
 - エディタのヘッダーはページ数クラスタを画面真中央に置く 3 列 grid レイアウト
-- 論理 60 行到達 or 折り返し込み視覚行が 60 を超えたら次ページへ自動遷移（IME 変換中はガード）、50 ページで冊終了（静かに入力ロック）
+- エディタは `.surface` が外側スクロールコンテナ。非フォーカス時でもページ（紙）を上下にスクロール可能、スクロール中もヘッダー・プログレスバーは画面上部に固定表示
+- 1200 文字到達で次ページへ自動遷移（IME 変換中はガード）、60 ページ（`PAGES_PER_VOLUME`）で冊終了（静かに入力ロック、削除は通す）
 - 新ノート作成は本棚の「＋ 新しいノート」カードからのみ（確認ダイアログ付き）
 - ノートの削除は本棚カードを 500ms 長押し → 2 段階 confirm（ページ 0 枚は 1 段階）。active ノート削除時は最大 ordinal のノートが自動昇格
 - IndexedDB によるローカル永続化（ページ単位 savePage、2 秒 debounce、遷移時 flush）
@@ -36,7 +38,7 @@ diary/
 ├─ public/          # manifest.json / icon.svg / (PNG は別PCで生成)
 ├─ src/
 │  ├─ styles/       # global.css (CSS変数 / --header-height / .app-header / .app-header-link), notebook.css (罫線共通)
-│  ├─ lib/          # constants (LINES_PER_PAGE=60), pagination (splitAtLine30), db (idb v2), github, export, pwa
+│  ├─ lib/          # constants (CHARS_PER_PAGE=1200, LINES_PER_PAPER=60, PAGES_PER_VOLUME=60), pagination (splitAtCharLimit), db (idb v2), github, export, pwa
 │  ├─ hooks/        # useEditorCursor, useDebouncedCallback
 │  ├─ features/
 │  │  ├─ editor/    # EditorPage, useEditorAutoSave, DateIcon
@@ -105,8 +107,8 @@ iOS PWA インストール確認、トラブルシュートは:
 ## ドキュメント
 
 - [`HANDOFF.md`](./HANDOFF.md) — 別PCでの初回セットアップ・デプロイ手順
-- [`.claude/loop/IMPLEMENTATION_PLAN.md`](./.claude/loop/IMPLEMENTATION_PLAN.md) — 実装計画（M1-M9。M1-M3 は初期リリース、M4-M7 は UX 刷新、M8 は UX 追加改善、M9 は Android 実機由来の UX 改善）
-- [`.whiteboard/plan.md`](./.whiteboard/plan.md) — 直近フェーズ（M9 UX 改善）の詳細設計。過去フェーズは `.whiteboard/archive/`
+- [`.claude/loop/IMPLEMENTATION_PLAN.md`](./.claude/loop/IMPLEMENTATION_PLAN.md) — 実装計画（M1-M3 初期リリース、M4-M7 UX 刷新、M8 UX 追加改善、M9 Android 実機由来の UX 改善、M10 ページ単位を文字数基準へ / 外側スクロール / プログレスバー）
+- [`.whiteboard/plan.md`](./.whiteboard/plan.md) — 直近フェーズ（M10 page-char-basis）の詳細設計。過去フェーズは `.whiteboard/archive/`
 - [`.claude/loop/AGENTS.md`](./.claude/loop/AGENTS.md) — アーキテクチャ方針と設計判断
 - [`.claude/loop/STATE.md`](./.claude/loop/STATE.md) — 現在のプロジェクト状態
 - [`.claude/loop/specs/`](./.claude/loop/specs/) — 各タスクの仕様と完了サマリー
