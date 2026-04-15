@@ -341,6 +341,36 @@ npm run preview      # ビルド結果のプレビュー
   のアルファベット順を優先し、`splitAtCharLimit` の import 行を定数 import の直後に
   再配置（元コードでは PAGE_HEIGHT_PX ローカル定数の定義に挟まれて散らばっていた）。
 
+### M3（2026-04-15 page-char-basis）
+
+- **🟡 `.textarea` の flex は `0 0 auto`**: M2 までは `flex: 1 1 auto; min-height: 0;`
+  で textarea 自身が surface 内いっぱいに広がる前提だった。M3 で外側スクロールに
+  切り替え、`height: auto; min-height: var(--page-height-px)` に変えたため、flex で
+  伸縮させずコンテンツ高 (＝ scrollHeight or min-height のどちらか大) に任せる方針。
+  これで 60 行固定下限 + 内容超過時の自然な拡張が両立する。
+- **🟡 `useEditorCursor` に `surfaceRef` 引数を追加（optional 最終引数）**: 既存の
+  `fallback: 'end' | 'start'` の後ろに `surfaceRef?: React.RefObject<HTMLElement | null>`
+  を追加。`closest('[data-testid="editor-surface"]')` 方式も検討したが、EditorPage 側で
+  既に ref を持たせるのが最も素直（DOM クエリより型安全・テスト書きやすい・追加コスト無し）。
+  未指定時は scrollTop 書き込みを NOP にし、既存の useEditorCursor.test.ts (10 ケース) を
+  書き換えずに緑のまま維持できる。
+- **🟡 scrollIntoView ではなく scrollTop 直書き**: `el.scrollIntoView({ block: 'center' })`
+  は親要素のスクロールを変えるが、カーソル行が画面中央に来る UX は本アプリの静けさ
+  （「書いた行は上詰めで見える」想定）に合わない。既存の `getScrollTopForCursor` が
+  y = lineIndex * LINE_HEIGHT_PX で行頭揃えの scrollTop を返す設計を活かし、
+  surface.scrollTop に直接書き込む方式を採用。
+- **🟡 `.root` の position: fixed は維持**: spec T3.1 にも「.root は変更しない」と
+  明記。iOS Safari の body 暴走抑止のため従来通り。scroll はあくまで `.surface` が
+  持ち、`.root` は viewport 固定・flex コンテナの役割に徹する。
+- **🟡 `-webkit-overflow-scrolling: touch` は `.surface` にのみ付与**: spec 通り。
+  `.root` や `html, body` には付けない（iOS で overflow: hidden な祖先に付けると
+  副作用があるため）。将来的に古い iOS サポートを切る際は削除可。
+- **🟡 T3.3 は CSS 側検証のみ（コード変更なし）**: `--page-height-px` は既に
+  `calc(60 * 28.8px)` = 1728px で正しく、コメントも `LINES_PER_PAPER と同期` 相当の
+  記述が global.css L34-36 にある。notebook.css の `background-attachment: local` は
+  commit c2e4d5f で既に入っており、surface スクロール時は textarea 全体が動くため
+  罫線とテキストは同期する。追加の CSS 変更は不要。
+
 ### M8-4（2026-04-14）
 
 - **🟡 VolumeCard の Pointer Events 実装範囲**: `onPointerDown/Move/Up/Cancel/Leave`

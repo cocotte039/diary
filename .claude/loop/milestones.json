@@ -36,12 +36,12 @@
       "id": "M3",
       "name": "スクロール構造を外側スクロールへ",
       "goal": ".surface が overflow-y:auto、textarea は内部スクロール廃止。空ページでも罫線60本保証。useEditorCursor の scrollTop 操作を .surface 側に差し替え。",
-      "status": "pending",
+      "status": "completed",
       "verification": "npm run test && npm run build",
       "tasks": [
-        { "id": "T3.1", "name": "EditorPage.module.css 改修", "spec": "specs/m3-t1.md", "wave": 1, "status": "pending", "assignee": "build" },
-        { "id": "T3.2", "name": "useEditorCursor の scrollTop 宛先変更", "spec": "specs/m3-t2.md", "wave": 2, "status": "pending", "assignee": "build" },
-        { "id": "T3.3", "name": "罫線・min-height 動作確認", "spec": "specs/m3-t3.md", "wave": 3, "status": "pending", "assignee": "build" }
+        { "id": "T3.1", "name": "EditorPage.module.css 改修", "spec": "specs/m3-t1.md", "wave": 1, "status": "completed", "assignee": "build" },
+        { "id": "T3.2", "name": "useEditorCursor の scrollTop 宛先変更", "spec": "specs/m3-t2.md", "wave": 2, "status": "completed", "assignee": "build" },
+        { "id": "T3.3", "name": "罫線・min-height 動作確認", "spec": "specs/m3-t3.md", "wave": 3, "status": "completed", "assignee": "build" }
       ]
     },
     {
@@ -69,10 +69,20 @@
       ]
     }
   ],
-  "fix_queue": [],
+  "fix_queue": [
+    {
+      "id": "FIX-1",
+      "source": "M3 全体テスト実行時",
+      "file": "src/features/bookshelf/BookshelfPage.test.tsx",
+      "issue": "confirm 文言テスト 2 件が `50 ページ` のまま残っている（M1 の 50→60 ページ移行で本体側のみ更新済み）。M5 T5.1 の grep 残留ゼロ化で修正すべき。",
+      "detected_at": "2026-04-15T17:55:00Z",
+      "severity": "minor",
+      "target_milestone": "M5"
+    }
+  ],
   "metadata": {
     "created_at": "2026-04-15T00:00:00Z",
-    "last_updated": "2026-04-15T17:20:00Z",
+    "last_updated": "2026-04-15T17:58:00Z",
     "current_iteration": 0,
     "total_iterations": 0
   }
