@@ -1,68 +1,385 @@
-# Pragmatist 観点（要約）
+# Pragmatist 視点 — 仕様改善5件（2026-04-15）
 
-## 最短経路の評価
+## 視点宣言
 
-- 要件は既に十分合意済み。「行→文字」への置換は機械的に実施可能。
-- 視覚行オーバーフロー保険（scrollHeight 参照）を廃止できるため、`checkOverflowAndNavigate` の複雑度が下がる純減分あり。
-- `LINES_PER_PAGE` → `CHARS_PER_PAGE` のリネームは、罫線や紙の高さ計算で使う「60 行」の用途と衝突する。罫線用定数は別名で残すのが合理的。
+実用性・最短経路・シンプルさ・情報構造・設定分離。
+合意済み要件をベースに「最小コードで最大効果」「既存パターン流用」「壊れにくい構造」を優先する。
 
-## 定数分離の提案
+---
 
-| 用途 | 新名 | 値 | 備考 |
-|---|---|---|---|
-| ページ文字上限 | `CHARS_PER_PAGE` | 1200 | 論理判定用 |
-| 罫線・紙高さ | `LINES_PER_PAPER` | 60 | CSS `--lines-per-page` 同期 |
-| 冊ページ数 | `PAGES_PER_VOLUME` | 60 | 50 → 60 |
+## 1. 罫線均一化（①）
 
-- `LINES_PER_VOLUME` は廃止（ページ文字基準に移行すれば使わない）。他所で未使用か要確認（grep 済み: db.test.ts のみ `LINES_PER_PAGE` 使用、`LINES_PER_VOLUME` 参照なし）。
-- `--lines-per-page` CSS トークンは 60 のまま（紙高さ用）、コメントを「罫線用の視覚行数」に書き換え。
+### 評価: 🔵 ROI 極大・リスクほぼ無し
 
-## リファクタ最小化
+現状 `notebook.css` L29-46 で 2 層 `repeating-linear-gradient` を重ねているが、強調レイヤーを丸ごと外せばよい。
 
-- `splitAtLine30` → `splitAtCharLimit` にリネーム。内部実装は `text.slice(0, CHARS_PER_PAGE)` で圧倒的にシンプル化。
-- `countLogicalLines`、`getScrollTopForCursor` は罫線・カーソル復元で使う可能性があるため温存（Reader 側で使用の可能性）。
-- `getPageNumber`/`countPages`/`splitIntoPages`/`joinPages` は **Reader 画面で使われていないか grep 必須**。Editor はページ単位保存なので元々不要、ただし export 機能や将来の全文検索で使われる可能性がある。ユーザーの「既存冊は再ページングしない」要件を守るため、**既存コンテンツに対しては使わない**ことを明示。
-  - 現実解: これらは `LINES_PER_PAGE` をグローバル再輸出しないことで機械的に壊れる → 連動して修正する（文字数ベースに書き換え、もしくは残すなら罫線用 `LINES_PER_PAPER` を参照）。
+**推奨実装**:
 
-## スクロール構造の単純化
-
-- textarea 内部スクロールを捨て、外側 `.surface` がスクロールするのは健全。iOS/Android のネイティブ挙動に委ね、罫線 `background-attachment: local` を活用すれば自然に動く。
-- textarea 高さ: `useLayoutEffect` で `scrollHeight` → `style.height` 反映。ただし「紙高さ 60 行分を下限保証」する要求も残るため、現在の `ensurePaperHeight` ロジックは形を変えて維持。
-  - 提案: 下限を CSS `min-height: var(--page-height-px)` で表現し、JS は `height: auto` のみ扱う。これで JS レイアウト測定が不要になる。
-
-## プログレスバー実装
-
-- `repeating-linear-gradient` で trak+tick を描くとクロスブラウザで安定。
-- 進捗塗りは `width: ${pct}%` の子 div で。React state 不要（`useMemo` で算出）。
-- 1200字ちょうどを 100% として扱う（`Math.min(text.length / 1200, 1) * 100`）。
-
-## 自動ページ送りの簡素化
-
-```ts
-export function splitAtCharLimit(text: string): { keep: string; overflow: string } {
-  if (text.length <= CHARS_PER_PAGE) return { keep: text, overflow: '' };
-  return { keep: text.slice(0, CHARS_PER_PAGE), overflow: text.slice(CHARS_PER_PAGE) };
+```css
+.notebook-surface {
+  /* ...font/color は維持... */
+  background-image: repeating-linear-gradient(
+    to bottom,
+    transparent 0,
+    transparent calc(var(--line-height-px) - 1px),
+    var(--color-rule) calc(var(--line-height-px) - 1px),
+    var(--color-rule) var(--line-height-px)
+  );
+  background-size: 100% var(--line-height-px);
+  background-attachment: local;
+  padding: 0 var(--padding-page);
+  background-position: 0 0;
 }
 ```
 
-- 視覚行判定の分岐と scrollHeight 測定を完全に削除できる。
-- `onBeforeInput` の最終ページロックも `nextValue.length > CHARS_PER_PAGE` に単純化。
+- `background-size` から長軸（`* 15`）を削除
+- レイヤー 1 のコメント説明文（L19-28）も削除
+- `--color-page-divider` 自体は `--color-page-divider-end`（冊終わり付近）等で他用途あり → トークン定義は維持
 
-## テスト更新
+### 罠
 
-- `pagination.test.ts`: `splitAtLine30` → `splitAtCharLimit` に書き換え。CHARS_PER_PAGE-1 / ちょうど / +1 / 大量の 4 ケースで足りる。
-- `EditorPage.test.tsx`: 「LINES_PER_PAGE+1 行で遷移」系テスト (行数ベース) を「1201字で遷移」に書き換え。`thirtyLines` などのヘルパは `longText(n)` に汎用化。
-- `db.test.ts`: 3ページ生成テストが `LINES_PER_PAGE` に依存 → `CHARS_PER_PAGE` ベースに書き換え（`'x'.repeat(CHARS_PER_PAGE * 2.5)` 的に）。
+- `--color-page-divider` が他で使われていないか grep で要確認 (`global.css` 定義は維持)
+- `LINES_PER_PAPER` の役割は変わらない（紙の高さ規定）
 
-## 優先度
+---
 
-1. 定数変更・pagination.ts 書き換え（土台）
-2. EditorPage の overflow 判定・onBeforeInput 書き換え
-3. スクロール構造改修（CSS）
-4. プログレスバー追加
-5. テスト更新
-6. ビルド・リントで破壊検知
+## 2. 日付挿入時のスクロール保持（②）
 
-## ROI 高い見送り候補
+### 評価: 🔵 単純な scrollTop 保存・復元
 
-- `splitIntoPages` / `joinPages` / `countPages` の削除は今回スコープ外でよい（既存冊の再ページングをしない合意に反する恐れ、および他所から参照があれば破壊）。罫線用 `LINES_PER_PAPER` を渡すか、呼び出し有無を grep で確認してから判断。
+合意済みの設計で `surfaceRef.current?.scrollTop` を rAF 内で復元するのが正解。
+既存 `insertDate` (L359-380) は `setText(nextValue)` → `requestAnimationFrame(focus + setSelectionRange)` の構造。
+**`setText` で React 再レンダーが走り、textarea の高さが `useLayoutEffect` で再計算され、scrollTop がリセットされる**ため scroll 戻りが起きている。
+
+**推奨実装**:
+
+```ts
+const insertDate = useCallback(() => {
+  const el = textareaRef.current;
+  if (!el) return;
+  const stamp = formatToday();
+  const start = el.selectionStart ?? el.value.length;
+  const end = el.selectionEnd ?? el.value.length;
+  const nextValue = el.value.slice(0, start) + stamp + el.value.slice(end);
+  // 🔵 surface (.surface) の scrollTop を保存
+  const savedScrollTop = surfaceRef.current?.scrollTop ?? 0;
+  setText(nextValue);
+  const nextPos = start + stamp.length;
+  requestAnimationFrame(() => {
+    const cur = textareaRef.current;
+    if (!cur) return;
+    cur.focus();
+    const clamped = Math.max(0, Math.min(nextPos, cur.value.length));
+    cur.setSelectionRange(clamped, clamped);
+    // 🔵 scrollTop を復元（focus / setSelectionRange の副作用を打ち消す）
+    if (surfaceRef.current) surfaceRef.current.scrollTop = savedScrollTop;
+  });
+  onSelectionChange(nextPos);
+  if (isComposingRef.current) return;
+  checkOverflowAndNavigate(nextValue);
+}, [onSelectionChange, checkOverflowAndNavigate]);
+```
+
+### 注意
+
+- 🟡 `useLayoutEffect`（L230-235）は `[text, ready]` 依存。`setText` 後のレンダーで `ta.style.height = 'auto' → scrollHeight` が走るが、これは textarea 自身の高さ調整であって `.surface.scrollTop` は別物。`focus()` のブラウザ標準動作で textarea がビューポートに入るよう自動スクロールされる挙動を rAF 内で打ち消すのが本筋
+- 🔵 `focus()` を先、`setSelectionRange` を後、`scrollTop = saved` を最後、の順に並べる
+- 🔵 オーバーフロー遷移が発火するケース（既存 1200 字近く + 日付挿入）は遷移先で別ページが描画されるので scrollTop 復元は無意味になる。`if (overflow.length > 0)` で復元をスキップしてもよいが、判定が複雑になるので **常に復元**でよい（無害）
+
+---
+
+## 3. 本棚並び順修正（③）
+
+### 評価: 🔵 1 行の修正
+
+`BookshelfPage.tsx` L44 を変更:
+
+```ts
+// 旧
+vs.sort((a, b) => b.createdAt.localeCompare(a.createdAt));
+// 新
+vs.sort((a, b) => b.ordinal - a.ordinal);
+```
+
+### 根本原因（推測）
+
+- `crypto.randomUUID()` での冊作成 + 同 ms 内連続作成だと `createdAt` が同じになり、`localeCompare` の安定性が undefined になる（V8 の sort は stable だが、入力順が安定とは限らない）
+- `ordinal` は `db.ts` L149-150 で `Math.max(...) + 1` で単調増加するため、降順ソートは確実に「新しい順」になる
+
+### 注意
+
+- VolumeCard の表示は `volume.ordinal` をそのまま使うため、表示文字列も整合する
+- 既存テスト（BookshelfPage.test.tsx の M4-T5 等）は `ordinal` 順を前提にした assert ではないので、回帰しない（`new RegExp("ノート 1")` 等は表記そのものなので影響なし）
+
+---
+
+## 4. 新ノート作成 UI のメニュー統合（④）
+
+### 評価: 🔵 削除 + メニュー内項目化
+
+合意済み: `NewVolumeCard.tsx` を削除し、ハンバーガーメニューから起動。
+`handleCreateNew` の本体（confirm + rotateVolume）は維持。
+
+### 推奨実装
+
+`BookshelfMenu.tsx` を新設し、以下のシグネチャ:
+
+```tsx
+interface Props {
+  onCreateNew: () => void;       // BookshelfPage.handleCreateNew
+  onOpenCalendar: () => void;    // setShowCalendar(true) 相当
+}
+```
+
+- ハンバーガーボタン (`button`, `aria-label="メニューを開く"`, `aria-haspopup="menu"`, `aria-expanded={open}`)
+- ドロップダウン (`role="menu"`)
+- メニュー項目 (`role="menuitem"`): 「新しいノート」「カレンダー」「設定（Link to="/settings"）」
+
+`BookshelfPage.tsx` での結線:
+
+```tsx
+<header className={`app-header ${styles.header}`}>
+  <h1 className={styles.title}>本棚</h1>
+  <BookshelfMenu
+    onCreateNew={handleCreateNew}
+    onOpenCalendar={() => setShowCalendar(true)}
+  />
+</header>
+```
+
+### 削除対象
+
+- `src/features/bookshelf/NewVolumeCard.tsx` (ファイル削除)
+- `BookshelfPage.tsx` L17 import, L133 `<NewVolumeCard ...>`
+- `BookshelfPage.module.css` L92-116 `.newCard*` ブロック
+
+### テスト書き換え
+
+- `BookshelfPage.test.tsx` L113-181 「冊が 1 件以上あると『新しいノート』ボタンが表示される」系 → メニューを開いてから `getByRole('menuitem', { name: '新しいノート' })` で取得し click する形に
+- `confirm` 経路は変わらないので assert は維持
+
+---
+
+## 5. カレンダー UI のメニュー＋モーダル化（⑤）
+
+### 評価: 🔵 既存 Calendar コンポーネントを overlay でラップ
+
+合意済み: ヘッダーメニューから「カレンダー」項目で全画面モーダル表示。
+
+### 推奨実装（最小構成）
+
+`BookshelfPage.tsx` 内で `showCalendar` state は維持しつつ、表示位置を本棚下部から「fixed overlay」に移す。
+
+```tsx
+{showCalendar && (
+  <div
+    className={styles.calendarOverlay}
+    role="dialog"
+    aria-modal="true"
+    aria-label="カレンダー"
+    onClick={(e) => { if (e.target === e.currentTarget) setShowCalendar(false); }}
+  >
+    <div className={styles.calendarPanel}>
+      <button
+        type="button"
+        className={styles.calendarClose}
+        aria-label="カレンダーを閉じる"
+        onClick={() => setShowCalendar(false)}
+      >×</button>
+      <Calendar />
+    </div>
+  </div>
+)}
+```
+
+`BookshelfPage.module.css`:
+
+```css
+.calendarOverlay {
+  position: fixed;
+  inset: 0;
+  background-color: rgba(0, 0, 0, 0.5);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  z-index: 100;
+  padding: 1rem;
+}
+.calendarPanel {
+  position: relative;
+  background-color: var(--color-bg);
+  border: 1px solid var(--color-rule);
+  border-radius: 4px;
+  padding: 1rem;
+  max-width: 360px;
+  width: 100%;
+  max-height: calc(100dvh - 2rem);
+  overflow-y: auto;
+}
+.calendarClose {
+  position: absolute;
+  top: 0.25rem;
+  right: 0.25rem;
+  width: 44px;
+  height: 44px;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 1.25rem;
+  opacity: 0.5;
+}
+```
+
+### 削除対象
+
+- `BookshelfPage.tsx` L137-145 `.calendarToggle` ボタンブロック
+- `BookshelfPage.module.css` L125-131 `.calendarToggle`
+
+### 注意
+
+- 🟡 Esc キーで閉じるのは `useEffect` で `document.addEventListener('keydown', ...)` を `showCalendar` 依存で配線。BookshelfMenu の Esc 閉じと同じパターン
+- 🔵 Calendar コンポーネント自体は無変更（日付タップで navigate するロジックは維持）。navigate されると BookshelfPage は unmount されるので overlay は自動消滅
+- 🟡 ポータル不採用（プロジェクトに前例なし）。`.root` 内に置いても `position: fixed` なので位置・stacking は問題なし
+
+---
+
+## ヘッダーメニュー基盤（共通）
+
+### 推奨実装
+
+`src/features/bookshelf/BookshelfMenu.tsx`:
+
+```tsx
+import { useEffect, useRef, useState } from 'react';
+import { Link } from 'react-router-dom';
+import styles from './BookshelfMenu.module.css';
+
+interface Props {
+  onCreateNew: () => void;
+  onOpenCalendar: () => void;
+}
+
+export default function BookshelfMenu({ onCreateNew, onOpenCalendar }: Props) {
+  const [open, setOpen] = useState(false);
+  const rootRef = useRef<HTMLDivElement | null>(null);
+
+  useEffect(() => {
+    if (!open) return;
+    const onPointer = (e: PointerEvent) => {
+      if (!rootRef.current?.contains(e.target as Node)) setOpen(false);
+    };
+    const onKey = (e: KeyboardEvent) => { if (e.key === 'Escape') setOpen(false); };
+    document.addEventListener('pointerdown', onPointer);
+    document.addEventListener('keydown', onKey);
+    return () => {
+      document.removeEventListener('pointerdown', onPointer);
+      document.removeEventListener('keydown', onKey);
+    };
+  }, [open]);
+
+  return (
+    <div className={styles.root} ref={rootRef}>
+      <button
+        type="button"
+        className={styles.trigger}
+        aria-label="メニューを開く"
+        aria-haspopup="menu"
+        aria-expanded={open}
+        onClick={() => setOpen((o) => !o)}
+      >
+        {/* SVG ハンバーガー (3 本線) */}
+        <svg width="20" height="20" viewBox="0 0 20 20" aria-hidden="true">
+          <path d="M3 5h14M3 10h14M3 15h14" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" />
+        </svg>
+      </button>
+      {open && (
+        <div className={styles.menu} role="menu">
+          <button
+            type="button"
+            role="menuitem"
+            className={styles.item}
+            onClick={() => { setOpen(false); onCreateNew(); }}
+          >新しいノート</button>
+          <button
+            type="button"
+            role="menuitem"
+            className={styles.item}
+            onClick={() => { setOpen(false); onOpenCalendar(); }}
+          >カレンダー</button>
+          <Link
+            to="/settings"
+            role="menuitem"
+            className={styles.item}
+            onClick={() => setOpen(false)}
+          >設定</Link>
+        </div>
+      )}
+    </div>
+  );
+}
+```
+
+`BookshelfMenu.module.css`:
+
+```css
+.root { position: relative; }
+.trigger {
+  width: 44px;
+  height: 44px;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  color: var(--color-text);
+  opacity: 0.5;
+  transition: opacity 120ms ease;
+}
+.trigger:active { opacity: 0.8; }
+.menu {
+  position: absolute;
+  top: calc(100% + 4px);
+  right: 0;
+  min-width: 160px;
+  background-color: var(--color-bg);
+  border: 1px solid var(--color-rule);
+  border-radius: 4px;
+  padding: 0.25rem 0;
+  z-index: 50;
+  display: flex;
+  flex-direction: column;
+  font-family: var(--font-family-ui);
+  font-size: 0.875rem;
+}
+.item {
+  padding: 0.75rem 1rem;
+  text-align: left;
+  color: var(--color-text);
+  opacity: 0.75;
+  background: transparent;
+  border: none;
+  display: block;
+  text-decoration: none;
+}
+.item:hover, .item:focus-visible { opacity: 1; background-color: rgba(255,255,255,0.04); }
+```
+
+### 注意
+
+- `BookshelfPage.tsx` の既存「設定」リンク (L115) はメニューに統合するため削除
+- `header button { opacity: 0.3 }` (L26-31) のスタイル指定は `.trigger` 側で上書きする必要がある（CSS Module の specificity で勝てる）か、`.header button` の指定を限定する
+
+---
+
+## 全体ROI評価
+
+| 項目 | 行数 | 効果 | リスク | 優先度 |
+|---|---|---|---|---|
+| ① 罫線均一化 | -10 | 中 | 極小 | 高 |
+| ② スクロール保持 | +3 | 高 | 小 | 高 |
+| ③ ordinal sort | +0/-0 | 高 | 極小 | 高 |
+| ④ メニュー統合 | +120/-50 | 中 | 中 | 中 |
+| ⑤ カレンダーモーダル | +60/-15 | 中 | 中 | 中 |
+| 共通 BookshelfMenu | 上記④に含む | 高 | 中 | 中 |
+
+- ①②③ は **独立して実装可能・即効性高い** → 先行
+- ④⑤ は BookshelfMenu に依存 → メニュー基盤を先に作る
+- テスト整備は最後にまとめる

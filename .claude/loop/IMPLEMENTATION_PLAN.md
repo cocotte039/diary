@@ -1,48 +1,58 @@
-# 実装計画 — ページ単位の文字数基準化 / スクロール構造改善 / プログレスバー
+# 実装計画 — 仕様改善 5 件
 
 ## 概要
 
-- ページ単位を「論理行60」から「文字数1200」へ
-- 1冊を50→60ページ（B5大学ノート30枚相当）
-- ヘッダー固定、ページ領域を外側スクロール
-- ページ残量のモノクロ10分割プログレスバー
+5 件の UX/バグ修正を統合で実装する。
 
-## マイルストーン
+1. **罫線均一化**: 15/30/45 行目の強調罫線を廃し、`--color-rule` 通常罫線のみに
+2. **日付挿入時スクロール維持**: `EditorPage.insertDate` で surface の scrollTop を保存→復元
+3. **本棚並び順修正**: `createdAt` 文字列順 → `ordinal` 降順 (`createdAt` tie-break) に
+4. **新ノート作成 UI**: 末尾「＋」カード撤去、ヘッダーハンバーガーメニューから起動
+5. **カレンダー UI**: 本棚下部の開閉ボタン撤去、ヘッダーメニューから全画面モーダル
 
-### M1. 定数と pagination.ts を文字数基準へ
-- T1.1 constants.ts: CHARS_PER_PAGE=1200 / LINES_PER_PAPER=60 / PAGES_PER_VOLUME=60 / LINES_PER_PAGE 削除
-- T1.2 pagination.ts: splitAtLine30→splitAtCharLimit、countPages 文字数基準、関連関数の grep 確認
-- T1.3 pagination.test.ts 書き換え
-- T1.4 constants.test.ts / db.test.ts 書き換え
-- 検証: `npm run test -- src/lib/pagination.test.ts src/lib/constants.test.ts src/lib/db.test.ts`
+共通: 本棚ヘッダー右端に `BookshelfMenu`（ハンバーガー + 右ドロップダウン）を新設し、「新しいノート / カレンダー / 設定」を集約。
 
-### M2. EditorPage ロジックを文字数基準へ
-- T2.1 import 更新・LINES_PER_PAGE 参照削除
-- T2.2 checkOverflowAndNavigate を splitAtCharLimit のみに
-- T2.3 handleBeforeInput を nextValue.length > CHARS_PER_PAGE に
-- T2.4 ensurePaperHeight 撤去 + textarea 高さ useLayoutEffect 追従
-- T2.5 EditorPage.test.tsx 書き換え（視覚行ケース削除）
-- 検証: `npm run test -- src/features/editor/EditorPage.test.tsx && npm run build`
+## マイルストーン一覧
 
-### M3. スクロール構造を外側スクロールへ
-- T3.1 EditorPage.module.css: .surface overflow-y:auto / .textarea overflow:visible, height:auto, min-height:var(--page-height-px)
-- T3.2 useEditorCursor の scrollTop 宛先を .surface へ（必要なら）
-- T3.3 罫線・min-height 動作確認
-- 検証: `npm run test && npm run build`
+| ID | 名前 | Wave | 目的 |
+|----|------|------|------|
+| M1 | 罫線均一化 | 0 | `notebook.css` のレイヤー1 削除 |
+| M2 | 日付挿入 scrollTop 保持 | 0 | `insertDate` で scrollTop を保存→復元 |
+| M3 | 本棚並び順修正 | 0 | `ordinal` 降順 + createdAt tie-break |
+| M4 | ヘッダーメニュー基盤 | 0 | `BookshelfMenu` コンポーネント新設 |
+| M5 | 新ノート作成メニュー統合 | 1 (M4依存) | NewVolumeCard 撤去、メニュー結線 |
+| M6 | カレンダーモーダル化 | 1 (M4依存) | fixed overlay モーダル + Esc 閉じ |
+| M7 | 全体検証 + README 更新 | 2 (全完了後) | grep 確認・README 整合・全テスト |
 
-### M4. プログレスバー追加
-- T4.1 EditorPage.tsx: ヘッダー直下に progressbar 要素、role/aria 属性、width=text.length/CHARS_PER_PAGE
-- T4.2 .progress (高さ3px, トラック+10分割 tick) / .progressFill (opacity 0.5, transition 120ms)
-- T4.3 a11y / aria-valuenow テスト追加（0/600/1200/1300 ケース）
-- 検証: `npm run test -- src/features/editor/EditorPage.test.tsx && npm run build`
+## Wave 構成
 
-### M5. 仕上げ・整合確認
-- T5.1 grep 残留ゼロ化（LINES_PER_PAGE / splitAtLine30 / LINES_PER_VOLUME）
-- T5.2 JSDoc / CSS 変数コメント更新
-- T5.3 lint / build / test 全緑
-- 検証: `npm run lint && npm run build && npm run test`
+- Wave 0: M1, M2, M3, M4（並列可）
+- Wave 1: M5, M6（M4 完了後、並列可）
+- Wave 2: M7（M1〜M6 完了後）
 
-## 非目標
-- 紙幅固定
-- 既存冊コンテンツの再ページング
-- プログレスバーの色変化・数値表示・アニメーション
+## 🟡 判断箇所（Build Agent 向け）
+
+1. **J1 scrollTop テスト**: jsdom で `scrollTop = 200` 直接設定→assert で OK。ダメなら `data-testid="editor-surface"` 直取得
+2. **J2 `.header button` CSS 削除**: BookshelfMenu 結線後は `.header button` 指定を削除（trigger と衝突防止）
+3. **J3 モーダル fade-in**: 200ms opacity 0→1（静けさ準拠）
+4. **J4 ハンバーガー opacity**: 0.5（発見性確保、既存リンク 0.3 より少し強め）
+5. **J5 モーダル overlay 色**: `rgba(0, 0, 0, 0.6)`
+6. **J6 BookshelfMenu 単体テスト**: 追加しない（BookshelfPage 統合テスト経由）
+7. **J7 ソート tie-break**: `createdAt` をセカンダリキーに（データ異常時の保険）
+
+## リスク
+
+- jsdom の scrollTop 挙動: 不発時はテスト方針を見直し
+- iOS Safari のモーダル `position: fixed` : `100dvh` 使用、内部 `overflow-y: auto`
+- 既存テストの書き換え漏れ: grep で `NewVolumeCard` / `新しいノートを作る` の残留ゼロを確認
+
+## ロールバック
+
+- M1, M2, M3 は独立コミットで個別 revert 可
+- M4〜M6 は連動（途中状態だと UI が壊れる）。問題時は 3 つ同時 revert
+
+## 詳細
+
+詳細設計は `.whiteboard/plan.md` を参照。
+
+各タスクの spec は `.claude/loop/specs/m{N}-t{K}.md`。
