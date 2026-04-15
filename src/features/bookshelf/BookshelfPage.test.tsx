@@ -15,7 +15,11 @@ import {
   savePage,
   updateVolumeLastOpenedPage,
 } from '../../lib/db';
-import { DB_NAME, LONG_PRESS_MS } from '../../lib/constants';
+import {
+  DB_NAME,
+  LONG_PRESS_MS,
+  PAGES_PER_VOLUME,
+} from '../../lib/constants';
 import BookshelfPage from './BookshelfPage';
 import type { Page, Volume } from '../../types';
 
@@ -139,7 +143,7 @@ describe('BookshelfPage new volume card (M6-T5)', () => {
     });
     // confirm メッセージにページ数が含まれる
     expect(confirmSpy).toHaveBeenCalledWith(
-      expect.stringMatching(/2 \/ 50/)
+      expect.stringMatching(new RegExp(`2 \\/ ${PAGES_PER_VOLUME}`))
     );
     confirmSpy.mockRestore();
   });
@@ -157,7 +161,7 @@ describe('BookshelfPage new volume card (M6-T5)', () => {
     confirmSpy.mockRestore();
   });
 
-  it('confirm のメッセージに「現在のノートは X / 50 ページです」と含まれる', async () => {
+  it('confirm のメッセージに「現在のノートは X / PAGES_PER_VOLUME ページです」と含まれる', async () => {
     const v = await ensureActiveVolume();
     await savePage(v.id, 1, 'a');
     await savePage(v.id, 2, 'b');
@@ -168,7 +172,9 @@ describe('BookshelfPage new volume card (M6-T5)', () => {
     screen.getByRole('button', { name: '新しいノートを作る' }).click();
     await waitFor(() => expect(confirmSpy).toHaveBeenCalled());
     expect(confirmSpy).toHaveBeenCalledWith(
-      expect.stringContaining('現在のノートは 3 / 50 ページです')
+      expect.stringContaining(
+        `現在のノートは 3 / ${PAGES_PER_VOLUME} ページです`
+      )
     );
     confirmSpy.mockRestore();
   });
