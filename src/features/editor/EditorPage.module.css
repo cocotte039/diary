@@ -78,13 +78,16 @@
 
 /*
  * ページ送りフェード用ラッパ。transition は --transition-page (180ms) を使う。
- * surface 自体は flex:1 で画面全体をほぼ埋める（ヘッダーは fixed で上に乗る）。
+ * 紙（textarea）は 60 行ぶんの固定高さで、surface がスクロールコンテナになる。
+ * 上揃え（align-items: flex-start）で、画面が紙より高いときは下に余白が出る。
  */
 .surface {
   flex: 1 1 auto;
   min-height: 0;
   display: flex;
   flex-direction: column;
+  align-items: stretch;
+  overflow-y: auto;
   transition: var(--transition-page);
 }
 .fading {
@@ -92,16 +95,15 @@
 }
 
 /*
- * M9-M1-T3: ヘッダーを通常 flex 子要素に戻したため、textarea は残り高さを占有すればよい。
- * 旧 `padding-top = var(--header-height) + env(safe-area-inset-top)` は撤廃。
- * 左右 padding はノート余白 + safe-area-inset のみ維持。罫線もデフォルト位置で OK。
+ * 紙は常に 60 行ぶんの固定高さ。文字数や viewport に依らず罫線が 60 本見える。
+ * スクロールは親 .surface が担う。textarea 自身の overflow-y は不要。
  */
 .textarea {
-  flex: 1 1 auto;
-  min-height: 0;
+  flex: 0 0 auto;
+  height: var(--page-height-px);
   padding-top: 0;
   padding-bottom: 0;
   padding-left: max(var(--padding-page), env(safe-area-inset-left));
   padding-right: max(var(--padding-page), env(safe-area-inset-right));
-  overflow-y: auto;
+  overflow: hidden;
 }
