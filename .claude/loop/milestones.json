@@ -29,20 +29,20 @@
       "id": "M3",
       "name": "本棚並び順修正",
       "goal": "BookshelfPage のソートを ordinal 降順（createdAt tie-break）に変更",
-      "status": "pending",
+      "status": "completed",
       "verification": "npm run test -- --run src/features/bookshelf/BookshelfPage.test.tsx",
       "tasks": [
-        { "id": "T3.1", "name": "TDD テスト追加＋ソート変更", "spec": "specs/m3-t1.md", "wave": 0, "status": "pending", "assignee": "build" }
+        { "id": "T3.1", "name": "TDD テスト追加＋ソート変更", "spec": "specs/m3-t1.md", "wave": 0, "status": "completed", "assignee": "build" }
       ]
     },
     {
       "id": "M4",
       "name": "ヘッダーメニュー基盤",
       "goal": "BookshelfMenu コンポーネント（ハンバーガー + ドロップダウン）を新規作成",
-      "status": "pending",
+      "status": "completed",
       "verification": "npm run build",
       "tasks": [
-        { "id": "T4.1", "name": "BookshelfMenu.tsx と CSS 新規作成", "spec": "specs/m4-t1.md", "wave": 0, "status": "pending", "assignee": "build" }
+        { "id": "T4.1", "name": "BookshelfMenu.tsx と CSS 新規作成", "spec": "specs/m4-t1.md", "wave": 0, "status": "completed", "assignee": "build" }
       ]
     },
     {
@@ -79,7 +79,7 @@
   "fix_queue": [],
   "metadata": {
     "created_at": "2026-04-15T20:00:00+09:00",
-    "last_updated": "2026-04-15T20:20:00+09:00",
+    "last_updated": "2026-04-15T20:30:00+09:00",
     "current_iteration": 0,
     "total_iterations": 0
   }

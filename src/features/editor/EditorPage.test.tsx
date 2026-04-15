@@ -1,5 +1,5 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
-import { render, screen, waitFor, fireEvent } from '@testing-library/react';
+import { render, screen, waitFor, fireEvent, act } from '@testing-library/react';
 import { MemoryRouter, Routes, Route, useLocation } from 'react-router-dom';
 import {
   _resetDBForTests,
@@ -709,6 +709,42 @@ describe('EditorPage date insertion (M7-T4)', () => {
     const btn = screen.getByRole('button', { name: '今日の日付を挿入' });
     // CSS Module 由来のクラスで styles.headerDateButton が適用されていること
     expect(btn.className).toMatch(/headerDateButton/);
+  });
+
+  it('日付挿入後、surface の scrollTop が保持される', async () => {
+    // 本番環境では textarea.focus() / setSelectionRange() が .surface の
+    // scrollTop をリセットする副作用を持つ（ブラウザ仕様）。jsdom ではこの
+    // 副作用が再現されないため、focus() をスパイして scrollTop=0 に戻す
+    // 副作用を注入し、本実装の「保存→復元」ロジックが確かに動いているか検証する。
+    const v = await ensureActiveVolume();
+    renderAt(`/book/${v.id}/1`);
+    const textarea = (await screen.findByLabelText('日記本文')) as HTMLTextAreaElement;
+    await act(async () => {
+      fireEvent.change(textarea, { target: { value: 'あ'.repeat(200) } });
+    });
+    const surface = document.querySelector('[data-testid="editor-surface"]') as HTMLElement;
+    surface.scrollTop = 200;
+    textarea.setSelectionRange(10, 10);
+
+    // focus() をスパイして、ブラウザの副作用（スクロールコンテナの scrollTop リセット）を模擬
+    const originalFocus = HTMLTextAreaElement.prototype.focus;
+    const focusSpy = vi
+      .spyOn(HTMLTextAreaElement.prototype, 'focus')
+      .mockImplementation(function (this: HTMLTextAreaElement) {
+        surface.scrollTop = 0; // ブラウザの副作用を模擬
+        return originalFocus.call(this);
+      });
+
+    try {
+      const btn = screen.getByRole('button', { name: '今日の日付を挿入' });
+      await act(async () => {
+        fireEvent.click(btn);
+        await new Promise<void>((r) => requestAnimationFrame(() => r()));
+      });
+      expect(surface.scrollTop).toBe(200);
+    } finally {
+      focusSpy.mockRestore();
+    }
   });
 
   it('日付挿入で 1200 字を超える場合、次ページへ自動遷移する', async () => {

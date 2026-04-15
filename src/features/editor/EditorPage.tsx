@@ -350,11 +350,16 @@ export default function EditorPage() {
   );
 
   /**
-   * M7-T4: カーソル位置に今日の日付スタンプを挿入する。
+   * M7-T4 / M2-T2.1: カーソル位置に今日の日付スタンプを挿入する。
    * - 挿入後は textarea の selectionRange をスタンプ末尾に移動
    * - state も即時に更新（onChange と同じ経路で IME ガード・自動遷移と協調）
    * - 挿入で CHARS_PER_PAGE (1200 字) を超えた場合は T6.3 の自動次ページ遷移
    *   ロジック (`checkOverflowAndNavigate`) を発火させる。
+   * - M2-T2.1: `.surface`（外側スクロールコンテナ）の scrollTop を挿入前に保存し、
+   *   rAF 内の focus() / setSelectionRange() 実行後に明示的に復元する。
+   *   ブラウザでは focus() / setSelectionRange() が祖先スクロールコンテナの
+   *   scrollTop をリセットする副作用を持つため、このガードでページ先頭への
+   *   ジャンプを防ぐ（読み返し中に日付挿入しても読んでいた位置が維持される）。
    */
   const insertDate = useCallback(() => {
     const el = textareaRef.current;
@@ -363,6 +368,10 @@ export default function EditorPage() {
     const start = el.selectionStart ?? el.value.length;
     const end = el.selectionEnd ?? el.value.length;
     const nextValue = el.value.slice(0, start) + stamp + el.value.slice(end);
+    // .surface (外側スクロールコンテナ) の scrollTop を保存。
+    // focus() / setSelectionRange() は React 再レンダリング後に scrollTop を
+    // リセットする副作用を持つため、rAF 後に明示的に復元する。
+    const savedScrollTop = surfaceRef.current?.scrollTop ?? 0;
     setText(nextValue);
     const nextPos = start + stamp.length;
     // DOM 反映後にカーソル位置を復元（React 19 でも rAF 1 フレーム必要）
@@ -372,6 +381,7 @@ export default function EditorPage() {
       cur.focus();
       const clamped = Math.max(0, Math.min(nextPos, cur.value.length));
       cur.setSelectionRange(clamped, clamped);
+      if (surfaceRef.current) surfaceRef.current.scrollTop = savedScrollTop;
     });
     onSelectionChange(nextPos);
     // IME 変換中の日付挿入は想定外だが、compositionEnd での再判定に任せる。
