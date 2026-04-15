@@ -49,10 +49,10 @@
       "id": "M5",
       "name": "新ノート作成メニュー統合",
       "goal": "NewVolumeCard 削除、BookshelfPage にヘッダーメニューを結線、テスト更新",
-      "status": "pending",
+      "status": "completed",
       "verification": "npm run test -- --run src/features/bookshelf/BookshelfPage.test.tsx && npm run build",
       "tasks": [
-        { "id": "T5.1", "name": "BookshelfPage 結線＋NewVolumeCard 削除＋CSS掃除＋テスト更新", "spec": "specs/m5-t1.md", "wave": 1, "status": "pending", "assignee": "build" }
+        { "id": "T5.1", "name": "BookshelfPage 結線＋NewVolumeCard 削除＋CSS掃除＋テスト更新", "spec": "specs/m5-t1.md", "wave": 1, "status": "completed", "assignee": "build" }
       ]
     },
     {
@@ -79,7 +79,7 @@
   "fix_queue": [],
   "metadata": {
     "created_at": "2026-04-15T20:00:00+09:00",
-    "last_updated": "2026-04-15T20:30:00+09:00",
+    "last_updated": "2026-04-15T20:40:00+09:00",
     "current_iteration": 0,
     "total_iterations": 0
   }
