@@ -5,8 +5,6 @@ import {
   useState,
   useCallback,
   type ChangeEvent,
-  type CompositionEvent as ReactCompositionEvent,
-  type FormEvent,
   type KeyboardEvent as ReactKeyboardEvent,
   type TouchEvent as ReactTouchEvent,
 } from 'react';
@@ -15,7 +13,6 @@ import styles from './EditorPage.module.css';
 import {
   getPage,
   getVolume,
-  savePage,
   updateVolumeLastOpenedPage,
 } from '../../lib/db';
 import {
@@ -23,7 +20,6 @@ import {
   PAGES_PER_VOLUME,
   SWIPE_THRESHOLD_PX,
 } from '../../lib/constants';
-import { splitAtCharLimit } from '../../lib/pagination';
 import { useEditorAutoSave } from './useEditorAutoSave';
 import { useEditorCursor } from '../../hooks/useEditorCursor';
 import DateIcon from './DateIcon';
@@ -56,8 +52,8 @@ const PAGE_FADE_MS = 180;
  *   + PageUp/PageDown キー（textarea にフォーカスがある時のみ）。
  *   遷移前に autosave flush + lastOpenedPage 更新。
  *
- * 文字数ロック（CHARS_PER_PAGE=1200）・IME ガード等は M6/M7 で追加（M10 で
- * 行数ベースから文字数ベースに移行）。
+ * 文字数上限は撤廃済み（1200 字超でも書き続けられる）。進捗バーのみ
+ * CHARS_PER_PAGE=1200 を使って 100% 固定表示する。
  */
 export default function EditorPage() {
   const params = useParams<{ volumeId: string; pageNumber: string }>();
@@ -89,11 +85,8 @@ export default function EditorPage() {
   const textareaRef = useRef<HTMLTextAreaElement | null>(null);
   // M3: 外側スクロールコンテナ (.surface) 参照。カーソル復元時の scrollTop 宛先。
   const surfaceRef = useRef<HTMLDivElement | null>(null);
-  // IME 変換中フラグ (M6-T2)。true の間は自動次ページ遷移を発動させない。
+  // IME 変換中フラグ (M6-T2)。スワイプ・PageUp/PageDown の誤発火防止に使用。
   const isComposingRef = useRef(false);
-  // 自動遷移後、次ページでカーソルを overflow.length 位置に置くための pending 値 (M6-T3)。
-  // null の間は通常のカーソル復元 (useEditorCursor) に任せる。
-  const pendingCursorPosRef = useRef<number | null>(null);
   // 戻るボタンガードの二重 pushState を防ぐ ref (StrictMode 対策)
   const historyGuardInstalledRef = useRef(false);
 
@@ -120,20 +113,6 @@ export default function EditorPage() {
       // 「最後に開いたページ」を記憶（次回本棚から同じページに戻れるように）
       // fire-and-forget: 失敗しても表示は継続
       void updateVolumeLastOpenedPage(volumeId, current).catch(() => {});
-      // M6-T3: 自動遷移直後はカーソルを overflow.length 位置（＝前ページから持ち越した文末）に置く。
-      // useEditorCursor の復元より後に実行する必要があるため、microtask で textarea を直接操作する。
-      if (pendingCursorPosRef.current != null) {
-        const pos = pendingCursorPosRef.current;
-        pendingCursorPosRef.current = null;
-        requestAnimationFrame(() => {
-          if (cancelled) return;
-          const el = textareaRef.current;
-          if (!el) return;
-          el.focus();
-          const clamped = Math.max(0, Math.min(pos, el.value.length));
-          el.setSelectionRange(clamped, clamped);
-        });
-      }
     })();
     return () => {
       cancelled = true;
@@ -188,61 +167,6 @@ export default function EditorPage() {
   );
 
   /**
-   * M10-M2: 1200 文字超過時の自動次ページ遷移。
-   * - 現ページを keep (先頭 1200 字) で即時 savePage (flush 相当)
-   * - 次ページ既存 content の先頭に overflow を prepend して savePage
-   * - lastOpenedPage を next に更新し /book/:id/:next に navigate
-   * - 遷移後、textarea にカーソル位置 `overflow.length` を復元する (pendingCursorPosRef)
-   *
-   * 呼び出しは `onChange`（composition 中でない時）と `onCompositionEnd` から。
-   * 最終ページは T6.4 の onBeforeInput 側でロックされるためここでは発動させない。
-   */
-  const checkOverflowAndNavigate = useCallback(
-    (value: string) => {
-      if (!volumeId) return;
-      if (current >= PAGES_PER_VOLUME) return; // T6.4 ロック対象は発動させない
-      if (transitionLockRef.current) return;
-      const { keep, overflow } = splitAtCharLimit(value);
-      if (overflow.length === 0) return;
-
-      transitionLockRef.current = true;
-      const next = current + 1;
-      // 遷移後の初期カーソルを overflow.length に置く（次ページ先頭から overflow 末尾）
-      pendingCursorPosRef.current = overflow.length;
-      // textarea 内容を即 keep に差し替える（autosave の再発火や fade 中の古い値の上書きを防ぐ）
-      setText(keep);
-      setFading(true);
-
-      void (async () => {
-        try {
-          // 1) 現ページを keep で確定保存（autosave の debounce を待たない）
-          await savePage(volumeId, current, keep);
-          // 2) 次ページ既存 content を取得し、overflow を先頭に prepend
-          const existingNext = await getPage(volumeId, next);
-          const prevNextContent = existingNext?.content ?? '';
-          const nextContent =
-            prevNextContent.length === 0
-              ? overflow
-              : `${overflow}\n${prevNextContent}`;
-          await savePage(volumeId, next, nextContent);
-        } catch {
-          // 保存失敗でも遷移は継続（次ページの useEffect で再ロードされる）
-        }
-        try {
-          await updateVolumeLastOpenedPage(volumeId, next);
-        } catch {
-          // 握りつぶし
-        }
-        if (fadeTimerRef.current) clearTimeout(fadeTimerRef.current);
-        fadeTimerRef.current = setTimeout(() => {
-          navigate(`/book/${volumeId}/${next}`);
-        }, PAGE_FADE_MS);
-      })();
-    },
-    [volumeId, current, navigate]
-  );
-
-  /**
    * M10-M2-T4: textarea 高さを内容の scrollHeight に追従させる。
    * 紙高さの下限（空ページでも 60 本の罫線を描画するための min-height）は
    * CSS 側（M3 の `.textarea { min-height: var(--page-height-px) }`）で保証する。
@@ -260,12 +184,8 @@ export default function EditorPage() {
       setText(value);
       const t = e.target as HTMLTextAreaElement;
       onSelectionChange(t.selectionStart ?? 0);
-      // IME 変換中は自動遷移判定をスキップ (M6-T2)。
-      // composition 終了時に onCompositionEnd から再判定する。
-      if (isComposingRef.current) return;
-      checkOverflowAndNavigate(value);
     },
-    [onSelectionChange, checkOverflowAndNavigate]
+    [onSelectionChange]
   );
 
   const handleSelect = useCallback(
@@ -277,59 +197,14 @@ export default function EditorPage() {
   );
 
   // M6-T2: IME (composition) ガード。
-  // 変換中は自動遷移を抑止し、変換確定時に最新 value で再判定する。
+  // スワイプ（L456）/ PageUp/PageDown（L440）の誤発火防止用に ref を更新する。
   const handleCompositionStart = useCallback(() => {
     isComposingRef.current = true;
   }, []);
 
-  const handleCompositionEnd = useCallback(
-    (e: ReactCompositionEvent<HTMLTextAreaElement>) => {
-      isComposingRef.current = false;
-      checkOverflowAndNavigate(e.currentTarget.value);
-    },
-    [checkOverflowAndNavigate]
-  );
-
-  /**
-   * M6-T4 / M10-M2-T3: 最終ページ末尾ロック。
-   * 最終ページで 1200 字を超える入力（改行・通常文字・長文ペースト）を
-   * `onBeforeInput` で先読みキャンセルする。
-   * - 削除や 1200 字以内の入力は素通り（preventDefault しない）。
-   * - IME 変換中（composition）は判定をスキップ（確定前の中間状態で誤判定しないため）。
-   * - 静けさ原則: トースト・点滅・触覚フィードバックは出さない（AGENTS.md #17）。
-   */
-  const handleBeforeInput = useCallback(
-    (e: FormEvent<HTMLTextAreaElement>) => {
-      if (current !== PAGES_PER_VOLUME) return;
-      if (isComposingRef.current) return;
-      const el = e.currentTarget;
-      // React の SyntheticInputEvent は `data` プロパティを（fallback で）持つ。
-      // 型には無いので unknown 経由でアクセス。native InputEvent.data も fallback として読む。
-      const syntheticData = (e as unknown as { data?: string | null }).data;
-      const nativeData = (
-        e as unknown as { nativeEvent?: { data?: string | null } }
-      ).nativeEvent?.data;
-      const raw =
-        typeof syntheticData === 'string'
-          ? syntheticData
-          : typeof nativeData === 'string'
-            ? nativeData
-            : '';
-      // keypress 由来で `\r` が返ってくるケース（Enter 押下）を `\n` として扱う
-      const inserted = raw === '\r' ? '\n' : raw;
-      // 削除系 inputType は data が null/空で overflow を増やさないので skip
-      if (!inserted) return;
-      const start = el.selectionStart ?? el.value.length;
-      const end = el.selectionEnd ?? el.value.length;
-      const nextValue =
-        el.value.slice(0, start) + inserted + el.value.slice(end);
-      // 文字数ベースのロック: 1200 字を超える入力をキャンセル。
-      if (nextValue.length > CHARS_PER_PAGE) {
-        e.preventDefault();
-      }
-    },
-    [current]
-  );
+  const handleCompositionEnd = useCallback(() => {
+    isComposingRef.current = false;
+  }, []);
 
   /**
    * ページ遷移の共通処理 (M5-T1/T2)。
@@ -372,9 +247,8 @@ export default function EditorPage() {
   /**
    * M7-T4 / M2-T2.1: カーソル位置に今日の日付スタンプを挿入する。
    * - 挿入後は textarea の selectionRange をスタンプ末尾に移動
-   * - state も即時に更新（onChange と同じ経路で IME ガード・自動遷移と協調）
-   * - 挿入で CHARS_PER_PAGE (1200 字) を超えた場合は T6.3 の自動次ページ遷移
-   *   ロジック (`checkOverflowAndNavigate`) を発火させる。
+   * - state も即時に更新（onChange と同じ経路）
+   * - 文字数上限は撤廃済み（1200 字超でも現ページに留まる）。
    * - M2-T2.1: `.surface`（外側スクロールコンテナ）の scrollTop を挿入前に保存し、
    *   rAF 内の focus() / setSelectionRange() 実行後に明示的に復元する。
    *   ブラウザでは focus() / setSelectionRange() が祖先スクロールコンテナの
@@ -404,10 +278,7 @@ export default function EditorPage() {
       if (surfaceRef.current) surfaceRef.current.scrollTop = savedScrollTop;
     });
     onSelectionChange(nextPos);
-    // IME 変換中の日付挿入は想定外だが、compositionEnd での再判定に任せる。
-    if (isComposingRef.current) return;
-    checkOverflowAndNavigate(nextValue);
-  }, [onSelectionChange, checkOverflowAndNavigate]);
+  }, [onSelectionChange]);
 
   const canGoPrev = current > 1;
   const canGoNext = current < PAGES_PER_VOLUME;
@@ -549,7 +420,6 @@ export default function EditorPage() {
           onChange={handleChange}
           onSelect={handleSelect}
           onKeyDown={handleKeyDown}
-          onBeforeInput={handleBeforeInput}
           onCompositionStart={handleCompositionStart}
           onCompositionEnd={handleCompositionEnd}
           autoComplete="off"
