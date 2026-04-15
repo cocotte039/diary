@@ -124,6 +124,59 @@ describe('EditorPage (M4-T3)', () => {
   });
 });
 
+describe('EditorPage back button guard (popstate → 本棚)', () => {
+  it('戻るボタン(popstate) で / に navigate する', async () => {
+    const v = await ensureActiveVolume();
+    let pathname = '';
+    renderWithLocationProbe(`/book/${v.id}/3`, (p) => { pathname = p; });
+    await screen.findByLabelText('日記本文');
+    act(() => {
+      window.dispatchEvent(new PopStateEvent('popstate'));
+    });
+    await waitFor(() => expect(pathname).toBe('/'));
+  });
+
+  it('ページめくり後の戻るボタンでも / に戻る', async () => {
+    const v = await ensureActiveVolume();
+    let pathname = '';
+    renderWithLocationProbe(`/book/${v.id}/1`, (p) => { pathname = p; });
+    await screen.findByLabelText('日記本文');
+    fireEvent.click(screen.getByRole('button', { name: '次のページ' }));
+    await waitFor(() => expect(pathname).toBe(`/book/${v.id}/2`));
+    act(() => {
+      window.dispatchEvent(new PopStateEvent('popstate'));
+    });
+    await waitFor(() => expect(pathname).toBe('/'));
+  });
+
+  it('戻るボタン発火前の編集内容が flush で保存される', async () => {
+    const v = await ensureActiveVolume();
+    renderAt(`/book/${v.id}/1`);
+    const textarea = (await screen.findByLabelText('日記本文')) as HTMLTextAreaElement;
+    fireEvent.change(textarea, { target: { value: 'draft-before-back' } });
+    act(() => {
+      window.dispatchEvent(new PopStateEvent('popstate'));
+    });
+    await waitFor(async () => {
+      const saved = await getPage(v.id, 1);
+      expect(saved?.content).toBe('draft-before-back');
+    });
+  });
+
+  it('アンマウント後の popstate では navigate が呼ばれない', async () => {
+    const v = await ensureActiveVolume();
+    let pathname = '';
+    const { unmount } = renderWithLocationProbe(`/book/${v.id}/1`, (p) => { pathname = p; });
+    await screen.findByLabelText('日記本文');
+    unmount();
+    pathname = '(cleared)';
+    act(() => {
+      window.dispatchEvent(new PopStateEvent('popstate'));
+    });
+    expect(pathname).toBe('(cleared)');
+  });
+});
+
 describe('EditorPage page navigation buttons (M5-T1)', () => {
   it('「次のページ」ボタンで pageNumber+1 のページに遷移する', async () => {
     const v = await ensureActiveVolume();

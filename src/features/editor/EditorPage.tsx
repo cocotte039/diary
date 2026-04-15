@@ -94,6 +94,8 @@ export default function EditorPage() {
   // 自動遷移後、次ページでカーソルを overflow.length 位置に置くための pending 値 (M6-T3)。
   // null の間は通常のカーソル復元 (useEditorCursor) に任せる。
   const pendingCursorPosRef = useRef<number | null>(null);
+  // 戻るボタンガードの二重 pushState を防ぐ ref (StrictMode 対策)
+  const historyGuardInstalledRef = useRef(false);
 
   useEffect(() => {
     let cancelled = false;
@@ -154,6 +156,24 @@ export default function EditorPage() {
 
   // autosave 配線（本番コードパス）
   const { flush } = useEditorAutoSave(ready ? volumeId : null, current, text);
+
+  useEffect(() => {
+    // Android 端末の戻るボタン（popstate）で本棚 (`/`) に戻すためのガード。
+    // マウント時にダミー履歴を 1 件積み、popstate で flush → navigate('/', replace) する。
+    // StrictMode 二重マウントに備え pushState は ref で 1 回に制限する。
+    if (!historyGuardInstalledRef.current) {
+      window.history.pushState({ editorGuard: true }, '');
+      historyGuardInstalledRef.current = true;
+    }
+    const onPopState = () => {
+      void flush().catch(() => {});
+      navigate('/', { replace: true });
+    };
+    window.addEventListener('popstate', onPopState);
+    return () => {
+      window.removeEventListener('popstate', onPopState);
+    };
+  }, [flush, navigate]);
 
   // カーソル復元 (M5-T4 / M9-M4): ページ単位でスコープ化された localStorage キーを使う。
   // M3: scrollTop 宛先として .surface ref を渡す（外側スクロール化に追随）。
