@@ -69,17 +69,17 @@
       "id": "M7",
       "name": "全体検証・README 更新",
       "goal": "grep 残骸チェック、README の仕様反映、lint/build/test 全通過",
-      "status": "pending",
+      "status": "completed",
       "verification": "npm run lint && npm run build && npm run test -- --run",
       "tasks": [
-        { "id": "T7.1", "name": "残骸grep確認＋README更新＋全テスト実行", "spec": "specs/m7-t1.md", "wave": 2, "status": "pending", "assignee": "build" }
+        { "id": "T7.1", "name": "残骸grep確認＋README更新＋全テスト実行", "spec": "specs/m7-t1.md", "wave": 2, "status": "completed", "assignee": "build" }
       ]
     }
   ],
   "fix_queue": [],
   "metadata": {
     "created_at": "2026-04-15T20:00:00+09:00",
-    "last_updated": "2026-04-15T20:29:07+09:00",
+    "last_updated": "2026-04-15T20:32:19+09:00",
     "current_iteration": 0,
     "total_iterations": 0
   }
