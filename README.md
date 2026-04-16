@@ -40,7 +40,7 @@ diary/
 ├─ src/
 │  ├─ styles/       # global.css (CSS変数 / --header-height / .app-header / .app-header-link), notebook.css (罫線共通)
 │  ├─ lib/          # constants (CHARS_PER_PAGE=1200 は進捗バー目安、LINES_PER_PAPER=60, PAGES_PER_VOLUME=60), pagination (splitIntoPages/countPages 他), db (idb v2), github, export, pwa
-│  ├─ hooks/        # useEditorCursor, useDebouncedCallback
+│  ├─ hooks/        # useDebouncedCallback
 │  ├─ features/
 │  │  ├─ editor/    # EditorPage, useEditorAutoSave, DateIcon
 │  │  ├─ bookshelf/ # BookshelfPage, VolumeCard, BookshelfMenu(+ .module.css), Calendar

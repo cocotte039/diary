@@ -13,7 +13,6 @@ import styles from './EditorPage.module.css';
 import {
   getAppSettings,
   getPage,
-  getVolume,
   updateVolumeLastOpenedPage,
 } from '../../lib/db';
 import {
@@ -22,7 +21,6 @@ import {
   SWIPE_THRESHOLD_PX,
 } from '../../lib/constants';
 import { useEditorAutoSave } from './useEditorAutoSave';
-import { useEditorCursor } from '../../hooks/useEditorCursor';
 import DateIcon from './DateIcon';
 
 /** 曜日の日本語表記（日=0 … 土=6 に対応）。WritePage から踏襲。 */
@@ -77,9 +75,6 @@ export default function EditorPage() {
   const [text, setText] = useState('');
   const [ready, setReady] = useState(false);
   const [fading, setFading] = useState(false);
-  // M9-M4: 冊ステータスに応じた初回カーソル位置のフォールバック。
-  // active なら末尾（続きを書く）、completed なら先頭（読み返す）。
-  const [cursorFallback, setCursorFallback] = useState<'end' | 'start'>('end');
   // 日付挿入時に参照するカットオフ時刻。初回マウントで設定値をロード。
   const [dayRolloverHour, setDayRolloverHour] = useState<number>(
     DEFAULT_DAY_ROLLOVER_HOUR
@@ -92,9 +87,9 @@ export default function EditorPage() {
   // スワイプ開始座標 (M5-T3)
   const touchStartXRef = useRef<number | null>(null);
   const touchStartYRef = useRef<number | null>(null);
-  // textarea 参照（カーソル復元 M5-T4 用）
+  // textarea 参照（ページ遷移時のカーソル位置リセット用）
   const textareaRef = useRef<HTMLTextAreaElement | null>(null);
-  // M3: 外側スクロールコンテナ (.surface) 参照。カーソル復元時の scrollTop 宛先。
+  // 外側スクロールコンテナ (.surface) 参照。ページ遷移時の scrollTop リセット宛先。
   const surfaceRef = useRef<HTMLDivElement | null>(null);
   // IME 変換中フラグ (M6-T2)。スワイプ・PageUp/PageDown の誤発火防止に使用。
   const isComposingRef = useRef(false);
@@ -123,14 +118,9 @@ export default function EditorPage() {
         }
         return;
       }
-      const [page, volume] = await Promise.all([
-        getPage(volumeId, current),
-        getVolume(volumeId),
-      ]);
+      const page = await getPage(volumeId, current);
       if (cancelled) return;
       setText(page?.content ?? '');
-      // M9-M4: 書きかけ（active）は末尾、完了済みは先頭にカーソルを置く（localStorage が無いとき）
-      setCursorFallback(volume?.status === 'active' ? 'end' : 'start');
       setReady(true);
       // 「最後に開いたページ」を記憶（次回本棚から同じページに戻れるように）
       // fire-and-forget: 失敗しても表示は継続
@@ -176,17 +166,19 @@ export default function EditorPage() {
     };
   }, [flush, navigate]);
 
-  // カーソル復元 (M5-T4 / M9-M4): ページ単位でスコープ化された localStorage キーを使う。
-  // M3: scrollTop 宛先として .surface ref を渡す（外側スクロール化に追随）。
-  const { onSelectionChange } = useEditorCursor(
-    textareaRef,
-    text,
-    ready,
-    volumeId,
-    current,
-    cursorFallback,
-    surfaceRef
-  );
+  // ページ読込完了時（冊/ページ変化時）に surface を先頭へスクロールし、
+  // カーソルを先頭 (位置 0) に置く。focus({preventScroll:true}) でブラウザの
+  // 自動スクロールを抑止することで、ページをめくった直後に「少し下がった」
+  // 位置から始まる UX を防ぐ。
+  useLayoutEffect(() => {
+    if (!ready) return;
+    if (surfaceRef.current) surfaceRef.current.scrollTop = 0;
+    const ta = textareaRef.current;
+    if (ta) {
+      ta.focus({ preventScroll: true });
+      ta.setSelectionRange(0, 0);
+    }
+  }, [ready, volumeId, current]);
 
   /**
    * M10-M2-T4: textarea 高さを内容の scrollHeight に追従させる。
@@ -202,20 +194,9 @@ export default function EditorPage() {
 
   const handleChange = useCallback(
     (e: ChangeEvent<HTMLTextAreaElement>) => {
-      const value = e.target.value;
-      setText(value);
-      const t = e.target as HTMLTextAreaElement;
-      onSelectionChange(t.selectionStart ?? 0);
+      setText(e.target.value);
     },
-    [onSelectionChange]
-  );
-
-  const handleSelect = useCallback(
-    (e: React.SyntheticEvent<HTMLTextAreaElement>) => {
-      const t = e.currentTarget;
-      onSelectionChange(t.selectionStart ?? 0);
-    },
-    [onSelectionChange]
+    []
   );
 
   // M6-T2: IME (composition) ガード。
@@ -299,8 +280,7 @@ export default function EditorPage() {
       cur.setSelectionRange(clamped, clamped);
       if (surfaceRef.current) surfaceRef.current.scrollTop = savedScrollTop;
     });
-    onSelectionChange(nextPos);
-  }, [dayRolloverHour, onSelectionChange]);
+  }, [dayRolloverHour]);
 
   const canGoPrev = current > 1;
   const canGoNext = current < PAGES_PER_VOLUME;
@@ -411,7 +391,6 @@ export default function EditorPage() {
           className={`notebook-surface notebook-textarea ${styles.textarea}`}
           value={text}
           onChange={handleChange}
-          onSelect={handleSelect}
           onKeyDown={handleKeyDown}
           onCompositionStart={handleCompositionStart}
           onCompositionEnd={handleCompositionEnd}

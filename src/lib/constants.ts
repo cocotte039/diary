@@ -34,9 +34,6 @@ export const HEADER_HEIGHT_PX = 2 * LINE_HEIGHT_PX;
 /** 自動保存のデバウンス (ms) */
 export const AUTOSAVE_DEBOUNCE_MS = 2000;
 
-/** カーソル位置保存のデバウンス (ms) */
-export const CURSOR_SAVE_DEBOUNCE_MS = 1000;
-
 /** スワイプでページ送りとみなす閾値 (px) */
 export const SWIPE_THRESHOLD_PX = 50;
 
@@ -45,7 +42,6 @@ export const DB_NAME = 'diary';
 export const DB_VERSION = 2;
 
 /** localStorage キー */
-export const LS_CURSOR_KEY = 'note-cursor-position';
 export const LS_BANNER_DISMISSED_KEY = 'note-a2hs-banner-dismissed';
 
 /** エクスポートJSONの形式バージョン */
