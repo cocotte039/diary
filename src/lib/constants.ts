@@ -4,20 +4,16 @@
  */
 
 /**
- * 1ページあたりの文字上限（text.length ベース、改行含む）。
- * M10 で「論理行数 60」基準から「文字数 1200」基準に変更。
- * EditorPage の overflow / 最終ページロックの判定単位。
- */
-export const CHARS_PER_PAGE = 1200;
-
-/**
  * 罫線描画用の視覚上の行数。1 ページの紙に描く罫線の本数。
- * CSS `--lines-per-page` と同期させること。CHARS_PER_PAGE とは独立。
+ * CSS `--lines-per-page` と同期させること。
  */
 export const LINES_PER_PAPER = 60;
 
-/** 1冊あたりのページ数。M10 で 50 → 60。 */
-export const PAGES_PER_VOLUME = 60;
+/** 1冊あたりのページ数上限（≈ 3 ヶ月サイクルの区切りを意図）。 */
+export const PAGES_PER_VOLUME = 100;
+
+/** 日付挿入時の「深夜を前日扱いにする」カットオフ時刻のデフォルト（時）。 */
+export const DEFAULT_DAY_ROLLOVER_HOUR = 4;
 
 /** フォントサイズ (px)。iOS Safari でフォーカス時のズームを防ぐため 16px 固定 */
 export const FONT_SIZE_PX = 16;

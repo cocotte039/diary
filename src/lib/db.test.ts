@@ -67,15 +67,14 @@ describe('db.saveVolumeText / loadVolumeText', () => {
     expect(loaded).toBe(text);
   });
 
-  it('creates additional pages when text grows past CHARS_PER_PAGE chars', async () => {
+  it('keeps all content in page 1 regardless of length (no char-based split)', async () => {
     const v = await ensureActiveVolume();
-    const { CHARS_PER_PAGE } = await import('./constants');
-    const text = 'あ'.repeat(CHARS_PER_PAGE + 1);
+    const text = 'あ'.repeat(5000);
     await saveVolumeText(v.id, text);
     const pages = await getPagesByVolume(v.id);
-    expect(pages.length).toBe(2);
+    expect(pages.length).toBe(1);
     expect(pages[0].pageNumber).toBe(1);
-    expect(pages[1].pageNumber).toBe(2);
+    expect(pages[0].content).toBe(text);
   });
 
   it('marks updated page as pending for sync', async () => {
@@ -85,19 +84,13 @@ describe('db.saveVolumeText / loadVolumeText', () => {
     expect(pages[0].syncStatus).toBe('pending');
   });
 
-  it('deletes surplus pages when text shrinks (but keeps page 1)', async () => {
+  it('updates page 1 content on subsequent saves', async () => {
     const v = await ensureActiveVolume();
-    const { CHARS_PER_PAGE } = await import('./constants');
-    // CHARS_PER_PAGE * 2 + 1 文字 → 3 ページ相当
-    const big = 'あ'.repeat(CHARS_PER_PAGE * 2 + 1);
-    await saveVolumeText(v.id, big);
-    let pages = await getPagesByVolume(v.id);
-    expect(pages.length).toBe(3);
-
-    await saveVolumeText(v.id, 'short');
-    pages = await getPagesByVolume(v.id);
+    await saveVolumeText(v.id, 'first');
+    await saveVolumeText(v.id, 'second');
+    const pages = await getPagesByVolume(v.id);
     expect(pages.length).toBe(1);
-    expect(pages[0].content).toBe('short');
+    expect(pages[0].content).toBe('second');
   });
 });
 

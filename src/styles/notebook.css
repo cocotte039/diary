@@ -17,31 +17,18 @@
   background-color: var(--color-bg);
 
   /*
-   * 罫線: 2 レイヤー構成。
-   * - 上レイヤー: 25 行ごとに強調罫線（rgba 0.14、ボリューム感の視覚アンカー）。
-   * - 下レイヤー: 1 行ごとに通常罫線（--color-rule、既存）。
+   * 罫線: 1 行ごとに均一な通常罫線（--color-rule）のみ。
    * repeating-linear-gradient で line-height と同期した横線を描く。
    * 変更する場合は background-size と line-height を同期させること。
-   * 強調罫線の Y 座標は通常罫線と重なる配置（ズレなし）。
    */
-  background-image:
-    repeating-linear-gradient(
-      to bottom,
-      transparent 0,
-      transparent calc(25 * var(--line-height-px) - 1px),
-      rgba(255, 255, 255, 0.14) calc(25 * var(--line-height-px) - 1px),
-      rgba(255, 255, 255, 0.14) calc(25 * var(--line-height-px))
-    ),
-    repeating-linear-gradient(
-      to bottom,
-      transparent 0,
-      transparent calc(var(--line-height-px) - 1px),
-      var(--color-rule) calc(var(--line-height-px) - 1px),
-      var(--color-rule) var(--line-height-px)
-    );
-  background-size:
-    100% calc(25 * var(--line-height-px)),
-    100% var(--line-height-px);
+  background-image: repeating-linear-gradient(
+    to bottom,
+    transparent 0,
+    transparent calc(var(--line-height-px) - 1px),
+    var(--color-rule) calc(var(--line-height-px) - 1px),
+    var(--color-rule) var(--line-height-px)
+  );
+  background-size: 100% var(--line-height-px);
   /* スクロール時に罫線がテキストと一緒に動くようにする。
      これがないと textarea/reader の内部スクロール時に文字だけが動き、
      罫線とベースラインがズレて不自然になる。 */

@@ -9,12 +9,11 @@ import {
   savePage,
 } from '../../lib/db';
 import {
-  CHARS_PER_PAGE,
   DB_NAME,
   PAGES_PER_VOLUME,
   SWIPE_THRESHOLD_PX,
 } from '../../lib/constants';
-import EditorPage from './EditorPage';
+import EditorPage, { formatToday } from './EditorPage';
 
 vi.mock('../../lib/github', () => ({
   syncPendingPagesBackground: vi.fn(),
@@ -92,13 +91,15 @@ describe('EditorPage (M4-T3)', () => {
     expect(textarea.value).toBe('typing…');
   });
 
-  it('header contains 本棚 link to /, current page number, 日付挿入ボタン (設定 link は無い)', async () => {
+  it('header contains 本棚 link to /, current page number (no denominator), 日付挿入ボタン', async () => {
     const v = await ensureActiveVolume();
     renderAt(`/book/${v.id}/7`);
     expect(await screen.findByRole('link', { name: '本棚に戻る' })).toHaveAttribute('href', '/');
     expect(screen.getByRole('button', { name: '今日の日付を挿入' })).toBeInTheDocument();
     expect(screen.queryByRole('link', { name: '設定' })).not.toBeInTheDocument();
-    expect(screen.getByTestId('page-indicator')).toHaveTextContent(`7 / ${PAGES_PER_VOLUME}`);
+    const indicator = screen.getByTestId('page-indicator');
+    expect(indicator).toHaveTextContent('7');
+    expect(indicator.textContent).not.toContain('/');
   });
 
   it('falls back to page 1 for out-of-range page numbers', async () => {
@@ -107,9 +108,7 @@ describe('EditorPage (M4-T3)', () => {
     renderAt(`/book/${v.id}/999`);
     const textarea = (await screen.findByLabelText('日記本文')) as HTMLTextAreaElement;
     await waitFor(() => expect(textarea.value).toBe('first'));
-    expect(screen.getByTestId('page-indicator')).toHaveTextContent(
-      `1 / ${PAGES_PER_VOLUME}`,
-    );
+    expect(screen.getByTestId('page-indicator')).toHaveTextContent('1');
   });
 
   it('falls back to page 1 for non-numeric page numbers', async () => {
@@ -118,9 +117,7 @@ describe('EditorPage (M4-T3)', () => {
     renderAt(`/book/${v.id}/abc`);
     const textarea = (await screen.findByLabelText('日記本文')) as HTMLTextAreaElement;
     await waitFor(() => expect(textarea.value).toBe('first'));
-    expect(screen.getByTestId('page-indicator')).toHaveTextContent(
-      `1 / ${PAGES_PER_VOLUME}`,
-    );
+    expect(screen.getByTestId('page-indicator')).toHaveTextContent('1');
   });
 });
 
@@ -580,53 +577,13 @@ describe('EditorPage date insertion (M7-T4)', () => {
 
 });
 
-describe('EditorPage progress bar (M4-T3)', () => {
-  it('progressbar 要素が常時ヘッダー直下に存在し、a11y 属性が揃っている', async () => {
+describe('EditorPage: no progress bar', () => {
+  it('page-progress 要素は DOM に存在しない', async () => {
     const v = await ensureActiveVolume();
     renderAt(`/book/${v.id}/1`);
-    const bar = await screen.findByTestId('page-progress');
-    expect(bar).toHaveAttribute('role', 'progressbar');
-    expect(bar).toHaveAttribute('aria-label', 'ページの残量');
-    expect(bar).toHaveAttribute('aria-valuemin', '0');
-    expect(bar).toHaveAttribute('aria-valuemax', '100');
-    expect(bar).toHaveAttribute('aria-valuenow', '0');
-  });
-
-  it('空ページ → aria-valuenow=0', async () => {
-    const v = await ensureActiveVolume();
-    renderAt(`/book/${v.id}/1`);
-    const bar = await screen.findByTestId('page-progress');
-    await waitFor(() => expect(bar).toHaveAttribute('aria-valuenow', '0'));
-  });
-
-  it('600 文字入力 → aria-valuenow=50', async () => {
-    const v = await ensureActiveVolume();
-    renderAt(`/book/${v.id}/1`);
-    const textarea = (await screen.findByLabelText('日記本文')) as HTMLTextAreaElement;
-    fireEvent.change(textarea, { target: { value: 'あ'.repeat(600) } });
-    const bar = screen.getByTestId('page-progress');
-    await waitFor(() => expect(bar).toHaveAttribute('aria-valuenow', '50'));
-  });
-
-  it('1200 文字入力 → aria-valuenow=100', async () => {
-    const v = await ensureActiveVolume();
-    renderAt(`/book/${v.id}/1`);
-    const textarea = (await screen.findByLabelText('日記本文')) as HTMLTextAreaElement;
-    fireEvent.change(textarea, { target: { value: 'あ'.repeat(CHARS_PER_PAGE) } });
-    const bar = screen.getByTestId('page-progress');
-    await waitFor(() => expect(bar).toHaveAttribute('aria-valuenow', '100'));
-  });
-
-  it('1300 文字の既存ページをロード → aria-valuenow=100（clamp）', async () => {
-    const v = await ensureActiveVolume();
-    // 最終ページ以外は自動遷移が走って overflow が押し出されるため、
-    // 遷移対象外の最終ページ（PAGES_PER_VOLUME）に 1300 字を直接保存してからロードする。
-    await savePage(v.id, PAGES_PER_VOLUME, 'あ'.repeat(1300));
-    renderAt(`/book/${v.id}/${PAGES_PER_VOLUME}`);
-    const textarea = (await screen.findByLabelText('日記本文')) as HTMLTextAreaElement;
-    await waitFor(() => expect(textarea.value.length).toBe(1300));
-    const bar = screen.getByTestId('page-progress');
-    expect(bar).toHaveAttribute('aria-valuenow', '100');
+    await screen.findByLabelText('日記本文');
+    expect(screen.queryByTestId('page-progress')).toBeNull();
+    expect(screen.queryByRole('progressbar')).toBeNull();
   });
 });
 
@@ -636,10 +593,10 @@ describe('EditorPage: no auto-navigation nor final-page lock (char-limit-removal
     let pathname = '';
     renderWithLocationProbe(`/book/${v.id}/1`, (p) => { pathname = p; });
     const textarea = (await screen.findByLabelText('日記本文')) as HTMLTextAreaElement;
-    fireEvent.change(textarea, { target: { value: 'あ'.repeat(CHARS_PER_PAGE + 1) } });
+    fireEvent.change(textarea, { target: { value: 'あ'.repeat(1201) } });
     await new Promise((r) => setTimeout(r, 250));
     expect(pathname).toBe(`/book/${v.id}/1`);
-    expect(textarea.value.length).toBe(CHARS_PER_PAGE + 1);
+    expect(textarea.value.length).toBe(1201);
   });
 
   it('5000 字を一気に入力しても遷移しない', async () => {
@@ -653,9 +610,9 @@ describe('EditorPage: no auto-navigation nor final-page lock (char-limit-removal
     expect(textarea.value.length).toBe(5000);
   });
 
-  it('最終ページで 1201 字入力しても preventDefault されない', async () => {
+  it('最終ページで長文を入力しても preventDefault されない', async () => {
     const v = await ensureActiveVolume();
-    const fullPage = 'あ'.repeat(CHARS_PER_PAGE);
+    const fullPage = 'あ'.repeat(1200);
     await savePage(v.id, PAGES_PER_VOLUME, fullPage);
     renderAt(`/book/${v.id}/${PAGES_PER_VOLUME}`);
     const textarea = (await screen.findByLabelText('日記本文')) as HTMLTextAreaElement;
@@ -664,25 +621,49 @@ describe('EditorPage: no auto-navigation nor final-page lock (char-limit-removal
     expect(textarea.value).toBe(fullPage + 'x');
   });
 
-  it('日付挿入で 1200 字超になっても現ページに留まる', async () => {
+  it('日付挿入で長文になっても現ページに留まる', async () => {
     const v = await ensureActiveVolume();
     let pathname = '';
     renderWithLocationProbe(`/book/${v.id}/1`, (p) => { pathname = p; });
     const textarea = (await screen.findByLabelText('日記本文')) as HTMLTextAreaElement;
-    fireEvent.change(textarea, { target: { value: 'あ'.repeat(CHARS_PER_PAGE) } });
+    fireEvent.change(textarea, { target: { value: 'あ'.repeat(1200) } });
     textarea.setSelectionRange(0, 0);
     fireEvent.click(screen.getByRole('button', { name: '今日の日付を挿入' }));
     await new Promise((r) => setTimeout(r, 250));
     expect(pathname).toBe(`/book/${v.id}/1`);
-    expect(textarea.value.length).toBeGreaterThan(CHARS_PER_PAGE);
+    expect(textarea.value.length).toBeGreaterThan(1200);
+  });
+});
+
+describe('formatToday (day rollover)', () => {
+  // 2026-04-16 (Thu) を基準日として使う
+  it('カットオフ時刻（4 時）以降は当日日付を返す', () => {
+    const now = new Date(2026, 3, 16, 4, 0, 0); // 04:00 ちょうど
+    expect(formatToday(4, now)).toBe('2026年4月16日(木)\n');
   });
 
-  it('1200 字超でも進捗バー aria-valuenow は 100 固定', async () => {
-    const v = await ensureActiveVolume();
-    renderAt(`/book/${v.id}/1`);
-    const textarea = (await screen.findByLabelText('日記本文')) as HTMLTextAreaElement;
-    fireEvent.change(textarea, { target: { value: 'あ'.repeat(CHARS_PER_PAGE + 300) } });
-    const bar = screen.getByTestId('page-progress');
-    await waitFor(() => expect(bar).toHaveAttribute('aria-valuenow', '100'));
+  it('カットオフ時刻（4 時）未満は前日日付を返す', () => {
+    const now = new Date(2026, 3, 16, 3, 59, 59); // 03:59:59
+    expect(formatToday(4, now)).toBe('2026年4月15日(水)\n');
+  });
+
+  it('カットオフ 0 時なら前日に送られない', () => {
+    const now = new Date(2026, 3, 16, 0, 0, 0); // 00:00 ちょうど、rollover=0
+    expect(formatToday(0, now)).toBe('2026年4月16日(木)\n');
+  });
+
+  it('月初 (4/1) の深夜は前月末日付になる', () => {
+    const now = new Date(2026, 3, 1, 2, 0, 0); // 4/1 02:00、rollover=4
+    expect(formatToday(4, now)).toBe('2026年3月31日(火)\n');
+  });
+
+  it('年初 (1/1) の深夜は前年末日付になる', () => {
+    const now = new Date(2026, 0, 1, 2, 0, 0); // 2026/1/1 02:00
+    expect(formatToday(4, now)).toBe('2025年12月31日(水)\n');
+  });
+
+  it('デフォルト引数なしで呼べる', () => {
+    const s = formatToday();
+    expect(s).toMatch(/^\d{4}年\d{1,2}月\d{1,2}日\([日月火水木金土]\)\n$/);
   });
 });

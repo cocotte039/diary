@@ -4,8 +4,10 @@ import styles from './SettingsPage.module.css';
 import { exportAllData } from '../../lib/export';
 import {
   clearGitHubSettings,
+  getAppSettings,
   getGitHubSettings,
   getPendingPages,
+  setAppSettings,
   setGitHubSettings,
 } from '../../lib/db';
 import {
@@ -14,6 +16,7 @@ import {
   testConnection,
   type ImportProgress,
 } from '../../lib/github';
+import { DEFAULT_DAY_ROLLOVER_HOUR } from '../../lib/constants';
 import type { GitHubSettings } from '../../types';
 
 type SectionStatus = { msg: string; error?: boolean } | null;
@@ -30,11 +33,15 @@ export default function SettingsPage() {
   const [ownerRepo, setOwnerRepo] = useState('');
   const [pending, setPending] = useState<number>(0);
   const [loaded, setLoaded] = useState(false);
+  const [dayRolloverHour, setDayRolloverHour] = useState<number>(
+    DEFAULT_DAY_ROLLOVER_HOUR
+  );
 
-  // 各セクションの結果表示（エクスポート / GitHub / インポート）
+  // 各セクションの結果表示（エクスポート / GitHub / インポート / 個人設定）
   const [exportStatus, setExportStatus] = useState<SectionStatus>(null);
   const [githubStatus, setGithubStatus] = useState<SectionStatus>(null);
   const [importStatus, setImportStatus] = useState<SectionStatus>(null);
+  const [appStatus, setAppStatus] = useState<SectionStatus>(null);
 
   // 各操作の進行フラグ
   const [saving, setSaving] = useState(false);
@@ -52,11 +59,24 @@ export default function SettingsPage() {
         setToken(s.token);
         setOwnerRepo(`${s.owner}/${s.repo}`);
       }
+      const app = await getAppSettings();
+      setDayRolloverHour(app.dayRolloverHour);
       const p = await getPendingPages();
       setPending(p.length);
       setLoaded(true);
     })();
   }, []);
+
+  const onSaveDayRollover = async (h: number) => {
+    const clamped = Math.max(0, Math.min(23, Math.floor(h)));
+    setDayRolloverHour(clamped);
+    try {
+      await setAppSettings({ dayRolloverHour: clamped });
+      setAppStatus({ msg: '✓ 保存しました' });
+    } catch (err) {
+      setAppStatus({ msg: `保存失敗: ${String(err)}`, error: true });
+    }
+  };
 
   const parseOwnerRepo = (
     s: string
@@ -234,6 +254,31 @@ export default function SettingsPage() {
       </header>
 
       <div className={styles.body}>
+      <section className={styles.section}>
+        <h2 className={styles.sectionTitle}>日付の扱い</h2>
+        <div className={styles.field}>
+          <label className={styles.label} htmlFor="day-rollover">
+            日付切り替え時刻
+          </label>
+          <select
+            id="day-rollover"
+            className={styles.input}
+            value={dayRolloverHour}
+            onChange={(e) => void onSaveDayRollover(Number(e.target.value))}
+          >
+            {Array.from({ length: 24 }, (_, i) => (
+              <option key={i} value={i}>
+                {String(i).padStart(2, '0')}:00
+              </option>
+            ))}
+          </select>
+        </div>
+        <p className={styles.status}>
+          ここで指定した時刻より前に日付を挿入すると、前日の日付が入ります。深夜に日記を書くときに便利です。
+        </p>
+        {renderStatus(appStatus)}
+      </section>
+
       <section className={styles.section}>
         <h2 className={styles.sectionTitle}>データをエクスポート</h2>
         <button type="button" className={styles.button} onClick={onExport}>

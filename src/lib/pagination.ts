@@ -1,18 +1,8 @@
-import { CHARS_PER_PAGE, LINE_HEIGHT_PX } from './constants';
-
-/**
- * テキスト中のカーソル位置 (selectionStart) が属するページ番号を返す (1-indexed)。
- * M10 で論理行ベースから文字数ベースに変更。
- * 空文字 / 範囲外の selectionStart は 1 を返す。
- */
-export function getPageNumber(selectionStart: number, text: string): number {
-  const clamped = Math.max(0, Math.min(selectionStart, text.length));
-  return Math.floor(clamped / CHARS_PER_PAGE) + 1;
-}
+import { LINE_HEIGHT_PX } from './constants';
 
 /**
  * テキスト全体の論理行数。末尾に \n があっても最終空行は1行と数える。
- * 罫線・視覚行表示のために残す（M10 でページ判定からは切り離された）。
+ * 罫線・視覚行表示のために残す（ページ判定からは切り離し済み）。
  */
 export function countLogicalLines(text: string): number {
   if (text.length === 0) return 1;
@@ -20,33 +10,19 @@ export function countLogicalLines(text: string): number {
 }
 
 /**
- * テキスト全体のページ数（最低1）。文字数ベース。
- */
-export function countPages(text: string): number {
-  return Math.max(1, Math.ceil(text.length / CHARS_PER_PAGE));
-}
-
-/**
- * テキストを CHARS_PER_PAGE 文字ごとに分割してページ文字列の配列を返す。
- * 各ページは最大 CHARS_PER_PAGE 文字。最後のページはそれ以下でもOK。
- * 空文字は `['']` を返す。
+ * 冊全文を Page レコード列に落とすための分割。
+ * 文字数上限を撤廃したため分割は行わず、全文をそのまま 1 ページ目に格納する。
+ * 空文字は `['']` を返す（空ページ 1 枚を表現するため）。
  *
- * 用途: db.saveVolumeText（冊全文を Page レコード列に保存する際の分割）。
- * 注意: 既存冊の再ページング目的では使わない（D6 参照）。
+ * 用途: db.saveVolumeText（DB 復元等の限定経路）。
  */
 export function splitIntoPages(text: string): string[] {
-  if (text.length === 0) return [''];
-  const pages: string[] = [];
-  for (let i = 0; i < text.length; i += CHARS_PER_PAGE) {
-    pages.push(text.slice(i, i + CHARS_PER_PAGE));
-  }
-  return pages;
+  return [text];
 }
 
 /**
- * ページ配列を元の1本の文字列に結合する。
+ * ページ配列を元の 1 本の文字列に結合する。
  * splitIntoPages の逆変換（round-trip で等価）。
- * 文字数ベースに変更したため単純な concat。
  */
 export function joinPages(pages: string[]): string {
   return pages.join('');

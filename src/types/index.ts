@@ -31,7 +31,7 @@ export interface Page {
   volumeId: string;
   /** ページ番号 1〜PAGES_PER_VOLUME */
   pageNumber: number;
-  /** 本文（\n 区切り、目安 1200 文字、上限なし。進捗バー計算でのみ参照） */
+  /** 本文（\n 区切り、文字数上限なし） */
   content: string;
   /** 初回書き込み日時 */
   createdAt: ISODateString;
@@ -47,6 +47,17 @@ export interface GitHubSettings {
   repo: string;
   /** 最終同期日時 */
   lastSyncedAt?: ISODateString;
+}
+
+/**
+ * アプリ全体の個人設定（GitHub 等のサービス別設定とは分離）。
+ */
+export interface AppSettings {
+  /**
+   * 日付挿入時に「深夜を前日扱い」にするカットオフ時刻（時、0〜23）。
+   * 例: 4 の場合、午前 0:00〜3:59 に日付挿入すると前日日付が入る。
+   */
+  dayRolloverHour: number;
 }
 
 /** エクスポートJSONのフォーマット */

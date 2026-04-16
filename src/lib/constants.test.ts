@@ -1,7 +1,7 @@
 import { describe, expect, it } from 'vitest';
 import * as constants from './constants';
 import {
-  CHARS_PER_PAGE,
+  DEFAULT_DAY_ROLLOVER_HOUR,
   FONT_SIZE_PX,
   HEADER_HEIGHT_PX,
   LINE_HEIGHT_EM,
@@ -24,15 +24,17 @@ describe('constants (M7-T1)', () => {
   });
 });
 
-describe('constants (M10 char-based pagination)', () => {
-  it('CHARS_PER_PAGE === 1200', () => {
-    expect(CHARS_PER_PAGE).toBe(1200);
-  });
+describe('constants (page capacity)', () => {
   it('LINES_PER_PAPER === 60', () => {
     expect(LINES_PER_PAPER).toBe(60);
   });
-  it('PAGES_PER_VOLUME === 60', () => {
-    expect(PAGES_PER_VOLUME).toBe(60);
+  it('PAGES_PER_VOLUME === 100', () => {
+    expect(PAGES_PER_VOLUME).toBe(100);
+  });
+  it('CHARS_PER_PAGE export is removed', () => {
+    expect(
+      (constants as Record<string, unknown>).CHARS_PER_PAGE
+    ).toBeUndefined();
   });
   it('LINES_PER_PAGE export is removed', () => {
     expect(
@@ -43,6 +45,12 @@ describe('constants (M10 char-based pagination)', () => {
     expect(
       (constants as Record<string, unknown>).LINES_PER_VOLUME
     ).toBeUndefined();
+  });
+});
+
+describe('constants (day rollover)', () => {
+  it('DEFAULT_DAY_ROLLOVER_HOUR === 4', () => {
+    expect(DEFAULT_DAY_ROLLOVER_HOUR).toBe(4);
   });
 });
 

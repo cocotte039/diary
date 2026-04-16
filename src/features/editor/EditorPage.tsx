@@ -11,12 +11,13 @@ import {
 import { Link, useNavigate, useParams } from 'react-router-dom';
 import styles from './EditorPage.module.css';
 import {
+  getAppSettings,
   getPage,
   getVolume,
   updateVolumeLastOpenedPage,
 } from '../../lib/db';
 import {
-  CHARS_PER_PAGE,
+  DEFAULT_DAY_ROLLOVER_HOUR,
   PAGES_PER_VOLUME,
   SWIPE_THRESHOLD_PX,
 } from '../../lib/constants';
@@ -28,11 +29,18 @@ import DateIcon from './DateIcon';
 const WEEKDAYS_JA = ['日', '月', '火', '水', '木', '金', '土'] as const;
 
 /**
- * 今日の日付を `YYYY年M月D日(曜)\n` 形式でフォーマットする。
- * WritePage.formatToday() の完全踏襲（丸括弧は半角、末尾改行を含む）。
+ * 現在時刻を設定された日付切り替え時刻（0〜23 時）に照らし、
+ * カットオフ時刻より前なら前日、以降なら当日の日付を `YYYY年M月D日(曜)\n` 形式で返す。
+ * 深夜に日記を書くユーザーが毎回手で日付を書き換える手間を省くための挙動。
  */
-function formatToday(): string {
-  const d = new Date();
+export function formatToday(
+  dayRolloverHour: number = DEFAULT_DAY_ROLLOVER_HOUR,
+  now: Date = new Date()
+): string {
+  const d = new Date(now.getTime());
+  if (now.getHours() < dayRolloverHour) {
+    d.setDate(d.getDate() - 1);
+  }
   const w = WEEKDAYS_JA[d.getDay()];
   return `${d.getFullYear()}年${d.getMonth() + 1}月${d.getDate()}日(${w})\n`;
 }
@@ -46,14 +54,13 @@ const PAGE_FADE_MS = 180;
  * URL: /book/:volumeId/:pageNumber
  * - ロード: getPage(volumeId, current) → textarea に content を流し込む
  * - 保存: useEditorAutoSave(volumeId, current, text) で 2 秒 debounce + flush
- * - ヘッダー: 左「本棚」/ 中央「‹ n / PAGES_PER_VOLUME ›」/ 右「設定」
+ * - ヘッダー: 左「本棚」/ 中央「‹ n ›」/ 右「日付挿入」
  * - ページ遷移 (M5-T1/T2/T3/T5): 左右ボタン + 180ms フェード (--transition-page)
  *   + 左右スワイプ（B 案: textarea 上でも水平優位 2:1 のスワイプで反応, M8-2）
  *   + PageUp/PageDown キー（textarea にフォーカスがある時のみ）。
  *   遷移前に autosave flush + lastOpenedPage 更新。
  *
- * 文字数上限は撤廃済み（1200 字超でも書き続けられる）。進捗バーのみ
- * CHARS_PER_PAGE=1200 を使って 100% 固定表示する。
+ * 文字数上限はなし。ページ分割・自動遷移・進捗バーはすべて撤廃済み。
  */
 export default function EditorPage() {
   const params = useParams<{ volumeId: string; pageNumber: string }>();
@@ -73,6 +80,10 @@ export default function EditorPage() {
   // M9-M4: 冊ステータスに応じた初回カーソル位置のフォールバック。
   // active なら末尾（続きを書く）、completed なら先頭（読み返す）。
   const [cursorFallback, setCursorFallback] = useState<'end' | 'start'>('end');
+  // 日付挿入時に参照するカットオフ時刻。初回マウントで設定値をロード。
+  const [dayRolloverHour, setDayRolloverHour] = useState<number>(
+    DEFAULT_DAY_ROLLOVER_HOUR
+  );
 
   // フェード中の連続クリック/タップ/キーを無視するロック
   const transitionLockRef = useRef(false);
@@ -89,6 +100,17 @@ export default function EditorPage() {
   const isComposingRef = useRef(false);
   // 戻るボタンガードの二重 pushState を防ぐ ref (StrictMode 対策)
   const historyGuardInstalledRef = useRef(false);
+
+  useEffect(() => {
+    let cancelled = false;
+    (async () => {
+      const app = await getAppSettings();
+      if (!cancelled) setDayRolloverHour(app.dayRolloverHour);
+    })();
+    return () => {
+      cancelled = true;
+    };
+  }, []);
 
   useEffect(() => {
     let cancelled = false;
@@ -248,7 +270,7 @@ export default function EditorPage() {
    * M7-T4 / M2-T2.1: カーソル位置に今日の日付スタンプを挿入する。
    * - 挿入後は textarea の selectionRange をスタンプ末尾に移動
    * - state も即時に更新（onChange と同じ経路）
-   * - 文字数上限は撤廃済み（1200 字超でも現ページに留まる）。
+   * - 文字数上限なし（書き続けても現ページに留まる）。
    * - M2-T2.1: `.surface`（外側スクロールコンテナ）の scrollTop を挿入前に保存し、
    *   rAF 内の focus() / setSelectionRange() 実行後に明示的に復元する。
    *   ブラウザでは focus() / setSelectionRange() が祖先スクロールコンテナの
@@ -258,7 +280,7 @@ export default function EditorPage() {
   const insertDate = useCallback(() => {
     const el = textareaRef.current;
     if (!el) return;
-    const stamp = formatToday();
+    const stamp = formatToday(dayRolloverHour);
     const start = el.selectionStart ?? el.value.length;
     const end = el.selectionEnd ?? el.value.length;
     const nextValue = el.value.slice(0, start) + stamp + el.value.slice(end);
@@ -278,17 +300,10 @@ export default function EditorPage() {
       if (surfaceRef.current) surfaceRef.current.scrollTop = savedScrollTop;
     });
     onSelectionChange(nextPos);
-  }, [onSelectionChange]);
+  }, [dayRolloverHour, onSelectionChange]);
 
   const canGoPrev = current > 1;
   const canGoNext = current < PAGES_PER_VOLUME;
-
-  // M4: ページ残量のプログレス率（0〜100 の整数パーセンテージ）。
-  // 1200 字超のページ（既存データ）をロードした場合も 100 に clamp する。
-  const progressPct = Math.min(
-    100,
-    Math.round((text.length / CHARS_PER_PAGE) * 100)
-  );
 
   // --- スワイプ (M5-T3 → M8-2 B 案) ---
   // B 案: textarea 上でも発火させ、水平優位 (|dx| > |dy| * 2) を必須にして
@@ -362,8 +377,6 @@ export default function EditorPage() {
             data-testid="page-indicator"
           >
             <span className={styles.pageCurrent}>{current}</span>
-            <span className={styles.pageSeparator}>{' / '}</span>
-            <span className={styles.pageTotal}>{PAGES_PER_VOLUME}</span>
           </div>
           <button
             type="button"
@@ -386,26 +399,6 @@ export default function EditorPage() {
           </button>
         </div>
       </header>
-
-      {/*
-       * M4: ページ残量のプログレスバー。
-       * ヘッダー直下に常時表示し、text.length / CHARS_PER_PAGE で塗りが伸びる。
-       * 色・数値・アニメーション（塗り幅 120ms transition を除く）は付けない。
-       */}
-      <div
-        className={styles.progress}
-        role="progressbar"
-        aria-label="ページの残量"
-        aria-valuemin={0}
-        aria-valuemax={100}
-        aria-valuenow={progressPct}
-        data-testid="page-progress"
-      >
-        <div
-          className={styles.progressFill}
-          style={{ width: `${progressPct}%` }}
-        />
-      </div>
 
       <div
         ref={surfaceRef}

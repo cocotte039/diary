@@ -2,9 +2,11 @@ import { openDB, type DBSchema, type IDBPDatabase } from 'idb';
 import {
   DB_NAME,
   DB_VERSION,
+  DEFAULT_DAY_ROLLOVER_HOUR,
   GITHUB_SETTINGS_KEY,
 } from './constants';
 import type {
+  AppSettings,
   GitHubSettings,
   Page,
   SyncStatus,
@@ -12,6 +14,8 @@ import type {
   VolumeStatus,
 } from '../types';
 import { splitIntoPages } from './pagination';
+
+const APP_SETTINGS_KEY = 'app-settings';
 
 /**
  * IndexedDB スキーマ (v1)。
@@ -210,11 +214,11 @@ export async function getPage(
 }
 
 /**
- * アクティブな Volume のテキスト全体を CHARS_PER_PAGE (1200 字) ごとに分割し、
- * IndexedDB の Page レコードを作成・更新する。
- * - 既存ページは content/updatedAt/syncStatus=pending で更新
- * - ページ数が増えた場合は新しい Page を作成
- * - ページ数が減った場合は余剰の Page を削除（ただし Page #1 は残す）
+ * 冊全文を 1 つの Page レコード（Page #1）に格納する。
+ * 文字数上限は撤廃したため分割は行わず、splitIntoPages は常に 1 要素を返す。
+ * - Page #1 が既存なら content/updatedAt/syncStatus=pending で更新
+ * - Page #1 が未作成なら新規作成
+ * - Page #2 以降の既存ページは残す（互換性維持、手動改ページした既存データの保護）
  *
  * 注意: 冊全文保存経路（DB 復元等）でのみ使用。通常の編集経路では savePage を使う。
  */
@@ -273,12 +277,9 @@ export async function saveVolumeText(
     }
   }
 
-  // 余剰ページの削除（Page #1 は必ず残す）
-  for (const old of existing) {
-    if (old.pageNumber > chunks.length && old.pageNumber > 1) {
-      await store.delete(old.id);
-    }
-  }
+  // 旧挙動（chunks.length を超える既存ページを削除）は廃止。
+  // splitIntoPages は常に 1 要素を返すので、Page #2 以降の既存ページは
+  // そのまま保持する（手動で作成した既存ページの保護）。
 
   await tx.done;
   return updated;
@@ -567,6 +568,24 @@ export async function setGitHubSettings(s: GitHubSettings): Promise<void> {
 export async function clearGitHubSettings(): Promise<void> {
   const db = await getDB();
   await db.delete('meta', GITHUB_SETTINGS_KEY);
+}
+
+/**
+ * アプリ全体の個人設定を取得する。
+ * 未保存の場合はデフォルト値（dayRolloverHour = 4）を返す。
+ */
+export async function getAppSettings(): Promise<AppSettings> {
+  const db = await getDB();
+  const stored = (await db.get('meta', APP_SETTINGS_KEY)) as
+    | AppSettings
+    | undefined;
+  if (!stored) return { dayRolloverHour: DEFAULT_DAY_ROLLOVER_HOUR };
+  return stored;
+}
+
+export async function setAppSettings(s: AppSettings): Promise<void> {
+  const db = await getDB();
+  await db.put('meta', s, APP_SETTINGS_KEY);
 }
 
 // =============================================================================
