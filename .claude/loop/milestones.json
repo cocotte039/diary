@@ -132,7 +132,7 @@
       "id": "M4",
       "name": "メモをバックアップできる（JSON・GitHub日付別）",
       "goal": "JSONエクスポートにメモが含まれ、GitHubに日付別ファイルで自動バックアップされる。",
-      "status": "pending",
+      "status": "completed",
       "verification": "npm run lint && npm run test:run && npm run build",
       "tasks": [
         {
@@ -172,7 +172,7 @@
           "name": "github.test: BACKUP_PATH_RE非マッチ・memos非破壊",
           "spec": "specs/m4-t5.md",
           "wave": 5,
-          "status": "pending",
+          "status": "completed",
           "assignee": "build"
         }
       ]
@@ -181,8 +181,8 @@
   "fix_queue": [],
   "metadata": {
     "created_at": "2026-05-17T00:00:00Z",
-    "last_updated": "2026-05-17T08:00:00Z",
+    "last_updated": "2026-05-17T08:05:00Z",
     "current_iteration": 1,
-    "total_iterations": 1
+    "total_iterations": 2
   }
 }

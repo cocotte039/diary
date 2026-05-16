@@ -610,3 +610,49 @@ npm run preview      # ビルド結果のプレビュー
   - getAllMemos → LogListPage.tsx:29、dateKey → LogListPage.tsx:45（本番）
   - deleteMemo → MemoListItem.tsx:51（本番）、navigate('/log/:id',{state:
     {from:'/log'}}) → MemoListItem.tsx:88
+
+### M4 メモをバックアップできる（/run 2026-05-17 Build 実装）— 自律判断記録
+
+- **T4.1 縮退確認**: buildExportPayload は M1 で `getAllMemos()` 配線済・
+  `EXPORT_FORMAT_VERSION` 定数参照済で spec 受入を完全充足。実装変更ゼロ、
+  export.test に memos 検証3ケース（version===2/memos配列/0件空配列）追加のみ＝
+  spec 想定どおり「テスト追加（TDD）と回帰確認」に縮退。
+- **🟡 putMemoFile は putPage を完全コピー流用**（汎用化しない, AGENTS.md 方針）。
+  SHA取得→422再取得リトライ ロジックを memos 用に複製。shaCache キーは
+  `volumes/..` と `memos/..` でパス前置が異なるため衝突なし（E14 確認済）。
+- **🟡 syncPendingMemos の日次再生成は getAllMemos 全件 filter**: pending 日集合 D
+  の各 d について「その日の全メモ（synced 含む）」を最新状態で再生成→生成時 id
+  配列のみ markMemosSyncedByDay（E3/C2）。生成→PUT 間の新規 pending は id 集合外
+  なので synced 化されず次回再生成対象（テストで検証）。
+- **🟡 テストの createdAt 決定化 = `vi.useFakeTimers({toFake:['Date']})`**:
+  `nowIso` が `new Date().toISOString()` のため、addMemo 呼出時のみ Date を偽装し
+  即 useRealTimers。setTimeout は本物のまま＝fake-indexeddb/backoff sleep と非干渉
+  （AGENTS.md 既知の fake-timer×idb 干渉を回避）。JST=UTC+9 前提で UTC 時刻を選定。
+- **🟡 octokit モック拡張 = vi.hoisted の putRecorder**: 全 MockOctokit
+  インスタンス間で PUT を共有記録 + `failPaths` で特定パス PUT を全リトライ失敗
+  させ deleted-day PUT 失敗→除去しない（次回再試行）を検証。既存 importFromGitHub
+  テストの tree fixture には memos/*.md blob を**追加**（既存 volumes:2/pages:3
+  アサーションは parseBackupPath が memos を skip するため不変＝既存テスト無改変）。
+- **🟡 deleted-day PUT 失敗テストは実 backoff（~7s）許容**: sleep を fake 化すると
+  idb 干渉。1テストに 20s timeout 付与し実 backoff（1+2+4s×retry）を許容。
+  full-suite 211 緑で安定確認。テスト削除・既存改変なし。
+- **T4.5 本体無変更**: spec は `BACKUP_PATH_RE.test(...)===false` を要求するが
+  BACKUP_PATH_RE は非 export。`parseBackupPath('memos/..')===null`（非マッチ時 null
+  返却＝挙動等価, 既存テストも parseBackupPath 経由で同正規表現を検証）でテスト。
+  export 追加の本体変更を回避＝spec「原則テスト追加のみ」に忠実。importFromGitHub
+  は replaceAllData を memos 省略呼出のまま（U2/E15）で memos 非破壊を確認、修正不要。
+- **⚠️ registerOnlineSync は本番（App.tsx/main.tsx）未配線＝M4 スコープ外の既存条件**:
+  registerOnlineSync は App.test.tsx でモックされるのみで App.tsx/main.tsx から
+  呼ばれていない（git 履歴上も M4 以前から未配線）。T4.3 spec は registerOnlineSync
+  の **online ハンドラ拡張**（syncPendingMemosBackground 追加, 実施済）と
+  useMemoAutoSave 実配線が要件で、registerOnlineSync 自体の App 配線は M4 スコープ外。
+  メモ同期の死蓄防止本筋（useMemoAutoSave→syncPendingMemosBackground）は本番ライブ。
+  将来 registerOnlineSync の App 起動時配線を別タスク化検討（本サイクル見送り）。
+- **配線検証（grep 確認済み・死蓄関数なし）**:
+  - `syncPendingMemosBackground` → useMemoAutoSave.ts:77（addMemo 後）/:92
+    （updateMemo 後）の2箇所で実呼出（M2-T2 プレースホルダ置換完了）
+  - useMemoAutoSave → MemoEditorPage.tsx:92 でフック呼出（M2 既存・本番）→
+    syncPendingMemos が本番経路でライブ
+  - registerOnlineSync online ハンドラ → github.ts:189-190 で
+    syncPendingPagesBackground + syncPendingMemosBackground 並列呼出
+  - buildExportPayload memos → export.ts:35（M1 前倒し配線, 本番 exportAllData 経由）
