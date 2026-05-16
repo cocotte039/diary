@@ -153,6 +153,12 @@ vi.mock('@octokit/rest', () => {
               sha: 'b3',
             },
             { type: 'blob', path: 'README.md', sha: 'b4' },
+            // M4-T5: memos/*.md は import の tree 解析で無視される回帰ガード。
+            {
+              type: 'blob',
+              path: 'memos/2026-05-17.md',
+              sha: 'mb1',
+            },
           ],
         },
       })),
@@ -161,6 +167,7 @@ vi.mock('@octokit/rest', () => {
           b1: '冊1ページ1',
           b2: '冊1ページ2',
           b3: '冊2ページ1',
+          mb1: '## 09:00:00\nremote memo body',
         };
         return { data: { content: encode(contents[file_sha] ?? '') } };
       }),
@@ -458,5 +465,43 @@ describe('importFromGitHub', () => {
     await expect(importFromGitHub()).rejects.toThrow(
       /GitHub 設定が保存されていません/
     );
+  });
+});
+
+// -----------------------------------------------------------------------------
+// M4-T5: BACKUP_PATH_RE 非マッチ・importFromGitHub の memos 非破壊（回帰ガード）
+// -----------------------------------------------------------------------------
+
+describe('memos backup path is excluded from volume import (M4-T5)', () => {
+  it('parseBackupPath は memos/*.md に非マッチ（BACKUP_PATH_RE 非マッチ相当, E1）', () => {
+    // BACKUP_PATH_RE は volumes 専用。parseBackupPath は非マッチ時 null を返すため
+    // memos/*.md は import の tree 解析で skip され volumes 復元に混入しない。
+    expect(parseBackupPath('memos/2026-05-17.md')).toBeNull();
+    expect(parseBackupPath('memos/2026-12-31.md')).toBeNull();
+    // 既存挙動維持（回帰なし）
+    expect(
+      parseBackupPath('volumes/001-xxx/page-01.txt')
+    ).not.toBeNull();
+  });
+
+  it('importFromGitHub は memos ストアを置換しない（U2/E15, memos 件数不変）', async () => {
+    await setGitHubSettings({ token: 'x', owner: 'me', repo: 'backup' });
+    // ローカルに既存メモを投入
+    await addMemo('local memo 1');
+    await addMemo('local memo 2');
+    const before = await getPendingMemos();
+    expect(before).toHaveLength(2);
+
+    const res = await importFromGitHub();
+    // volumes/pages のみ復元（tree に memos/*.md 混在しても skip）
+    expect(res).toEqual({ volumes: 2, pages: 3 });
+
+    // memos ストアは無触（replaceAllData が memos 引数省略呼出, E15）
+    const after = await getPendingMemos();
+    expect(after).toHaveLength(2);
+    expect(after.map((m) => m.content).sort()).toEqual([
+      'local memo 1',
+      'local memo 2',
+    ]);
   });
 });

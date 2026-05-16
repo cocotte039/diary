@@ -164,7 +164,7 @@
           "name": "A12 削除日反映 空PUT（TDD）",
           "spec": "specs/m4-t4.md",
           "wave": 4,
-          "status": "pending",
+          "status": "completed",
           "assignee": "build"
         },
         {
