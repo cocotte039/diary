@@ -1,0 +1,34 @@
+/*
+ * HeaderTabs: 本棚 / メモ の 2 タブ。
+ * .app-header-link の作法（font-family-ui, opacity, transition 120ms）と
+ * 視覚整合させる。静けさ: 4 色のみ、アクティブ強調は opacity のみ。
+ */
+.tabs {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.35rem;
+}
+
+.tab {
+  font-family: var(--font-family-ui);
+  font-size: 0.8rem;
+  color: var(--color-text);
+  text-decoration: none;
+  transition: opacity 120ms ease;
+}
+
+/* 選択中タブ。色は変えず opacity のみで強調する（静けさ）。 */
+.active {
+  opacity: 0.85;
+}
+
+.inactive {
+  opacity: 0.3;
+}
+
+.sep {
+  font-family: var(--font-family-ui);
+  font-size: 0.8rem;
+  color: var(--color-text);
+  opacity: 0.2;
+}
