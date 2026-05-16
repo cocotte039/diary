@@ -4,13 +4,17 @@ import {
   GITHUB_SYNC_MAX_RETRIES,
 } from './constants';
 import {
+  dateKey,
+  getAllMemos,
   getGitHubSettings,
+  getPendingMemos,
   getPendingPages,
   getVolume,
+  markMemosSyncedByDay,
   markPageSynced,
   replaceAllData,
 } from './db';
-import type { GitHubSettings, Page, Volume } from '../types';
+import type { GitHubSettings, Memo, Page, Volume } from '../types';
 
 /**
  * GitHub バックアップ層。
@@ -186,6 +190,169 @@ export function registerOnlineSync(): () => void {
   };
   window.addEventListener('online', handler);
   return () => window.removeEventListener('online', handler);
+}
+
+// =============================================================================
+// Memo バックアップ (M4: 日付別ファイル memos/YYYY-MM-DD.md)
+// =============================================================================
+
+/**
+ * 1日分のメモ配列を 1 ファイル内容に整形する。
+ * createdAt 昇順、各メモを `## HH:MM:SS\n{content}\n` として連結。
+ * 時刻は dateKey と同じローカル時刻基準（new Date のローカル getter）。
+ */
+export function buildMemoFileContent(memosOfDay: Memo[]): string {
+  const sorted = [...memosOfDay].sort((a, b) =>
+    a.createdAt.localeCompare(b.createdAt)
+  );
+  const pad = (n: number) => String(n).padStart(2, '0');
+  let out = '';
+  for (const m of sorted) {
+    const d = new Date(m.createdAt);
+    const hh = pad(d.getHours());
+    const mm = pad(d.getMinutes());
+    const ss = pad(d.getSeconds());
+    out += `## ${hh}:${mm}:${ss}\n${m.content}\n`;
+  }
+  return out;
+}
+
+/**
+ * メモファイルの PUT（SHA 管理込み）。
+ * putPage の SHA 取得 → 422 再取得リトライ ロジックをコピー流用
+ * （汎用リファクタしない＝回帰面積最小, AGENTS.md 方針）。
+ */
+async function putMemoFile(
+  octokit: Octokit,
+  s: GitHubSettings,
+  path: string,
+  rawContent: string
+): Promise<void> {
+  const message = `Update memo file ${path}`;
+  const content = b64encode(rawContent);
+
+  // SHA を取得（キャッシュ優先）。shaCache は volumes/.. と memos/.. で
+  // パスが異なるためキー衝突しない（E14）。
+  let sha = shaCache.get(path);
+  if (!sha) {
+    try {
+      const got = await octokit.repos.getContent({
+        owner: s.owner,
+        repo: s.repo,
+        path,
+      });
+      if (!Array.isArray(got.data) && 'sha' in got.data) {
+        sha = got.data.sha;
+        shaCache.set(path, sha);
+      }
+    } catch (err) {
+      const e = err as { status?: number };
+      if (e.status !== 404) throw err;
+      // 404 = 新規作成なので sha 不要
+    }
+  }
+
+  try {
+    const res = await octokit.repos.createOrUpdateFileContents({
+      owner: s.owner,
+      repo: s.repo,
+      path,
+      message,
+      content,
+      sha,
+    });
+    const newSha = res.data.content?.sha;
+    if (newSha) shaCache.set(path, newSha);
+  } catch (err) {
+    const e = err as { status?: number };
+    if (e.status === 422) {
+      // SHA 不一致 → キャッシュを捨てて再取得してリトライ
+      shaCache.delete(path);
+      const got = await octokit.repos.getContent({
+        owner: s.owner,
+        repo: s.repo,
+        path,
+      });
+      if (!Array.isArray(got.data) && 'sha' in got.data) {
+        shaCache.set(path, got.data.sha);
+      }
+      throw err; // リトライループに任せる
+    }
+    throw err;
+  }
+}
+
+/**
+ * 未同期メモを日付別ファイルにコミット（exponential backoff でリトライ）。
+ * syncPendingPages と同型の settings/online ガード・backoff。
+ *
+ * 手順:
+ *   1. settings/online ガード（無 or オフラインで {0,0} 早期 return）
+ *   2. getPendingMemos() → dateKey(createdAt) でユニーク日集合 D
+ *   3. 各 d∈D: getAllMemos() から d の全メモ抽出 → createdAt 昇順
+ *      → buildMemoFileContent → 生成に使った id 配列を保持
+ *      → putMemoFile('memos/'+d+'.md', content) → 成功で
+ *        markMemosSyncedByDay(d, ids)（生成時 id 集合のみ, E3/C2）
+ */
+export async function syncPendingMemos(): Promise<{
+  synced: number;
+  failed: number;
+}> {
+  const s = await getGitHubSettings();
+  if (!s || !s.token || !s.owner || !s.repo) return { synced: 0, failed: 0 };
+  if (typeof navigator !== 'undefined' && navigator.onLine === false) {
+    return { synced: 0, failed: 0 };
+  }
+
+  const octokit = createOctokit(s);
+  const pending = await getPendingMemos();
+  let synced = 0;
+  let failed = 0;
+
+  // pending メモが属する日集合
+  const days = new Set<string>();
+  for (const m of pending) days.add(dateKey(m.createdAt));
+
+  for (const d of days) {
+    // その日の全メモ（pending/synced 問わず）を最新状態で再生成
+    const all = await getAllMemos();
+    const ofDay = all
+      .filter((m) => dateKey(m.createdAt) === d)
+      .sort((a, b) => a.createdAt.localeCompare(b.createdAt));
+    const ids = ofDay.map((m) => m.id); // 生成時 id 集合（E3/C2）
+    const content = buildMemoFileContent(ofDay);
+    const path = `memos/${d}.md`;
+
+    let lastErr: unknown = null;
+    for (let attempt = 0; attempt < GITHUB_SYNC_MAX_RETRIES; attempt++) {
+      try {
+        await putMemoFile(octokit, s, path, content);
+        await markMemosSyncedByDay(d, ids);
+        synced++;
+        lastErr = null;
+        break;
+      } catch (err) {
+        lastErr = err;
+        const wait = GITHUB_SYNC_INITIAL_BACKOFF_MS * Math.pow(2, attempt);
+        await sleep(wait);
+      }
+    }
+    if (lastErr) {
+      failed++;
+      // eslint-disable-next-line no-console
+      console.warn('[github] memo sync failed for day', d, lastErr);
+    }
+  }
+
+  return { synced, failed };
+}
+
+/** 非同期に発火するだけのヘルパ（autosave から fire-and-forget） */
+export function syncPendingMemosBackground() {
+  void syncPendingMemos().catch((err) => {
+    // eslint-disable-next-line no-console
+    console.warn('[github] background memo sync failed', err);
+  });
 }
 
 // =============================================================================
