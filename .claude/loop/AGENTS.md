@@ -564,3 +564,49 @@ npm run preview      # ビルド結果のプレビュー
   - addMemo/updateMemo → useMemoAutoSave、getMemo → MemoEditorPage で実配線
   - M4-T3 プレースホルダ `// M4-T3: syncPendingMemosBackground() をここで呼ぶ`
     を保存成功直後 2 箇所（addMemo 後・updateMemo 後）に設置（M4-T3 が grep 発見）
+
+### M3 メモを振り返れる・消せる（/run 2026-05-17 Build 実装）— 自律判断記録
+
+- **🟡 HeaderTabs アクティブ判定は aria-current で表現・テストも aria-current 基準**:
+  spec は「選択中 opacity 0.85 class」だが vitest.config は `css: false` で CSS
+  Modules クラス名がテストに渡らない（`className` 検証不可）。視覚は CSS の
+  `.active/.inactive` で担保しつつ、選択状態の機能的真実を `aria-current="page"`
+  で表現しテストもそれで検証。場当たり的なクラス文字列照合を避け、a11y 的にも
+  正しい（spec のシグネチャ・視覚仕様は不変、opacity のみ強調＝静けさ厳守）。
+- **🟡 HeaderTabs 前方一致は `=== '/log' || startsWith('/log/')`**: 単純
+  `startsWith('/log')` だと将来 `/logbook` 等を誤マッチ。spec の受入（/log,
+  /log/new, /log/abc）を満たしつつ厳密化。回帰面積ゼロ。
+- **🟡 LogListPage グルーピングは getAllMemos(昇順) を呼側で createdAt 降順
+  再ソート**: db.getAllMemos は「createdAt 昇順」契約（呼側整形前提と docstring
+  に明記済）。LogListPage で `[...].sort(b.localeCompare a)` し Map 挿入順=日付
+  降順。db 側を変えると既存契約破壊のため呼側整形が正しい。
+- **🟡 日付見出しは dateKey(YYYY-MM-DD) を `replace(/-/g,'/')` で YYYY/MM/DD 化**:
+  VolumeCard formatRange と同表記。dateKey は既にローカル日付なので Date 再変換
+  不要（境界ズレ無し）。最小実装。
+- **🟡 MemoListItem は VolumeCard 長押し作法を丸ごとコピー**（汎用化しない,
+  AGENTS.md 方針どおり）。差分: 確認は 1 段固定文言
+  `このメモを削除します。よろしいですか？`（メモは軽量・spec で日記2段とは別と明示）。
+  タップ遷移は `<Link>` ではなく `role="button"` div + `handleClick` 内で
+  `navigate('/log/:id',{state:{from:'/log'}})`。長押し成立時は click で
+  preventDefault+stopPropagation して navigate を抑止（longPressFiredRef guard）。
+- **🟡 LogListPage 再ロードは reloadKey カウンタ + useCallback(reload)**:
+  BookshelfPage の handleDelete/reloadKey 作法を踏襲。MemoListItem→onDeleted→
+  reload で DB を正として再取得（E11 最後の1件削除→空状態も同経路でクラッシュなし）。
+- **⚠️ T3.2 回帰更新は BookshelfPage.test だけでなく App.test.tsx にも波及**:
+  `src/App.test.tsx > renders BookshelfPage at "/"` も `getByRole('heading',
+  {name:'本棚'})` で h1 に依存。タスク手順の grep 対象が BookshelfPage.test のみ
+  だったため初回 full-suite で検出。plan/spec が許可する「h1 廃止に伴う代替確認化」
+  の同一回帰なので App.test も `getByRole('link',{name:'本棚'})`＋メモ link 確認に
+  更新（T3.5 コミットに同梱、理由をコミットメッセージに明記）。テスト削除なし。
+- **⚠️ 残存 flake は M3 外・既存 EditorPage.test.tsx（既知のまま）**: 初回
+  full-suite で `EditorPage.test.tsx > 日付挿入で長文…`（`expected 0 to be
+  greater than 1200`, fake-idb×fake-timers 既知干渉）が 1 回再現。M3 変更と
+  無関係（M3 は editor 系を一切触らない）。その後 full-suite 5 連続 195/195
+  green で M3 追加分の安定を確認。本サイクルも EditorPage.test は触らない方針維持。
+- **配線検証（grep 確認済み・死蓄関数なし）**:
+  - HeaderTabs → BookshelfPage.tsx:128 / LogListPage.tsx:54 の両方で render
+  - LogListPage → App.tsx:35 `<Route path="/log">` に接続
+  - MemoListItem → LogListPage.tsx:65 で render（onDeleted={reload}）
+  - getAllMemos → LogListPage.tsx:29、dateKey → LogListPage.tsx:45（本番）
+  - deleteMemo → MemoListItem.tsx:51（本番）、navigate('/log/:id',{state:
+    {from:'/log'}}) → MemoListItem.tsx:88

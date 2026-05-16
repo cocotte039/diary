@@ -83,7 +83,7 @@
       "id": "M3",
       "name": "メモを振り返れる・消せる（タブ・一覧・長押し削除）",
       "goal": "ヘッダータブでメモ一覧へ行き日付ごと時系列で見て、タップ編集・長押し削除できる。",
-      "status": "pending",
+      "status": "completed",
       "verification": "npm run lint && npm run test:run",
       "tasks": [
         {
@@ -91,7 +91,7 @@
           "name": "HeaderTabs + CSS + test",
           "spec": "specs/m3-t1.md",
           "wave": 1,
-          "status": "pending",
+          "status": "completed",
           "assignee": "build"
         },
         {
@@ -99,7 +99,7 @@
           "name": "BookshelfPage h1→HeaderTabs置換（回帰更新）",
           "spec": "specs/m3-t2.md",
           "wave": 2,
-          "status": "pending",
+          "status": "completed",
           "assignee": "build"
         },
         {
@@ -107,7 +107,7 @@
           "name": "App.tsx に /log=LogListPage ルート",
           "spec": "specs/m3-t3.md",
           "wave": 2,
-          "status": "pending",
+          "status": "completed",
           "assignee": "build"
         },
         {
@@ -115,7 +115,7 @@
           "name": "LogListPage 日付グルーピング・空状態（TDD）",
           "spec": "specs/m3-t4.md",
           "wave": 3,
-          "status": "pending",
+          "status": "completed",
           "assignee": "build"
         },
         {
@@ -123,7 +123,7 @@
           "name": "MemoListItem タップ編集・長押し削除（TDD）",
           "spec": "specs/m3-t5.md",
           "wave": 4,
-          "status": "pending",
+          "status": "completed",
           "assignee": "build"
         }
       ]
@@ -181,7 +181,7 @@
   "fix_queue": [],
   "metadata": {
     "created_at": "2026-05-17T00:00:00Z",
-    "last_updated": "2026-05-17T07:30:00Z",
+    "last_updated": "2026-05-17T08:00:00Z",
     "current_iteration": 1,
     "total_iterations": 1
   }
