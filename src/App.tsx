@@ -3,6 +3,7 @@ import BookshelfPage from './features/bookshelf/BookshelfPage';
 import SettingsPage from './features/settings/SettingsPage';
 import EditorPage from './features/editor/EditorPage';
 import MemoEditorPage from './features/log/MemoEditorPage';
+import LogListPage from './features/log/LogListPage';
 
 /**
  * 旧 `/read/:volumeId/:pageNumber` を新 `/book/:volumeId/:pageNumber` に
@@ -31,6 +32,7 @@ export default function App() {
       <Routes>
         <Route path="/" element={<BookshelfPage />} />
         <Route path="/book/:volumeId/:pageNumber" element={<EditorPage />} />
+        <Route path="/log" element={<LogListPage />} />
         <Route path="/log/new" element={<MemoEditorPage />} />
         <Route path="/log/:memoId" element={<MemoEditorPage />} />
         <Route path="/read/:volumeId/:pageNumber" element={<ReadRedirect />} />
