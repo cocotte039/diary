@@ -1,204 +1,136 @@
-# Pragmatist 分析 — 1ページ文字数上限撤廃
+# Pragmatist 分析 — 時系列メモ機能（観測ログ）
 
-## 観点
-最短経路・既存コード削除範囲・dead code 判定・ROI 優先・情報構造
+視点: 実用性・最短経路・既存資産再利用・情報構造
 
-## 1. 削除対象コード（🔵 grep で実地確認済み）
+## 1. 既存資産の再利用ポイント（最短経路）
 
-### 1.1 EditorPage.tsx
-
-| 箇所 | 行 | 削除/変更内容 |
+| 既存資産 | 再利用先 | 確信度 |
 |---|---|---|
-| `import { splitAtCharLimit }` | L26 | 削除（EditorPage から参照消滅） |
-| `checkOverflowAndNavigate` 関数定義 | L200-243 | 関数ごと削除 |
-| `handleChange` 内の `checkOverflowAndNavigate(value)` 呼び出し | L266 | 削除 |
-| `handleCompositionEnd` 内の `checkOverflowAndNavigate(e.currentTarget.value)` | L288 | 削除（compositionEnd ハンドラ自体は残すが本体から同呼び出しを除去、空関数なら削除） |
-| `handleBeforeInput` | L301-332 | 関数ごと削除（最終ページロック廃止） |
-| `onBeforeInput={handleBeforeInput}` | L552 | 削除 |
-| `insertDate` 内の `checkOverflowAndNavigate(nextValue)` | L409 | 削除 |
-| `pendingCursorPosRef` | L96 | 削除（自動遷移が消えるので不要） |
-| 関連する `useEffect` 内の pendingCursorPos 復元ロジック | L125-136 | 削除 |
-| `isComposingRef` | L93 | **残す**（swipe IME ガード L456、keyDown L440 で使用中） |
-| `handleCompositionStart` / `handleCompositionEnd` | L281-291 | **残す**（上記 ref 更新用）。ただし compositionEnd 内の再判定呼び出しは消える |
+| `db.ts` の idb `DiaryDB extends DBSchema` + `getDB()` upgrade パターン | `memos` ストア追加。`if (!db.objectStoreNames.contains('memos'))` ガード方式を踏襲 | 🔵 |
+| `db.ts` CRUD パターン（`getDB()`→tx→put/get/delete、`nowIso()`/`uuid()`） | memo CRUD 関数群（addMemo 等）にそのまま流用 | 🔵 |
+| `db.ts` `getPendingPages`/`markPageSynced`（by-syncStatus index） | `getPendingMemos` + 日単位 synced 化。memos に `by-syncStatus` index 追加 | 🔵 |
+| `db.ts` `dateKey(iso)`（ローカル日付 YYYY-MM-DD、現在は module-private） | memo 日付グルーピング/GitHubファイル名に必須。**export 化して再利用** | 🔵 |
+| `useEditorAutoSave.ts`（debounce + flush + lastSavedRef 冪等 + fire-and-forget sync） | `useMemoAutoSave` の雛形。pageNumber 概念を除去した版を新規作成（流用ではなく派生） | 🔵 |
+| `github.ts` `b64encode`/`shaCache`/`createOctokit`/backoff リトライループ | `syncPendingMemos` で再利用。`putPage` を一般化せず memo 用 putファイルを新設 | 🔵 |
+| `BookshelfMenu.tsx` の SVG アイコン作法（viewBox, stroke currentColor, strokeWidth 1.5） | FAB の鉛筆アイコン | 🔵 |
+| `VolumeCard.tsx` の長押し作法（longPressTimerRef/longPressFiredRef/move tolerance/click guard/onContextMenu preventDefault） | メモ一覧アイテムの長押し削除に丸ごと流用 | 🔵 |
+| `VolumeCard.tsx` `formatRange` のローカル日付整形 | 一覧の日付見出し YYYY/MM/DD | 🔵 |
+| `EditorPage.tsx` の popstate ガード + flush パターン | メモ入力画面の戻る/Android戻るで未保存 flush | 🔵 |
+| `.app-header` / `.app-header-link` CSS | タブ・戻る導線・FABの色/フォント基盤 | 🔵 |
+| `export.ts` `buildExportPayload` + `exportAllData` | memos 追加。構造そのまま | 🔵 |
+| `db.test.ts` の `wipeDB`/`_resetDBForTests`/beforeEach 作法 | memo テスト雛形 | 🔵 |
 
-### 1.2 progressPct 計算 (L417-420)
+## 2. db.ts 追加関数シグネチャ案（🔵）
 
+DBSchema 拡張:
 ```ts
-// 現状
-const progressPct = Math.min(
-  100,
-  Math.round((text.length / CHARS_PER_PAGE) * 100)
-);
-```
-→ **変更なし**。`Math.min(100, ...)` で既に clamp されており 1200 字超は 100% 固定（要件通り）。
-
-### 1.3 pagination.ts
-
-`splitAtCharLimit` の参照箇所を grep で再確認:
-- `src/lib/pagination.ts:64` 定義
-- `src/lib/pagination.test.ts:8,89-137` テスト
-- `src/features/editor/EditorPage.tsx:26,205` 呼び出し（本件で削除）
-
-→ EditorPage から呼び出しが消えると **dead code**。**関数削除 + テスト削除** を推奨。
-ただし `splitIntoPages` / `joinPages` / `saveVolumeText` / `countPages` / `getPageNumber` / `countLogicalLines` / `getScrollTopForCursor` は以下から引き続き参照される:
-- `splitIntoPages` → `db.saveVolumeText` (db.ts L224) → `export.test.ts` / `db.test.ts` 経由
-- その他は `useEditorCursor` などから参照
-
-→ **維持**。
-
-### 1.4 CHARS_PER_PAGE 定数
-
-`CHARS_PER_PAGE = 1200` は以下で引き続き使用:
-- `src/features/editor/EditorPage.tsx` progressPct 計算
-- `src/lib/pagination.ts` splitIntoPages / countPages / getPageNumber（saveVolumeText 経由で DB 層が使用）
-- `src/types/index.ts` L34 コメント
-
-→ **維持**。ただし `types/index.ts` L34 のコメント「本文（\n 区切り、最大 CHARS_PER_PAGE=1200 文字）」は「最大」が嘘になるため「目安 1200 文字、上限なし」に書き換え。
-
-## 2. 25 行ごと罫線強調の実装最短経路
-
-### 2.1 CSS のみ（🔵 最短）
-
-`src/styles/notebook.css` の `.notebook-surface` に 2 枚目の repeating-linear-gradient レイヤーを重ねる:
-
-```css
-background-image:
-  /* 25 行ごとの強調罫線（視覚上の区切り、ごくわずかに濃い） */
-  repeating-linear-gradient(
-    to bottom,
-    transparent 0,
-    transparent calc(25 * var(--line-height-px) - 1px),
-    rgba(255, 255, 255, 0.14) calc(25 * var(--line-height-px) - 1px),
-    rgba(255, 255, 255, 0.14) calc(25 * var(--line-height-px))
-  ),
-  /* 既存: 1 行ごとの通常罫線 */
-  repeating-linear-gradient(
-    to bottom,
-    transparent 0,
-    transparent calc(var(--line-height-px) - 1px),
-    var(--color-rule) calc(var(--line-height-px) - 1px),
-    var(--color-rule) var(--line-height-px)
-  );
-background-size: 100% calc(25 * var(--line-height-px)), 100% var(--line-height-px);
+memos: {
+  key: string;
+  value: Memo;
+  indexes: {
+    'by-createdAt': string;
+    'by-syncStatus': SyncStatus;
+  };
+};
 ```
 
-強調罫線の opacity は **0.14**（既存 `--color-rule` の 0.08 から +0.06、1-2 トーン濃い）。値は Aesthete と最終調整。
-
-### 2.2 判断のポイント
-
-- `background-attachment: local` は継承されるので追加指定不要
-- 25 行ちょうどの罫線位置 = 通常罫線と同じ Y 座標 → 通常罫線の上にピッタリ重なって発色強化になる（ズレなし）
-- CSS 変数化は不要（25 は固定マジックナンバーで良い。後で変えたければ 1 箇所書き換え）
-
-## 3. テスト変更の最短経路
-
-### 3.1 削除するテスト（EditorPage.test.tsx）
-
-| describe / it | 行範囲 | 理由 |
-|---|---|---|
-| `EditorPage IME composition guard (M6-T2)` の `composition 中は 1201 字の入力で navigate しない` | L412-424 | 自動遷移廃止 |
-| `EditorPage IME composition guard (M6-T2)` の `compositionEnd で最新値が 1201 字なら遷移する` | L426-438 | 自動遷移廃止 |
-| `EditorPage IME composition guard (M6-T2)` の `composition 無しで 1201 字の change は即 navigate する` | L453-463 | 自動遷移廃止 |
-| `EditorPage auto next-page on overflow (M6-T3)` describe 全体 | L466-551 | 自動遷移廃止 |
-| `EditorPage final page lock (M6-T4)` describe 全体 | L553-651 | 最終ページロック廃止 |
-| `EditorPage date insertion` の `日付挿入で 1200 字を超える場合、次ページへ自動遷移する` | L808-823 | 自動遷移廃止 |
-| `EditorPage progress bar (M4-T3)` の `1300 文字の既存ページをロード → aria-valuenow=100（clamp）` | L863-873 | **残す**（progressPct clamp の要件に合致） |
-
-**残すテスト**: composition 中の PageDown テスト（L440-451）は IME ガード自体が残るので維持。
-
-### 3.2 新規テスト（EditorPage.test.tsx）
-
-```tsx
-describe('EditorPage no auto-navigation on overflow (char-limit-removal)', () => {
-  it('1201 字入力しても遷移しない（現ページに留まる）', async () => {
-    const v = await ensureActiveVolume();
-    let pathname = '';
-    renderWithLocationProbe(`/book/${v.id}/1`, (p) => { pathname = p; });
-    const textarea = (await screen.findByLabelText('日記本文')) as HTMLTextAreaElement;
-    fireEvent.change(textarea, { target: { value: 'あ'.repeat(CHARS_PER_PAGE + 1) } });
-    await new Promise((r) => setTimeout(r, 250));
-    expect(pathname).toBe(`/book/${v.id}/1`);
-    expect(textarea.value.length).toBe(CHARS_PER_PAGE + 1);
-  });
-
-  it('最終ページで 1201 字入力しても preventDefault されない', async () => {
-    const v = await ensureActiveVolume();
-    const fullPage = 'あ'.repeat(CHARS_PER_PAGE);
-    await savePage(v.id, PAGES_PER_VOLUME, fullPage);
-    renderAt(`/book/${v.id}/${PAGES_PER_VOLUME}`);
-    const textarea = (await screen.findByLabelText('日記本文')) as HTMLTextAreaElement;
-    await waitFor(() => expect(textarea.value).toBe(fullPage));
-    fireEvent.change(textarea, { target: { value: fullPage + 'x' } });
-    expect(textarea.value).toBe(fullPage + 'x');
-  });
-
-  it('日付挿入で 1200 字超になっても現ページに留まる', async () => {
-    const v = await ensureActiveVolume();
-    let pathname = '';
-    renderWithLocationProbe(`/book/${v.id}/1`, (p) => { pathname = p; });
-    const textarea = (await screen.findByLabelText('日記本文')) as HTMLTextAreaElement;
-    fireEvent.change(textarea, { target: { value: 'あ'.repeat(CHARS_PER_PAGE) } });
-    textarea.setSelectionRange(0, 0);
-    fireEvent.click(screen.getByRole('button', { name: '今日の日付を挿入' }));
-    await new Promise((r) => setTimeout(r, 250));
-    expect(pathname).toBe(`/book/${v.id}/1`);
-    expect(textarea.value.length).toBeGreaterThan(CHARS_PER_PAGE);
-  });
-
-  it('1200 字超でも進捗バーは 100 に clamp される', async () => {
-    const v = await ensureActiveVolume();
-    renderAt(`/book/${v.id}/1`);
-    const textarea = (await screen.findByLabelText('日記本文')) as HTMLTextAreaElement;
-    fireEvent.change(textarea, { target: { value: 'あ'.repeat(CHARS_PER_PAGE + 300) } });
-    const bar = screen.getByTestId('page-progress');
-    await waitFor(() => expect(bar).toHaveAttribute('aria-valuenow', '100'));
-  });
-});
-```
-
-### 3.3 pagination.test.ts の対応
-
-`splitAtCharLimit` describe ブロック全体（L89-137）を削除。他の describe は維持。
-
-### 3.4 notebook.css の罫線強調テスト
-
-CSS テストは vitest 向かないので、**Verify 工程の目視確認** で吸収。ただし存在チェックとして以下を追加する案もある:
-
+upgrade コールバックに追加（既存 contains ガード方式と同型）:
 ```ts
-// src/styles/notebook.css の内容を fs で読み、`25 *` を含むかチェック
+if (!db.objectStoreNames.contains('memos')) {
+  const ms = db.createObjectStore('memos', { keyPath: 'id' });
+  ms.createIndex('by-createdAt', 'createdAt');
+  ms.createIndex('by-syncStatus', 'syncStatus');
+}
 ```
+（`oldVersion < 3` 分岐は不要。contains ガードが v1/v2 既存ユーザー・新規双方を一律カバー。既存 v1→v2 と同方針）
 
-→ ROI 低い（CSS ファイル文字列マッチは脆い）。**不要**。
+関数群（Key Links = 本番呼び出し元）:
+- `addMemo(content: string): Promise<Memo>` — Key Link: MemoEditorPage 新規初回保存（useMemoAutoSave 経由）
+- `getMemo(id: string): Promise<Memo | undefined>` — Key Link: MemoEditorPage 編集ロード
+- `getAllMemos(): Promise<Memo[]>` — Key Link: LogListPage、buildExportPayload
+- `updateMemo(id: string, content: string): Promise<Memo | undefined>` — Key Link: MemoEditorPage 編集保存（useMemoAutoSave）
+- `deleteMemo(id: string): Promise<void>` — Key Link: LogListPage 長押し削除
+- `getPendingMemos(): Promise<Memo[]>` — Key Link: syncPendingMemos
+- `markMemosSyncedByDay(dateKey: string): Promise<void>` — Key Link: syncPendingMemos（その日 PUT 成功後）
+- `replaceAllData(volumes, pages, memos)` — 既存シグネチャに memos 追加（呼び出し元 importFromGitHub）
+- `dateKey` を `export function dateKey` 化
 
-## 4. 配線検証ポイント
+addMemo/updateMemo は `syncStatus:'pending'`、`updatedAt=nowIso()`、addMemo は `createdAt=updatedAt`。
 
-- `splitAtCharLimit` 削除後、grep で参照なしを確認
-- `handleBeforeInput` 削除後、EditorPage.tsx 内で `onBeforeInput` 属性が無いことを確認
-- `pendingCursorPosRef` 削除後、参照箇所がゼロであることを確認
+## 3. github.ts 日付別ファイル同期（🟡 推奨案で確定可）
 
-## 5. ROI 評価
+新設 `syncPendingMemos(): Promise<{synced:number; failed:number}>`:
+1. settings/online ガード（既存 syncPendingPages と同型）
+2. `getPendingMemos()` → `dateKey(createdAt)` でユニーク日集合を作る
+3. 各日について `getAllMemos()` から**その日の全メモ**を取得し createdAt 昇順ソート → 本文生成:
+   `memos/YYYY-MM-DD.md` = 各メモ `## HH:MM:SS\n{content}\n` を時刻順連結
+4. `putMemoFile(path, content)` = `putPage` の SHA 取得/422再取得/作成ロジックを memo 用に複製（汎用化はオーバーエンジニアリング、コピーが最短）
+5. PUT 成功 → `markMemosSyncedByDay(dateKey)`（その日の全 memo を synced）
+6. backoff リトライは syncPendingPages と同型
 
-| タスク | 効果 | 実装コスト | ROI |
-|---|---|---|---|
-| 自動遷移ロジック削除 | UX 問題の根本解消 | 低（関数丸ごと削除） | 極高 |
-| 最終ページロック削除 | 1200 字超の書き込み解放 | 低（関数丸ごと削除） | 高 |
-| 25 行ごと強調罫線 | 書く位置の把握 | 低（CSS 1 箇所） | 中〜高 |
-| dead code / 旧テスト削除 | コードベース健全化 | 低 | 中 |
+`syncPendingMemosBackground()` を fire-and-forget ヘルパとして用意し useMemoAutoSave から呼ぶ（既存 `syncPendingPagesBackground` と同型）。`registerOnlineSync` は memo も発火するよう拡張（online ハンドラで両方呼ぶ）。
 
-## 6. フェーズ分割の提案
+importFromGitHub の memos 復元: **本サイクルでは見送り推奨（🟡）**。理由=既存 importFromGitHub は volumes/pages tree 解析専用。memos/*.md は `## HH:MM:SS` パース＋createdAt 復元（時刻はあるが「年月日」はファイル名から、秒の重複可）で逆変換に曖昧性。JSONエクスポート/インポートで memos バックアップ経路は確保されるため、GitHubインポートの memos 対応は将来課題に回すのが ROI 妥当。**ただしユーザー判断事項**（Skeptic と一致）。
 
-**M1 のみの単一マイルストーン** を推奨。垂直スライス「ユーザーは 1200 字超を書いて任意のタイミングでページを切り替えられる」。サブタスクで順序:
+## 4. タブ UI コンポーネント（🟡）
 
-- T1: 旧テスト削除（RED 化を防ぐため先行、dead code 化したコードを含むテスト除去）
-- T2: 新規テスト追加（RED 確認）
-- T3: EditorPage 自動遷移/ロック削除（GREEN 化）
-- T4: splitAtCharLimit 削除 + pagination.test.ts 更新
-- T5: 25 行ごと強調罫線 CSS 追加
-- T6: types/index.ts のコメント修正
-- T7: 実機 Verify
+`src/features/shared/HeaderTabs.tsx`（新規、最小）:
+- `react-router-dom` の `useLocation` で現在パス判定（`/` 始まりは本棚、`/log` 始まりはメモ）
+- `<Link to="/">本棚</Link>` `<Link to="/log">メモ</Link>` を `.app-header` 内左側に配置
+- 選択中は opacity を上げる（非選択 0.3 / 選択中 0.7、`.app-header-link` 拡張）
+- BookshelfPage の h1「本棚」を廃止し HeaderTabs に置換（Aesthete 判断と整合させる）
+- LogListPage でも同じ HeaderTabs を使い一貫性確保
 
-## 7. 懸念事項（Pragmatist 観点）
+CSS: `src/features/shared/HeaderTabs.module.css`（新規）。命名規約 `*.module.css` 準拠。
 
-- 既存の `isComposingRef` は swipe/key IME ガードで使い続けるため、composition ハンドラは完全削除できない。→ `handleCompositionEnd` は ref 更新のみに減らす。
-- `handleCompositionStart` は変更不要、`handleCompositionEnd` は `checkOverflowAndNavigate` 呼び出しを削除して `isComposingRef.current = false` のみに。
-- ファイル長が 564 行 → 約 470 行に短縮できる見込み。可読性向上。
+## 5. メモ autosave（🔵 判断）
+
+`useEditorAutoSave` は `(volumeId, pageNumber, text)` 前提で savePage に密結合 → **流用不可**。`src/features/log/useMemoAutoSave.ts` を新規（既存フックの構造を踏襲）:
+- 引数 `(memoId: string | null, content: string)`
+- memoId が null（新規未保存）かつ content 非空 → 初回 `addMemo` で id 採番し、以後 `updateMemo`
+- 同値冪等（lastSavedRef）、flush、unmount タイマー解除、fire-and-forget `syncPendingMemosBackground`
+
+**新規メモ id 生成タイミング判断（🔵）**: `/log/new` 到達時に即 addMemo しない。**初回入力（content が空でなくなった瞬間）に addMemo して id を確定**し、`navigate(/log/:id, {replace:true})` でURLを編集モードに差し替える。理由=空メモ量産回避（要件「摩擦低い」と「空メモ破棄」の両立、Skeptic の空メモリスクに直結）。
+
+## 6. 変更・新規ファイル一覧
+
+新規:
+- `src/features/log/LogListPage.tsx`（~120行）
+- `src/features/log/LogListPage.module.css`（~60行）
+- `src/features/log/MemoEditorPage.tsx`（~130行）
+- `src/features/log/MemoEditorPage.module.css`（~40行）
+- `src/features/log/useMemoAutoSave.ts`（~70行）
+- `src/features/log/MemoListItem.tsx`（長押し削除付き、~90行）
+- `src/features/shared/HeaderTabs.tsx`（~40行）
+- `src/features/shared/HeaderTabs.module.css`（~30行）
+- `src/features/bookshelf/Fab.tsx`（~35行）+ Fab CSS は BookshelfPage.module.css に追記
+- テスト: `src/features/log/LogListPage.test.tsx`, `MemoEditorPage.test.tsx`, `src/features/shared/HeaderTabs.test.tsx`
+
+変更:
+- `src/types/index.ts`: Memo 型、ExportPayload.memos 追加（~10行）
+- `src/lib/constants.ts`: `DB_VERSION=3`, `EXPORT_FORMAT_VERSION=2`（2行）
+- `src/lib/db.ts`: DBSchema memos, upgrade, memo CRUD群, dateKey export, replaceAllData 拡張（~90行）
+- `src/lib/export.ts`: buildExportPayload に memos（~3行）
+- `src/lib/github.ts`: syncPendingMemos/putMemoFile/syncPendingMemosBackground/registerOnlineSync 拡張（~90行）
+- `src/App.tsx`: /log, /log/new, /log/:memoId ルート追加（~6行）
+- `src/features/bookshelf/BookshelfPage.tsx`: h1→HeaderTabs、FAB 追加（~10行）
+- `src/features/bookshelf/BookshelfPage.module.css`: FAB スタイル（~25行）
+- 既存テスト: `db.test.ts`/`export.test.ts`/`github.test.ts` に memo ケース追加、EXPORT_FORMAT_VERSION 変更追従
+
+## 7. マイルストーン分割（垂直スライス・依存順）
+
+- **M1 データ基盤**: 型 + DB_VERSION 3 + memos ストア + CRUD + v2→v3 マイグレーション。TDD（db.test.ts）。ユーザー価値: 内部のみだが以後の全機能の土台。例外的に水平だが分離不可。
+- **M2 メモ作成・編集（垂直）**: FAB + MemoEditorPage + useMemoAutoSave + ルート /log/new・/log/:memoId。「ユーザーが本棚からFABでメモを書いて暗黙保存できる」。TDD（MemoEditorPage.test.tsx）。
+- **M3 メモ一覧・閲覧・削除（垂直）**: LogListPage + HeaderTabs + MemoListItem 長押し削除 + ルート /log + タブ切替。「ユーザーがメモを時系列で振り返り、不要なメモを削除できる」。TDD。
+- **M4 バックアップ（垂直）**: JSONエクスポート memos + EXPORT_FORMAT_VERSION 2 後方互換 + GitHub日付別ファイル同期。「ユーザーがメモをバックアップ/復元（JSON）できる」。TDD（export.test.ts/github.test.ts）。
+
+依存: M1→M2→M3→M4。M2 と M3 は M1 完了後並行可だが UI 一貫性のため逐次推奨。
+
+## 8. ROI と過剰実装の指摘
+
+- 最小高ROI: M1+M2 でコア価値（書ける）が成立。M3 で振り返り価値。M4 はデータ保全。
+- 過剰になりうる点:
+  - github の `putPage` 汎用リファクタ → コピーで十分（汎用化はテスト面積増、ROI 低）
+  - importFromGitHub の memos 逆変換 → 曖昧性高くバグ源。JSON経路で代替（見送り推奨）
+  - HeaderTabs を汎用タブライブラリ化 → 2タブ固定で十分
+  - メモのページング/仮想スクロール → 観測ログ件数想定で不要、非目標準拠

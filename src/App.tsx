@@ -2,6 +2,7 @@ import { HashRouter, Routes, Route, Navigate, useParams } from 'react-router-dom
 import BookshelfPage from './features/bookshelf/BookshelfPage';
 import SettingsPage from './features/settings/SettingsPage';
 import EditorPage from './features/editor/EditorPage';
+import MemoEditorPage from './features/log/MemoEditorPage';
 
 /**
  * 旧 `/read/:volumeId/:pageNumber` を新 `/book/:volumeId/:pageNumber` に
@@ -30,6 +31,8 @@ export default function App() {
       <Routes>
         <Route path="/" element={<BookshelfPage />} />
         <Route path="/book/:volumeId/:pageNumber" element={<EditorPage />} />
+        <Route path="/log/new" element={<MemoEditorPage />} />
+        <Route path="/log/:memoId" element={<MemoEditorPage />} />
         <Route path="/read/:volumeId/:pageNumber" element={<ReadRedirect />} />
         <Route path="/bookshelf" element={<Navigate to="/" replace />} />
         <Route path="/settings" element={<SettingsPage />} />
