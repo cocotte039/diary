@@ -5,6 +5,8 @@ B5大学ノートに万年筆で書いていた手書き日記の体験を、布
 デザイン原則は **「静けさ」**。通知・バッジ・ストリークといった「続けさせる UX」を排除し、
 保存は暗黙、エラーは控えめ、色数は4色、トランジションは 200ms まで。
 
+日記とは別管理の **観測ログ（時系列メモ）** 機能を併設。「やってみたこと」を低摩擦で時系列記録し、いつ何に触れたか後から振り返れる。
+
 ---
 
 ## 主要機能
@@ -28,7 +30,16 @@ B5大学ノートに万年筆で書いていた手書き日記の体験を、布
 - エディタ表示中に Android 端末の戻るボタンを押すと、直前履歴ではなく本棚 (`/`) に戻る（`popstate` ガード / 遷移前に自動保存を flush）
 - GitHub Private リポジトリへの自動バックアップ（オフラインキュー + online 復帰時再同期）
 - PWA 対応（vite-plugin-pwa / Workbox / Google Fonts の runtime cache）
-- JSON エクスポート（データ消失リスク緩和）/ iOS Safari の A2HS バナー
+- JSON エクスポート（データ消失リスク緩和 / 観測ログも内包、`EXPORT_FORMAT_VERSION=2`）/ iOS Safari の A2HS バナー
+
+### 観測ログ（時系列メモ）
+
+- 日記とは IndexedDB ストア単位で完全分離（`memos` ストア、`DB_VERSION=3`）。1メモ＝「本文＋自動時刻のみ」
+- ヘッダーに「本棚 / メモ」タブを置き相互遷移（選択強調は opacity のみ・色は不変）
+- 本棚画面右下に FAB（親指到達域・モノクロ鉛筆アイコン）→ メモ入力専用画面へ。自動フォーカスなし・暗黙保存（2秒 debounce）
+- メモ一覧は日付ごとにグルーピングし新しい順に表示（入力欄は持たない）。空メモは生成しない（初回非空入力で初めて作成）
+- 一覧のメモはタップで編集、500ms 長押し → confirm で削除（本棚カードと同じ長押し作法）
+- GitHub バックアップは日付ごと 1 ファイル `memos/YYYY-MM-DD.md`（当日の全メモを `## HH:MM:SS` 見出し付きで時刻順集約、日記の `volumes/` と別ツリー）。当日全削除時は空内容 PUT で反映
 
 ---
 
@@ -39,11 +50,13 @@ diary/
 ├─ public/          # manifest.json / icon.svg / (PNG は別PCで生成)
 ├─ src/
 │  ├─ styles/       # global.css (CSS変数 / --header-height / .app-header / .app-header-link), notebook.css (罫線共通)
-│  ├─ lib/          # constants (CHARS_PER_PAGE=1200 は進捗バー目安、LINES_PER_PAPER=60, PAGES_PER_VOLUME=60), pagination (splitIntoPages/countPages 他), db (idb v2), github, export, pwa
+│  ├─ lib/          # constants (CHARS_PER_PAGE=1200 は進捗バー目安、LINES_PER_PAPER=60, PAGES_PER_VOLUME=60, DB_VERSION=3, EXPORT_FORMAT_VERSION=2), pagination (splitIntoPages/countPages 他), db (idb v3: volumes/pages/meta/memos + memo CRUD), github (日記 page 同期 + memo 日付別同期), export, pwa
 │  ├─ hooks/        # useDebouncedCallback
 │  ├─ features/
 │  │  ├─ editor/    # EditorPage, useEditorAutoSave, DateIcon
-│  │  ├─ bookshelf/ # BookshelfPage, VolumeCard, BookshelfMenu(+ .module.css), Calendar
+│  │  ├─ bookshelf/ # BookshelfPage, VolumeCard, BookshelfMenu(+ .module.css), Calendar, Fab
+│  │  ├─ log/       # LogListPage, MemoEditorPage, MemoListItem, useMemoAutoSave（観測ログ）
+│  │  ├─ shared/    # HeaderTabs（本棚/メモ タブ）
 │  │  └─ settings/  # SettingsPage
 │  ├─ types/        # 型定義 (Volume/Page/ExportPayload 他)
 │  └─ test/         # Vitest セットアップ (fake-indexeddb)
@@ -57,6 +70,9 @@ diary/
 |---|---|
 | `/` | 本棚（メイン） |
 | `/book/:volumeId/:pageNumber` | エディタ（ページ単位） |
+| `/log` | 観測ログ一覧（日付グルーピング・新しい順） |
+| `/log/new` | メモ入力（新規作成） |
+| `/log/:memoId` | メモ入力（編集） |
 | `/settings` | 設定 |
 | `/read/:volumeId/:pageNumber` | 旧 URL → `/book/...` へリダイレクト |
 
@@ -97,7 +113,7 @@ iOS PWA インストール確認、トラブルシュートは:
 | フレームワーク | React 19 + Vite 6 + TypeScript (strict) |
 | ルーティング | React Router (HashRouter) |
 | CSS | CSS Modules + CSS 変数（`global.css`） |
-| 永続化 | IndexedDB (idb v8) + localStorage（カーソル位置のみ） |
+| 永続化 | IndexedDB (idb v8, `DB_VERSION=3`: volumes/pages/meta/memos) + localStorage（カーソル位置のみ） |
 | フォント | Klee One (Google Fonts CDN, SW でキャッシュ) |
 | PWA | vite-plugin-pwa (Workbox) |
 | バックアップ | @octokit/rest (GitHub API) |
