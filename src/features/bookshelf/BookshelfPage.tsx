@@ -15,6 +15,7 @@ import type { Page, Volume } from '../../types';
 import VolumeCard from './VolumeCard';
 import BookshelfMenu from './BookshelfMenu';
 import Calendar from './Calendar';
+import Fab from './Fab';
 
 /**
  * 本棚画面。全 Volume をカード表示し、カレンダーから日付ジャンプ可能。
@@ -169,6 +170,8 @@ export default function BookshelfPage() {
           </div>
         )}
       </div>
+
+      <Fab />
     </div>
   );
 }

@@ -525,3 +525,42 @@ npm run preview      # ビルド結果のプレビュー
 - **配線状況**: M1 は本番UI未接続が前提どおり。db memo 関数群は export 済み・型整合。
   dateKey export 後 findPageByDate/getDateSetInMonth 既存テスト緑（回帰なし）。
   export.ts のみ getAllMemos を実配線（前倒し）。残り memo 関数の本番配線は M2+。
+
+### M2 メモを書ける（/run 2026-05-17 Build 実装）— 自律判断記録
+
+- **🟡 useMemoAutoSave に createdIdRef + in-flight creatingRef ガード追加**:
+  spec D4 は「初回 addMemo→onCreated、以後 updateMemo」だが、URL replace で
+  memoId prop に id が反映されるまでの間に debounce 保存が再発火すると二重
+  addMemo になりうる。`createdIdRef`（作成済み id 保持）と `creatingRef`
+  （addMemo の in-flight Promise を await）で二重作成を根絶。場当たり的
+  フォールバックではなく「正しい id を正しく次保存へ渡す」設計。spec の
+  シグネチャ/受入条件は不変。
+- **🟡 MemoEditorPage は ready 前 content='' を useMemoAutoSave に渡す**:
+  getMemo ロード完了前に編集中扱いで空保存が走らないよう、ready=false の間は
+  空文字を渡す（EditorPage の `ready ? volumeId : null` ガードと同型の発想）。
+  ロード後に実 content へ切替。空メモ不生成 U3 とも整合。
+- **🟡 メモ textarea は明朝スタックを module CSS にインライン**: spec/plan は
+  「明朝フォント」指定だが global.css に明朝トークン無し。新規"色"トークンは
+  静けさ違反だがフォントは制約外。新規グローバル変数を足さず
+  MemoEditorPage.module.css 内に `'Hiragino Mincho ProN', 'Yu Mincho',
+  'Noto Serif JP', serif` を限定適用（スコープ最小）。
+- **🟡 vitest fileParallelism:false を設定（スコープ外だが gate 信頼性のため）**:
+  fake-indexeddb はプロセス共有 in-memory ストア。複数テストファイル並列時に
+  wipeDB()/indexedDB.deleteDatabase が競合し default 実行で散発失敗。テスト内容は
+  一切変えず vitest.config の fileParallelism を無効化。並列時 ~1/6 → 直列化後
+  ~1/15 まで激減（12+ 連続 178/178 green を確認）。テスト削除・改変なし。
+- **⚠️ 残存 flake は M2 外・既存 EditorPage.test.tsx**: 直列化後も稀(~1/15)に
+  `src/features/editor/EditorPage.test.tsx > 「1201 字入力しても遷移せず…」`
+  が `expected +0 to be 1201`（savePage が空書込、fake-idb×fake-timers の
+  既知干渉）で落ちる。**M5/M7 期の既存テストで M2 変更とは無関係**（M2 ファイル
+  useMemoAutoSave/MemoEditorPage/BookshelfPage FAB は単体 5 連続 green・安定）。
+  「既存テスト不要改変禁止」によりこのテストは触らない。M2 各コミットは
+  コミット時点で lint+test green を個別確認済み。将来 M3+ で EditorPage.test の
+  fake-timer→実時間化 or idb settle 挿入を別タスク化検討（本サイクル見送り）。
+- **配線検証（grep 確認済み・死蓄関数なし）**:
+  - `useMemoAutoSave` → MemoEditorPage.tsx でフック呼出（本番パス）
+  - `MemoEditorPage` → App.tsx の `/log/new`・`/log/:memoId` ルートに接続
+  - `Fab` → BookshelfPage.tsx が render、onClick→navigate('/log/new',{state:{from:'/'}})
+  - addMemo/updateMemo → useMemoAutoSave、getMemo → MemoEditorPage で実配線
+  - M4-T3 プレースホルダ `// M4-T3: syncPendingMemosBackground() をここで呼ぶ`
+    を保存成功直後 2 箇所（addMemo 後・updateMemo 後）に設置（M4-T3 が grep 発見）

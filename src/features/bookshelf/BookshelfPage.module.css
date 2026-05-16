@@ -11,7 +11,12 @@
 .body {
   flex: 1 1 auto;
   min-height: 0;
-  padding: 1rem var(--padding-page) max(1rem, env(safe-area-inset-bottom));
+  /*
+   * M2-T4: 右下 FAB（52px 円 + 下余白）にカード最下段が隠れないよう
+   * padding-bottom を確保する。FAB の bottom 基準 + ボタン高 + 余白。
+   */
+  padding: 1rem var(--padding-page)
+    calc(max(1.25rem, env(safe-area-inset-bottom) + 0.75rem) + 52px + 1rem);
   overflow-y: auto;
 }
 
@@ -131,3 +136,34 @@
   cursor: pointer;
 }
 .calendarClose:active { opacity: 0.8; }
+
+/*
+ * M2-T4: 右下固定 FAB（メモを書く）。
+ * 静けさ: 4 色のみ（bg=--color-accent, border=--color-rule, アイコン=--color-text）、
+ * トランジション ≤200ms（press 150ms）、バッジ/件数なし。
+ */
+.fab {
+  position: fixed;
+  right: max(1rem, calc(env(safe-area-inset-right) + 0.5rem));
+  bottom: max(1.25rem, calc(env(safe-area-inset-bottom) + 0.75rem));
+  width: 52px;
+  height: 52px;
+  border-radius: 50%;
+  background: var(--color-accent);
+  border: 1px solid var(--color-rule);
+  color: var(--color-text);
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  box-shadow: 0 2px 8px rgba(0, 0, 0, 0.3);
+  cursor: pointer;
+  z-index: 50;
+  transition: transform 150ms ease, opacity 150ms ease;
+}
+.fab:active {
+  transform: scale(0.94);
+  opacity: 0.8;
+}
+.fabIcon {
+  display: block;
+}

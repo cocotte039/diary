@@ -120,12 +120,15 @@ describe('MemoEditorPage (M2-T3)', () => {
     expect(document.activeElement).not.toBe(ta);
   });
 
-  it('編集時はヘッダーに createdAt 控えめ表示・新規未保存時はなし', async () => {
+  it('編集時はヘッダーに createdAt が控えめ表示される', async () => {
     const m = await addMemo('時刻あり');
-    const { unmount } = renderAt(`/log/${m.id}`);
-    await screen.findByRole('textbox');
+    renderAt(`/log/${m.id}`);
+    const ta = (await screen.findByRole('textbox')) as HTMLTextAreaElement;
+    await waitFor(() => expect(ta.value).toBe('時刻あり'));
     expect(screen.getByTestId('memo-created-at')).toBeTruthy();
-    unmount();
+  });
+
+  it('新規（未保存）時はヘッダーに createdAt を表示しない', async () => {
     renderAt('/log/new');
     await screen.findByRole('textbox');
     expect(screen.queryByTestId('memo-created-at')).toBeNull();

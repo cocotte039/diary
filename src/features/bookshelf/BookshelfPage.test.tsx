@@ -7,7 +7,7 @@ import {
   waitFor,
   within,
 } from '@testing-library/react';
-import { MemoryRouter } from 'react-router-dom';
+import { MemoryRouter, Routes, Route, useLocation } from 'react-router-dom';
 import {
   _resetDBForTests,
   ensureActiveVolume,
@@ -470,5 +470,44 @@ describe('BookshelfPage calendar modal', () => {
     await screen.findByRole('dialog', { name: 'カレンダー' });
     fireEvent.keyDown(document, { key: 'Escape' });
     await waitFor(() => expect(screen.queryByRole('dialog')).toBeNull());
+  });
+});
+
+describe('BookshelfPage FAB (M2-T4)', () => {
+  function FabLocationProbe({
+    onChange,
+  }: {
+    onChange: (p: string) => void;
+  }) {
+    const loc = useLocation();
+    onChange(loc.pathname);
+    return null;
+  }
+
+  it('FAB レンダリングされ aria-label が設定されている', async () => {
+    await ensureActiveVolume();
+    renderPage();
+    await screen.findByRole('link', { name: /ノート 1/ });
+    expect(
+      screen.getByRole('button', { name: 'メモを書く' })
+    ).toBeTruthy();
+  });
+
+  it('FAB タップで /log/new に遷移する', async () => {
+    await ensureActiveVolume();
+    let path = '';
+    render(
+      <MemoryRouter initialEntries={['/']}>
+        <FabLocationProbe onChange={(p) => (path = p)} />
+        <Routes>
+          <Route path="/" element={<BookshelfPage />} />
+          <Route path="/log/new" element={<div data-testid="memo-new" />} />
+        </Routes>
+      </MemoryRouter>
+    );
+    await screen.findByRole('link', { name: /ノート 1/ });
+    fireEvent.click(screen.getByRole('button', { name: 'メモを書く' }));
+    await waitFor(() => expect(path).toBe('/log/new'));
+    expect(screen.getByTestId('memo-new')).toBeTruthy();
   });
 });
