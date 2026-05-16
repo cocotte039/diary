@@ -2,6 +2,7 @@ import { beforeEach, describe, expect, it } from 'vitest';
 import { buildExportPayload } from './export';
 import {
   _resetDBForTests,
+  addMemo,
   ensureActiveVolume,
   saveVolumeText,
 } from './db';
@@ -30,5 +31,23 @@ describe('export.buildExportPayload', () => {
     expect(payload.volumes.length).toBeGreaterThan(0);
     expect(payload.pages.length).toBeGreaterThan(0);
     expect(typeof payload.exportedAt).toBe('string');
+  });
+
+  it('includes memos array reflecting stored memos (M4-T1)', async () => {
+    await addMemo('memo one');
+    await addMemo('memo two');
+    const payload = await buildExportPayload();
+    expect(payload.version).toBe(EXPORT_FORMAT_VERSION);
+    expect(Array.isArray(payload.memos)).toBe(true);
+    expect(payload.memos.map((m) => m.content).sort()).toEqual([
+      'memo one',
+      'memo two',
+    ]);
+  });
+
+  it('memos is an empty array (not undefined) when none exist (M4-T1)', async () => {
+    const payload = await buildExportPayload();
+    expect(Array.isArray(payload.memos)).toBe(true);
+    expect(payload.memos).toHaveLength(0);
   });
 });
