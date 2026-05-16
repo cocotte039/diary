@@ -2,9 +2,11 @@ import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import {
   _resetDBForTests,
   addMemo,
+  deleteMemo,
   ensureActiveVolume,
   getAllPages,
   getAllVolumes,
+  getDeletedMemoDays,
   getPendingMemos,
   getPendingPages,
   saveVolumeText,
@@ -73,8 +75,10 @@ describe('parseBackupPath', () => {
 // vi.mock は巻き上げられるため vi.hoisted で先に生成する。
 const putRecorder = vi.hoisted(() => ({
   calls: [] as Array<{ path: string; content: string }>,
+  failPaths: new Set<string>(),
   reset() {
     this.calls = [];
+    this.failPaths = new Set<string>();
   },
 }));
 
@@ -104,6 +108,11 @@ vi.mock('@octokit/rest', () => {
       }),
       createOrUpdateFileContents: vi.fn(
         async ({ path, content }: { path: string; content: string }) => {
+          if (putRecorder.failPaths.has(path)) {
+            const err = new Error('500') as Error & { status: number };
+            err.status = 500;
+            throw err;
+          }
           putRecorder.calls.push({ path, content: decode(content) });
           return { data: { content: { sha: 'newsha-' + path } } };
         }
@@ -282,6 +291,82 @@ describe('syncPendingMemos (M4-T2)', () => {
     expect(day.content).toContain('## 10:00:00\nadded later');
     expect(await getPendingMemos()).toHaveLength(0);
   });
+});
+
+// -----------------------------------------------------------------------------
+// syncPendingMemos — A12 削除日反映 空PUT (M4-T4, U1)
+// -----------------------------------------------------------------------------
+
+describe('syncPendingMemos deleted-days 空PUT (M4-T4)', () => {
+  beforeEach(() => {
+    putRecorder.reset();
+  });
+
+  it('当日全メモ削除 → memos/YYYY-MM-DD.md に空内容 PUT・deleted-day 除去', async () => {
+    await setGitHubSettings({ token: 'x', owner: 'me', repo: 'backup' });
+    const m = await addMemoAt('only memo', '2026-05-17T00:00:00.000Z');
+    // 一度 sync して synced 化（その後の削除で deleted-day へ）
+    await syncPendingMemos();
+    putRecorder.reset();
+
+    await deleteMemo(m.id);
+    expect(await getDeletedMemoDays()).toEqual(['2026-05-17']);
+
+    const r = await syncPendingMemos();
+    expect(r.failed).toBe(0);
+    const call = putRecorder.calls.find(
+      (c) => c.path === 'memos/2026-05-17.md'
+    )!;
+    expect(call).toBeDefined();
+    expect(call.content).toBe('');
+    // 成功で deleted-day 除去（再実行で二重 PUT しない）
+    expect(await getDeletedMemoDays()).toEqual([]);
+
+    putRecorder.reset();
+    await syncPendingMemos();
+    expect(
+      putRecorder.calls.find((c) => c.path === 'memos/2026-05-17.md')
+    ).toBeUndefined();
+  });
+
+  it('当日メモが残る削除 → deleted-day に入らず通常再生成（古い内容残存しない, E4）', async () => {
+    await setGitHubSettings({ token: 'x', owner: 'me', repo: 'backup' });
+    await addMemoAt('keep me', '2026-05-17T00:00:00.000Z'); // 09:00:00
+    const del = await addMemoAt('delete me', '2026-05-17T01:00:00.000Z');
+    await syncPendingMemos();
+    putRecorder.reset();
+
+    await deleteMemo(del.id);
+    // 当日メモ残存 → deleted-days には入らない
+    expect(await getDeletedMemoDays()).toEqual([]);
+    // A12: 残メモ 1 件が pending 化されている
+    expect((await getPendingMemos()).length).toBeGreaterThan(0);
+
+    await syncPendingMemos();
+    const call = putRecorder.calls.find(
+      (c) => c.path === 'memos/2026-05-17.md'
+    )!;
+    expect(call).toBeDefined();
+    expect(call.content).toContain('## 09:00:00\nkeep me');
+    expect(call.content).not.toContain('delete me');
+  });
+
+  it('deleted-day PUT 失敗時は除去しない（次回再試行）', async () => {
+    await setGitHubSettings({ token: 'x', owner: 'me', repo: 'backup' });
+    const m = await addMemoAt('boom', '2026-05-17T00:00:00.000Z');
+    await syncPendingMemos();
+    await deleteMemo(m.id);
+    expect(await getDeletedMemoDays()).toEqual(['2026-05-17']);
+
+    putRecorder.reset();
+    // 当該日ファイルへの PUT を全リトライ失敗させる
+    putRecorder.failPaths.add('memos/2026-05-17.md');
+
+    const r = await syncPendingMemos();
+    expect(r.failed).toBeGreaterThan(0);
+    // PUT 失敗 → deleted-day は除去されない（次回再試行）
+    expect(await getDeletedMemoDays()).toEqual(['2026-05-17']);
+  }, 20000);
 });
 
 // テスト用: システム時刻を iso に固定して addMemo（createdAt を決定化）

@@ -6,12 +6,14 @@ import {
 import {
   dateKey,
   getAllMemos,
+  getDeletedMemoDays,
   getGitHubSettings,
   getPendingMemos,
   getPendingPages,
   getVolume,
   markMemosSyncedByDay,
   markPageSynced,
+  removeDeletedMemoDay,
   replaceAllData,
 } from './db';
 import type { GitHubSettings, Memo, Page, Volume } from '../types';
@@ -342,6 +344,32 @@ export async function syncPendingMemos(): Promise<{
       failed++;
       // eslint-disable-next-line no-console
       console.warn('[github] memo sync failed for day', d, lastErr);
+    }
+  }
+
+  // A12 (U1): 当日全メモ削除日は空内容 PUT でリモートを空に。
+  // 成功で deleted-day を除去（再実行で二重 PUT しない）。失敗時は残す。
+  const deletedDays = await getDeletedMemoDays();
+  for (const d of deletedDays) {
+    const path = `memos/${d}.md`;
+    let lastErr: unknown = null;
+    for (let attempt = 0; attempt < GITHUB_SYNC_MAX_RETRIES; attempt++) {
+      try {
+        await putMemoFile(octokit, s, path, '');
+        await removeDeletedMemoDay(d);
+        synced++;
+        lastErr = null;
+        break;
+      } catch (err) {
+        lastErr = err;
+        const wait = GITHUB_SYNC_INITIAL_BACKOFF_MS * Math.pow(2, attempt);
+        await sleep(wait);
+      }
+    }
+    if (lastErr) {
+      failed++;
+      // eslint-disable-next-line no-console
+      console.warn('[github] memo deleted-day sync failed', d, lastErr);
     }
   }
 

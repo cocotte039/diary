@@ -156,7 +156,7 @@
           "name": "registerOnlineSync 拡張 + useMemoAutoSave 同期配線",
           "spec": "specs/m4-t3.md",
           "wave": 3,
-          "status": "pending",
+          "status": "completed",
           "assignee": "build"
         },
         {
