@@ -1,8 +1,14 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
-import { render, screen, waitFor } from '@testing-library/react';
-import { MemoryRouter } from 'react-router-dom';
+import {
+  createEvent,
+  fireEvent,
+  render,
+  screen,
+  waitFor,
+} from '@testing-library/react';
+import { MemoryRouter, Routes, Route, useLocation } from 'react-router-dom';
 import { _resetDBForTests, getAllMemos, replaceAllData } from '../../lib/db';
-import { DB_NAME } from '../../lib/constants';
+import { DB_NAME, LONG_PRESS_MS } from '../../lib/constants';
 import LogListPage from './LogListPage';
 import type { Memo } from '../../types';
 
@@ -148,5 +154,187 @@ describe('LogListPage (M3-T4)', () => {
     );
     // getAllMemos が空でないことの追加確認
     expect((await getAllMemos()).length).toBe(1);
+  });
+});
+
+/**
+ * M3-T5: MemoListItem タップ編集・長押し削除。
+ * VolumeCard / BookshelfPage.test の長押し作法を踏襲。
+ * fake-indexeddb と vi.useFakeTimers は干渉するので実時間で待つ
+ * （LONG_PRESS_MS + 100ms）。
+ */
+describe('LogListPage MemoListItem (M3-T5)', () => {
+  /**
+   * JSDOM の fireEvent.pointerXxx は init の clientX/clientY を渡さない既知問題が
+   * あるため createEvent + defineProperty で強制してから dispatch する。
+   */
+  function firePointer(
+    el: Element,
+    kind: 'pointerDown' | 'pointerMove' | 'pointerUp',
+    clientX: number,
+    clientY: number
+  ) {
+    const ev = createEvent[kind](el, { clientX, clientY });
+    Object.defineProperty(ev, 'clientX', { get: () => clientX });
+    Object.defineProperty(ev, 'clientY', { get: () => clientY });
+    fireEvent(el, ev);
+  }
+
+  async function fireLongPress(el: Element) {
+    firePointer(el, 'pointerDown', 0, 0);
+    await new Promise((r) => setTimeout(r, LONG_PRESS_MS + 100));
+    firePointer(el, 'pointerUp', 0, 0);
+  }
+
+  function LocationProbe({ onChange }: { onChange: (p: string) => void }) {
+    const loc = useLocation();
+    onChange(loc.pathname);
+    return null;
+  }
+
+  function renderWithRoutes(initial = '/log') {
+    let path = '';
+    const utils = render(
+      <MemoryRouter initialEntries={[initial]}>
+        <LocationProbe onChange={(p) => (path = p)} />
+        <Routes>
+          <Route path="/log" element={<LogListPage />} />
+          <Route
+            path="/log/:memoId"
+            element={<div data-testid="memo-editor" />}
+          />
+        </Routes>
+      </MemoryRouter>
+    );
+    return { ...utils, getPath: () => path };
+  }
+
+  it('行タップで /log/:id 編集へ遷移する', async () => {
+    await replaceAllData([], [], [
+      {
+        id: 'm1',
+        content: 'tap me',
+        createdAt: '2026-05-16T05:00:00.000Z',
+        updatedAt: '2026-05-16T05:00:00.000Z',
+        syncStatus: 'pending',
+      },
+    ]);
+    const { getPath } = renderWithRoutes();
+    const row = await screen.findByText('tap me');
+    firePointer(row, 'pointerDown', 0, 0);
+    firePointer(row, 'pointerUp', 0, 0);
+    fireEvent.click(row);
+    await waitFor(() => expect(getPath()).toBe('/log/m1'));
+    expect(screen.getByTestId('memo-editor')).toBeInTheDocument();
+  });
+
+  it('長押し→confirm→deleteMemo→一覧から消える（再ロード反映）', async () => {
+    await replaceAllData([], [], [
+      {
+        id: 'd1',
+        content: 'delete me',
+        createdAt: '2026-05-16T05:00:00.000Z',
+        updatedAt: '2026-05-16T05:00:00.000Z',
+        syncStatus: 'pending',
+      },
+      {
+        id: 'd2',
+        content: 'keep me',
+        createdAt: '2026-05-16T06:00:00.000Z',
+        updatedAt: '2026-05-16T06:00:00.000Z',
+        syncStatus: 'pending',
+      },
+    ]);
+    const confirmSpy = vi.spyOn(window, 'confirm').mockReturnValue(true);
+    renderWithRoutes();
+    const row = await screen.findByText('delete me');
+    await fireLongPress(row);
+    await waitFor(() =>
+      expect(screen.queryByText('delete me')).not.toBeInTheDocument()
+    );
+    expect(screen.getByText('keep me')).toBeInTheDocument();
+    expect(confirmSpy).toHaveBeenCalledTimes(1);
+    confirmSpy.mockRestore();
+  });
+
+  it('長押し発火後の click は遷移しない（longPressFiredRef guard）', async () => {
+    await replaceAllData([], [], [
+      {
+        id: 'g1',
+        content: 'guarded',
+        createdAt: '2026-05-16T05:00:00.000Z',
+        updatedAt: '2026-05-16T05:00:00.000Z',
+        syncStatus: 'pending',
+      },
+    ]);
+    const confirmSpy = vi.spyOn(window, 'confirm').mockReturnValue(false);
+    const { getPath } = renderWithRoutes();
+    const row = await screen.findByText('guarded');
+    await fireLongPress(row);
+    await waitFor(() => expect(confirmSpy).toHaveBeenCalled());
+    fireEvent.click(row);
+    // 長押し成立後の click は遷移を抑止
+    await new Promise((r) => setTimeout(r, 100));
+    expect(getPath()).toBe('/log');
+    confirmSpy.mockRestore();
+  });
+
+  it('move tolerance 超で動いたら長押しキャンセル（誤削除防止）', async () => {
+    await replaceAllData([], [], [
+      {
+        id: 'mv1',
+        content: 'moved',
+        createdAt: '2026-05-16T05:00:00.000Z',
+        updatedAt: '2026-05-16T05:00:00.000Z',
+        syncStatus: 'pending',
+      },
+    ]);
+    const confirmSpy = vi.spyOn(window, 'confirm').mockReturnValue(true);
+    renderWithRoutes();
+    const row = await screen.findByText('moved');
+    firePointer(row, 'pointerDown', 0, 0);
+    firePointer(row, 'pointerMove', 30, 0);
+    await new Promise((r) => setTimeout(r, LONG_PRESS_MS + 100));
+    firePointer(row, 'pointerUp', 30, 0);
+    expect(confirmSpy).not.toHaveBeenCalled();
+    confirmSpy.mockRestore();
+  });
+
+  it('空メモ行は「（空のメモ）」プレースホルダ（タップは編集へ）', async () => {
+    await replaceAllData([], [], [
+      {
+        id: 'e1',
+        content: '   ',
+        createdAt: '2026-05-16T05:00:00.000Z',
+        updatedAt: '2026-05-16T05:00:00.000Z',
+        syncStatus: 'pending',
+      },
+    ]);
+    const { getPath } = renderWithRoutes();
+    const row = await screen.findByText('（空のメモ）');
+    firePointer(row, 'pointerDown', 0, 0);
+    firePointer(row, 'pointerUp', 0, 0);
+    fireEvent.click(row);
+    await waitFor(() => expect(getPath()).toBe('/log/e1'));
+  });
+
+  it('最後の1件を削除→空状態へ（クラッシュなし, E11）', async () => {
+    await replaceAllData([], [], [
+      {
+        id: 'last',
+        content: 'last one',
+        createdAt: '2026-05-16T05:00:00.000Z',
+        updatedAt: '2026-05-16T05:00:00.000Z',
+        syncStatus: 'pending',
+      },
+    ]);
+    const confirmSpy = vi.spyOn(window, 'confirm').mockReturnValue(true);
+    renderWithRoutes();
+    const row = await screen.findByText('last one');
+    await fireLongPress(row);
+    expect(
+      await screen.findByText('まだメモがありません')
+    ).toBeInTheDocument();
+    confirmSpy.mockRestore();
   });
 });

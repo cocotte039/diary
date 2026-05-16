@@ -56,9 +56,12 @@ describe('App routing (M4-T1 / M7-T5)', () => {
         <AppRoutes />
       </MemoryRouter>
     );
+    // M3-T2: BookshelfPage の h1「本棚」は HeaderTabs に置換された。
+    // 旧 h1 アサーションを HeaderTabs の表示確認に更新（plan/spec 明示の回帰更新）。
     await waitFor(() =>
-      expect(screen.getByRole('heading', { name: '本棚' })).toBeInTheDocument()
+      expect(screen.getByRole('link', { name: '本棚' })).toBeInTheDocument()
     );
+    expect(screen.getByRole('link', { name: 'メモ' })).toBeInTheDocument();
   });
 
   it('renders EditorPage at "/book/:volumeId/:pageNumber"', () => {

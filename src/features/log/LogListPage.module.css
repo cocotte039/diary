@@ -37,6 +37,22 @@
 
 .row {
   display: block;
+  margin: 0.5rem 0;
+  cursor: pointer;
+  -webkit-tap-highlight-color: transparent;
+}
+.row:active {
+  opacity: 0.8;
+}
+
+/* 行先頭の HH:MM。控えめ（opacity 0.4）。本文の前にインライン表示。 */
+.time {
+  font-family: var(--font-family-ui);
+  font-size: 0.7rem;
+  color: var(--color-text);
+  opacity: 0.4;
+  margin-right: 0.5rem;
+  font-variant-numeric: tabular-nums;
 }
 
 /* 本文プレビュー: 2 行 clamp、明朝（メモ=素の紙、日記と差別化）。 */
