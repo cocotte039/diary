@@ -2,9 +2,12 @@ import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import {
   _resetDBForTests,
   addMemo,
+  ensureActiveVolume,
   getAllPages,
   getAllVolumes,
   getPendingMemos,
+  getPendingPages,
+  saveVolumeText,
   setGitHubSettings,
 } from './db';
 import { DB_NAME } from './constants';
@@ -12,6 +15,7 @@ import {
   buildMemoFileContent,
   parseBackupPath,
   importFromGitHub,
+  registerOnlineSync,
   syncPendingMemos,
 } from './github';
 import type { Memo } from '../types';
@@ -291,6 +295,39 @@ async function addMemoAt(content: string, iso: string): Promise<Memo> {
     vi.useRealTimers();
   }
 }
+
+// -----------------------------------------------------------------------------
+// registerOnlineSync (M4-T3) — online で pages/memos 両 sync 発火
+// -----------------------------------------------------------------------------
+
+describe('registerOnlineSync (M4-T3)', () => {
+  beforeEach(() => {
+    putRecorder.reset();
+  });
+
+  it('online イベントで pages と memos の両 sync が発火する', async () => {
+    await setGitHubSettings({ token: 'x', owner: 'me', repo: 'backup' });
+    // pending page
+    const v = await ensureActiveVolume();
+    await saveVolumeText(v.id, 'page body');
+    // pending memo
+    await addMemo('memo body');
+
+    expect((await getPendingPages()).length).toBeGreaterThan(0);
+    expect((await getPendingMemos()).length).toBeGreaterThan(0);
+
+    const unregister = registerOnlineSync();
+    window.dispatchEvent(new Event('online'));
+
+    // fire-and-forget の完了を待つ（backoff 無し成功パス）
+    await vi.waitFor(() => {
+      const paths = putRecorder.calls.map((c) => c.path);
+      expect(paths.some((p) => p.startsWith('memos/'))).toBe(true);
+      expect(paths.some((p) => p.startsWith('volumes/'))).toBe(true);
+    });
+    unregister();
+  });
+});
 
 describe('importFromGitHub', () => {
   it('imports volumes and pages, marks latest ordinal as active', async () => {

@@ -187,6 +187,7 @@ export function registerOnlineSync(): () => void {
   if (typeof window === 'undefined') return () => undefined;
   const handler = () => {
     syncPendingPagesBackground();
+    syncPendingMemosBackground();
   };
   window.addEventListener('online', handler);
   return () => window.removeEventListener('online', handler);

@@ -1,5 +1,6 @@
 import { useCallback, useEffect, useRef } from 'react';
 import { addMemo, updateMemo } from '../../lib/db';
+import { syncPendingMemosBackground } from '../../lib/github';
 import { AUTOSAVE_DEBOUNCE_MS } from '../../lib/constants';
 
 /**
@@ -72,7 +73,8 @@ export function useMemoAutoSave(
       }
       createdIdRef.current = newId;
       lastSavedRef.current = { id: newId, content: p.content };
-      // M4-T3: syncPendingMemosBackground() をここで呼ぶ
+      // 保存成功直後に fire-and-forget で GitHub バックアップ（静けさ厳守）
+      syncPendingMemosBackground();
       onCreatedRef.current(newId);
       return;
     }
@@ -86,7 +88,8 @@ export function useMemoAutoSave(
     }
     await updateMemo(effectiveId, p.content);
     lastSavedRef.current = { id: effectiveId, content: p.content };
-    // M4-T3: syncPendingMemosBackground() をここで呼ぶ
+    // 保存成功直後に fire-and-forget で GitHub バックアップ（静けさ厳守）
+    syncPendingMemosBackground();
   }, []);
 
   // content / memoId の変化で pending を更新し debounce タイマーを張り直す

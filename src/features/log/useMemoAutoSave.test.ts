@@ -4,6 +4,12 @@ import { _resetDBForTests, getAllMemos, addMemo, getMemo } from '../../lib/db';
 import { DB_NAME, AUTOSAVE_DEBOUNCE_MS } from '../../lib/constants';
 import { useMemoAutoSave } from './useMemoAutoSave';
 
+// GitHub バックグラウンド同期は副作用なのでモック（呼出のみ検証）
+vi.mock('../../lib/github', () => ({
+  syncPendingMemosBackground: vi.fn(),
+}));
+import { syncPendingMemosBackground } from '../../lib/github';
+
 async function wipeDB() {
   await _resetDBForTests();
   await new Promise<void>((resolve, reject) => {
@@ -146,6 +152,36 @@ describe('useMemoAutoSave (M2-T2)', () => {
     expect(memos).toHaveLength(1);
     expect(memos[0].content).toBe('flushed memo');
     expect(onCreated).toHaveBeenCalledWith(memos[0].id);
+  });
+
+  it('保存成功後に syncPendingMemosBackground が呼ばれる（新規作成・M4-T3）', async () => {
+    const onCreated = vi.fn();
+    const { result, rerender } = renderHook(
+      ({ content }: { content: string }) =>
+        useMemoAutoSave(null, content, onCreated),
+      { initialProps: { content: '' } }
+    );
+    rerender({ content: 'sync me' });
+    await act(async () => {
+      await result.current.flush();
+    });
+    expect(syncPendingMemosBackground).toHaveBeenCalled();
+  });
+
+  it('保存成功後に syncPendingMemosBackground が呼ばれる（更新・M4-T3）', async () => {
+    const m = await addMemo('seed');
+    vi.mocked(syncPendingMemosBackground).mockClear();
+    const onCreated = vi.fn();
+    const { result, rerender } = renderHook(
+      ({ content }: { content: string }) =>
+        useMemoAutoSave(m.id, content, onCreated),
+      { initialProps: { content: 'seed' } }
+    );
+    rerender({ content: 'seed updated' });
+    await act(async () => {
+      await result.current.flush();
+    });
+    expect(syncPendingMemosBackground).toHaveBeenCalled();
   });
 
   it('unmount で timer 解除（保存予約が発火しない）', async () => {

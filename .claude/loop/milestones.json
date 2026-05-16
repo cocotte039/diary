@@ -148,7 +148,7 @@
           "name": "buildMemoFileContent + putMemoFile + syncPendingMemos（TDD）",
           "spec": "specs/m4-t2.md",
           "wave": 2,
-          "status": "pending",
+          "status": "completed",
           "assignee": "build"
         },
         {
