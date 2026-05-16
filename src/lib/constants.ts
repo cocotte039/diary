@@ -39,13 +39,13 @@ export const SWIPE_THRESHOLD_PX = 50;
 
 /** IndexedDB 名 */
 export const DB_NAME = 'diary';
-export const DB_VERSION = 2;
+export const DB_VERSION = 3;
 
 /** localStorage キー */
 export const LS_BANNER_DISMISSED_KEY = 'note-a2hs-banner-dismissed';
 
 /** エクスポートJSONの形式バージョン */
-export const EXPORT_FORMAT_VERSION = 1;
+export const EXPORT_FORMAT_VERSION = 2;
 
 /** GitHub 設定の IndexedDB キー */
 export const GITHUB_SETTINGS_KEY = 'github-settings';

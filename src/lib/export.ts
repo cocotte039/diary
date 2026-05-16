@@ -1,5 +1,5 @@
 import { EXPORT_FORMAT_VERSION } from './constants';
-import { getAllPages, getAllVolumes } from './db';
+import { getAllMemos, getAllPages, getAllVolumes } from './db';
 import type { ExportPayload } from '../types';
 
 /**
@@ -29,11 +29,16 @@ export async function exportAllData(): Promise<void> {
 
 /** テスト可能な純粋部分: payload を組み立てるのみ */
 export async function buildExportPayload(): Promise<ExportPayload> {
-  const [volumes, pages] = await Promise.all([getAllVolumes(), getAllPages()]);
+  const [volumes, pages, memos] = await Promise.all([
+    getAllVolumes(),
+    getAllPages(),
+    getAllMemos(),
+  ]);
   return {
     version: EXPORT_FORMAT_VERSION,
     exportedAt: new Date().toISOString(),
     volumes,
     pages,
+    memos,
   };
 }

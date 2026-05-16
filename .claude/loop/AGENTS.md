@@ -485,3 +485,43 @@ npm run preview      # ビルド結果のプレビュー
 - **🟡 longPressFiredRef を onClick で reset**: 長押し成立後の click で
   `preventDefault + stopPropagation` してから ref を false に戻す。
   この reset を忘れると次のタップが常に抑止される。
+
+---
+
+## 観測ログ機能（/run 2026-05-17）— 自律判断記録
+
+時系列メモ機能（日記と別管理）。詳細は `.whiteboard/plan.md`（単一情報源）。
+
+### 確定した自律判断（ユーザー判断事項 U1-U4、推奨案採用・可逆）
+
+- **U1 GitHub全削除日反映 = 空内容PUT**: その日の全メモ削除時、`memos/YYYY-MM-DD.md` を空内容で PUT（octokit deleteFile より実装小・putMemoFile 流用）。理由: ローカル真実=空を反映、実装最小、可逆。
+- **U2 GitHub置換復元時メモ = 保持**: `replaceAllData(volumes,pages,memos?)` の memos 省略時は memos ストアに触れない。importFromGitHub は省略呼出のままメモ巻き添え消去回避。
+- **U3 空メモ = 初回非空入力で初めて addMemo**: `/log/new` で未入力離脱しても空メモ不生成。既存メモを空編集は保持、一覧で「（空のメモ）」表示。
+- **U4 memos逆復元 = 本サイクル見送り**: memos/*.md の `## HH:MM:SS` 逆変換は曖昧性ありバグ源。JSONエクスポートでバックアップ確保。将来課題。
+
+### 設計の要点（Build Agent 必読）
+
+- **既存日記の不可侵**: db.ts upgrade で volumes/pages/meta のコードは1文字も変更しない。memos 追加分岐（contains ガード）を末尾に足すのみ。移行テスト先行（M1-T2 RED）。
+- **既存資産はコピー流用**: VolumeCard 長押し作法 / EditorPage popstate ガード / useEditorAutoSave 構造 / github putPage・backoff・shaCache / .app-header-link CSS。汎用リファクタしない（回帰面積最小）。
+- **静けさ厳守**: 4色のみ（新規色トークン禁止）、トランジション≤200ms、通知/バッジ/件数カウンタ/ストリーク/保存ボタン/トースト/長押しヒント 禁止。
+- **死蓄関数防止**: useMemoAutoSave→MemoEditorPage、各 db 関数→各画面、syncPendingMemos→useMemoAutoSave/registerOnlineSync の本番配線を grep 確認するまでタスク未完了。M2-T2 のプレースホルダは M4-T3 で必ず実配線。
+- **テスト作法**: fake-indexeddb と vi.useFakeTimers が干渉する箇所あり（既存知見参照）。長押しテストは実時間待機 `LONG_PRESS_MS+100`。テストの削除・既存改変は禁止（M3-T2/M4-T5 は更新/追加のみ）。
+
+### M1 データ基盤（/run 2026-05-17 Build 実装）— 自律判断記録
+
+- **🟡 buildExportPayload の memos 配線を M1-T1 で実施（M4-T1 前倒し）**: `ExportPayload.memos`
+  を必須フィールドにしたため、未配線だと export.ts が `tsc --noEmit` で型エラー。
+  spec m1-t1 注意に「M4-T1 で解消可・または M1-T2 とまとめて GREEN コミット可」とあるが、
+  暫定 `memos: []` を置くより `getAllMemos()` で正値を渡す方が場当たり的でなく正しい
+  （死蓄関数防止にも合致：getAllMemos の本番配線が1箇所成立）。M4-T1 は重複追加でなく
+  「テスト追加（TDD）と回帰確認」に縮退する想定。replaceAllData は省略呼出のままなので
+  github.ts importFromGitHub は無変更（U2 保持）。
+- **🟡 deleteMemo の A12 対象1件選択 = createdAt 最新・id タイブレーク**: spec「決定的に1件」
+  を満たすため `createdAt` 降順→同値時 `id` 昇順で先頭固定。テスト安定。
+- **🟡 deleteMemo の addDeletedMemoDay は tx.done 後に別 tx で実行**: idb の同一 tx 内で
+  memos(readwrite) と meta(readwrite) を跨ぐとストア宣言が必要かつ複雑化。当日全滅判定後に
+  メモ tx を閉じ、meta 操作を別 tx 化（原子性は「削除」と「削除日記録」で分離して問題なし、
+  片方失敗時もローカル真実は次回 sync で収束）。
+- **配線状況**: M1 は本番UI未接続が前提どおり。db memo 関数群は export 済み・型整合。
+  dateKey export 後 findPageByDate/getDateSetInMonth 既存テスト緑（回帰なし）。
+  export.ts のみ getAllMemos を実配線（前倒し）。残り memo 関数の本番配線は M2+。

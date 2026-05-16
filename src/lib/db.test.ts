@@ -1,26 +1,37 @@
 import { afterEach, beforeEach, describe, expect, it } from 'vitest';
 import {
   _resetDBForTests,
+  addDeletedMemoDay,
+  addMemo,
+  dateKey,
+  deleteMemo,
   deleteVolume,
   ensureActiveVolume,
   getActiveVolume,
+  getAllMemos,
   getAllPages,
   getAllVolumes,
+  getDeletedMemoDays,
   getLatestUpdatedPageNumber,
+  getMemo,
   getPage,
   getPagesByVolume,
+  getPendingMemos,
   getVolume,
   loadVolumeText,
+  markMemosSyncedByDay,
+  removeDeletedMemoDay,
   replaceAllData,
   rotateVolume,
   savePage,
   saveVolumeText,
   findPageByDate,
   getDateSetInMonth,
+  updateMemo,
   updateVolumeLastOpenedPage,
 } from './db';
 import { DB_NAME } from './constants';
-import type { Page, Volume } from '../types';
+import type { Memo, Page, Volume } from '../types';
 
 // 各テスト前に DB を捨てる
 async function wipeDB() {
@@ -541,5 +552,198 @@ describe('db v2 migration from v1 (M7-T7)', () => {
     await updateVolumeLastOpenedPage('v-legacy', 5);
     const got = await getVolume('v-legacy');
     expect(got?.lastOpenedPage).toBe(5);
+  });
+});
+
+// =============================================================================
+// M1-T2: v2→v3 migration + memos store + dateKey export
+// =============================================================================
+
+/** v2 スキーマを手動構築し、volumes/pages/meta にデータ投入する */
+async function buildV2WithData(): Promise<void> {
+  await new Promise<void>((resolve, reject) => {
+    const req = indexedDB.open(DB_NAME, 2);
+    req.onupgradeneeded = () => {
+      const db = req.result;
+      const vs = db.createObjectStore('volumes', { keyPath: 'id' });
+      vs.createIndex('by-status', 'status');
+      vs.createIndex('by-ordinal', 'ordinal');
+      const ps = db.createObjectStore('pages', { keyPath: 'id' });
+      ps.createIndex('by-volume-page', ['volumeId', 'pageNumber']);
+      ps.createIndex('by-volume', 'volumeId');
+      ps.createIndex('by-createdAt', 'createdAt');
+      ps.createIndex('by-syncStatus', 'syncStatus');
+      db.createObjectStore('meta');
+    };
+    req.onsuccess = () => {
+      const db = req.result;
+      const tx = db.transaction(['volumes', 'pages', 'meta'], 'readwrite');
+      tx.objectStore('volumes').put({
+        id: 'v2-vol',
+        ordinal: 3,
+        status: 'active',
+        createdAt: '2025-03-01T00:00:00.000Z',
+        lastOpenedPage: 2,
+      } as Volume);
+      tx.objectStore('pages').put({
+        id: 'v2-page',
+        volumeId: 'v2-vol',
+        pageNumber: 1,
+        content: 'v2 body',
+        createdAt: '2025-03-01T01:00:00.000Z',
+        updatedAt: '2025-03-01T02:00:00.000Z',
+        syncStatus: 'synced',
+      } as Page);
+      tx.objectStore('meta').put({ token: 't', owner: 'o', repo: 'r' }, 'github-settings');
+      tx.oncomplete = () => {
+        db.close();
+        resolve();
+      };
+      tx.onerror = () => reject(tx.error);
+    };
+    req.onerror = () => reject(req.error);
+  });
+}
+
+describe('db v2→v3 migration (M1-T2)', () => {
+  it('keeps volumes/pages/meta intact after v2→v3 upgrade', async () => {
+    await buildV2WithData();
+    await _resetDBForTests();
+
+    const v = await getVolume('v2-vol');
+    expect(v?.id).toBe('v2-vol');
+    expect(v?.ordinal).toBe(3);
+    expect(v?.lastOpenedPage).toBe(2);
+
+    const p = await getPage('v2-vol', 1);
+    expect(p?.content).toBe('v2 body');
+    expect(p?.syncStatus).toBe('synced');
+
+    // memos ストアが v3 で追加されている（昇格後は空）
+    const memos = await getAllMemos();
+    expect(memos).toEqual([]);
+  });
+
+  it('creates 4 stores (incl. memos) for a brand-new DB', async () => {
+    const memos = await getAllMemos();
+    expect(memos).toEqual([]);
+    // ストアが存在し操作可能（throw しない）こと
+    const m = await addMemo('hello');
+    expect(m.content).toBe('hello');
+  });
+
+  it('exports dateKey with unchanged local-date behavior', () => {
+    // 2025-03-01T01:00:00Z をローカル日付へ
+    const d = new Date('2025-03-01T01:00:00.000Z');
+    const expected = `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`;
+    expect(dateKey('2025-03-01T01:00:00.000Z')).toBe(expected);
+  });
+});
+
+// =============================================================================
+// M1-T3: memo CRUD + memos-deleted-days + replaceAllData(memos?)
+// =============================================================================
+
+describe('db memo CRUD (M1-T3)', () => {
+  it('addMemo→getMemo roundtrip; createdAt===updatedAt; pending', async () => {
+    const m = await addMemo('first memo');
+    const got = await getMemo(m.id);
+    expect(got).toEqual(m);
+    expect(got?.content).toBe('first memo');
+    expect(got?.createdAt).toBe(got?.updatedAt);
+    expect(got?.syncStatus).toBe('pending');
+  });
+
+  it('updateMemo on existing id updates content/updatedAt/pending', async () => {
+    const m = await addMemo('orig');
+    await new Promise((r) => setTimeout(r, 5));
+    const u = await updateMemo(m.id, 'changed');
+    expect(u?.content).toBe('changed');
+    expect(u?.syncStatus).toBe('pending');
+    expect((u as Memo).updatedAt >= (u as Memo).createdAt).toBe(true);
+    expect((u as Memo).createdAt).toBe(m.createdAt);
+  });
+
+  it('updateMemo on missing id → undefined, no record created', async () => {
+    const before = await getAllMemos();
+    const r = await updateMemo('nope', 'x');
+    expect(r).toBeUndefined();
+    const after = await getAllMemos();
+    expect(after.length).toBe(before.length);
+  });
+
+  it('deleteMemo removes; sibling same-day memo becomes pending (A12)', async () => {
+    const a = await addMemo('a');
+    const b = await addMemo('b');
+    // 両方同じ createdAt 日に揃える（pending→synced 後に削除誘発を確認）
+    await markMemosSyncedByDay(dateKey(a.createdAt), [a.id, b.id]);
+    await deleteMemo(a.id);
+    expect(await getMemo(a.id)).toBeUndefined();
+    const bAfter = await getMemo(b.id);
+    expect(bAfter?.syncStatus).toBe('pending');
+    // 当日メモが残るので deleted-days には入らない
+    expect(await getDeletedMemoDays()).not.toContain(dateKey(a.createdAt));
+  });
+
+  it('deleteMemo of last same-day memo → addDeletedMemoDay', async () => {
+    const a = await addMemo('only');
+    const dk = dateKey(a.createdAt);
+    await deleteMemo(a.id);
+    expect(await getMemo(a.id)).toBeUndefined();
+    expect(await getDeletedMemoDays()).toContain(dk);
+  });
+
+  it('getPendingMemos returns only pending', async () => {
+    const a = await addMemo('a');
+    const b = await addMemo('b');
+    await markMemosSyncedByDay(dateKey(a.createdAt), [a.id]);
+    const pending = await getPendingMemos();
+    const ids = pending.map((m) => m.id);
+    expect(ids).toContain(b.id);
+    expect(ids).not.toContain(a.id);
+  });
+
+  it('markMemosSyncedByDay marks only given ids', async () => {
+    const a = await addMemo('a');
+    const b = await addMemo('b');
+    await markMemosSyncedByDay(dateKey(a.createdAt), [a.id]);
+    expect((await getMemo(a.id))?.syncStatus).toBe('synced');
+    expect((await getMemo(b.id))?.syncStatus).toBe('pending');
+  });
+
+  it('deleted-days add is idempotent and removable', async () => {
+    await addDeletedMemoDay('2025-03-01');
+    await addDeletedMemoDay('2025-03-01');
+    expect(await getDeletedMemoDays()).toEqual(['2025-03-01']);
+    await removeDeletedMemoDay('2025-03-01');
+    expect(await getDeletedMemoDays()).toEqual([]);
+  });
+});
+
+describe('db replaceAllData with memos (M1-T3)', () => {
+  it('preserves memos when memos arg omitted (U2)', async () => {
+    await addMemo('keep me');
+    await replaceAllData([], []);
+    const memos = await getAllMemos();
+    expect(memos.length).toBe(1);
+    expect(memos[0].content).toBe('keep me');
+  });
+
+  it('replaces memos when memos arg provided', async () => {
+    await addMemo('old');
+    const replacement: Memo[] = [
+      {
+        id: 'r1',
+        content: 'new',
+        createdAt: '2025-03-01T00:00:00.000Z',
+        updatedAt: '2025-03-01T00:00:00.000Z',
+        syncStatus: 'synced',
+      },
+    ];
+    await replaceAllData([], [], replacement);
+    const memos = await getAllMemos();
+    expect(memos.length).toBe(1);
+    expect(memos[0].id).toBe('r1');
+    expect(memos[0].content).toBe('new');
   });
 });

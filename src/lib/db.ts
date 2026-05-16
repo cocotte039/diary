@@ -8,6 +8,7 @@ import {
 import type {
   AppSettings,
   GitHubSettings,
+  Memo,
   Page,
   SyncStatus,
   Volume,
@@ -47,7 +48,18 @@ interface DiaryDB extends DBSchema {
     key: string;
     value: unknown;
   };
+  memos: {
+    key: string;
+    value: Memo;
+    indexes: {
+      'by-createdAt': string;
+      'by-syncStatus': SyncStatus;
+    };
+  };
 }
+
+/** memos-deleted-days を保持する meta KV のキー名 */
+const MEMOS_DELETED_DAYS_KEY = 'memos-deleted-days';
 
 let dbPromise: Promise<IDBPDatabase<DiaryDB>> | null = null;
 
@@ -75,6 +87,13 @@ export function getDB(): Promise<IDBPDatabase<DiaryDB>> {
         if (oldVersion < 2) {
           // v2: Volume.lastOpenedPage (optional) 追加。
           // 既存レコードの書換不要 (optional フィールドなので undefined で読める)。
+        }
+        // v3: 観測ログ用 memos ストア追加。
+        // contains ガード方式に統一し v1/v2/新規を一律カバー（oldVersion<3 不要）。
+        if (!db.objectStoreNames.contains('memos')) {
+          const ms = db.createObjectStore('memos', { keyPath: 'id' });
+          ms.createIndex('by-createdAt', 'createdAt');
+          ms.createIndex('by-syncStatus', 'syncStatus');
         }
       },
     });
@@ -470,7 +489,7 @@ export async function deleteVolume(volumeId: string): Promise<void> {
  * 単純な `iso.slice(0, 10)` は UTC 日付なので JST 深夜〜早朝の境界で
  * 前日/翌日にズレる。Date 経由でローカル年月日を組み立てることで解消。
  */
-function dateKey(iso: string): string {
+export function dateKey(iso: string): string {
   const d = new Date(iso);
   const y = d.getFullYear();
   const m = String(d.getMonth() + 1).padStart(2, '0');
@@ -607,15 +626,180 @@ export async function getAllPages(): Promise<Page[]> {
  */
 export async function replaceAllData(
   volumes: Volume[],
-  pages: Page[]
+  pages: Page[],
+  memos?: Memo[]
 ): Promise<void> {
   const db = await getDB();
-  const tx = db.transaction(['volumes', 'pages'], 'readwrite');
+  const stores: Array<'volumes' | 'pages' | 'memos'> =
+    memos === undefined
+      ? ['volumes', 'pages']
+      : ['volumes', 'pages', 'memos'];
+  const tx = db.transaction(stores, 'readwrite');
   const vStore = tx.objectStore('volumes');
   const pStore = tx.objectStore('pages');
   await vStore.clear();
   await pStore.clear();
   for (const v of volumes) await vStore.put(v);
   for (const p of pages) await pStore.put(p);
+  // memos 未指定時は memos ストアに一切触れない（U2: 復元時メモ保持）。
+  if (memos !== undefined) {
+    const mStore = tx.objectStore('memos');
+    await mStore.clear();
+    for (const m of memos) await mStore.put(m);
+  }
+  await tx.done;
+}
+
+// =============================================================================
+// Memo 操作 (M1-T3)
+// =============================================================================
+
+/** 新規メモを作成して返す。createdAt===updatedAt、syncStatus='pending'。 */
+export async function addMemo(content: string): Promise<Memo> {
+  const db = await getDB();
+  const now = nowIso();
+  const memo: Memo = {
+    id: uuid(),
+    content,
+    createdAt: now,
+    updatedAt: now,
+    syncStatus: 'pending',
+  };
+  await db.put('memos', memo);
+  return memo;
+}
+
+export async function getMemo(id: string): Promise<Memo | undefined> {
+  const db = await getDB();
+  return db.get('memos', id);
+}
+
+/** 全メモを createdAt 昇順で返す（呼び側で必要なら降順整形）。 */
+export async function getAllMemos(): Promise<Memo[]> {
+  const db = await getDB();
+  const all = await db.getAll('memos');
+  return all.sort((a, b) => a.createdAt.localeCompare(b.createdAt));
+}
+
+/**
+ * 既存メモの本文を更新する。
+ * 不在 id は no-op で undefined（削除済みを put で復活させない, E18）。
+ */
+export async function updateMemo(
+  id: string,
+  content: string
+): Promise<Memo | undefined> {
+  const db = await getDB();
+  const tx = db.transaction('memos', 'readwrite');
+  const existing = await tx.store.get(id);
+  if (!existing) {
+    await tx.done;
+    return undefined;
+  }
+  const next: Memo = {
+    ...existing,
+    content,
+    updatedAt: nowIso(),
+    syncStatus: 'pending',
+  };
+  await tx.store.put(next);
+  await tx.done;
+  return next;
+}
+
+/**
+ * メモを削除する（A12 込み）。
+ * - 同 dateKey(createdAt) の他メモが残る場合、決定的に1件（createdAt 最新）を
+ *   pending 化して当日ファイルの再生成を誘発する。
+ * - 当日メモが全滅した場合は addDeletedMemoDay で削除日を記録する。
+ */
+export async function deleteMemo(id: string): Promise<void> {
+  const db = await getDB();
+  const tx = db.transaction('memos', 'readwrite');
+  const store = tx.store;
+  const target = await store.get(id);
+  if (!target) {
+    await tx.done;
+    return;
+  }
+  const dk = dateKey(target.createdAt);
+  await store.delete(id);
+
+  // 同日に残る他メモを収集
+  const all = await store.getAll();
+  const sameDay = all.filter((m) => dateKey(m.createdAt) === dk);
+  if (sameDay.length > 0) {
+    // 決定的に1件（createdAt 最新、同値なら id でタイブレーク）
+    sameDay.sort((a, b) => {
+      const c = b.createdAt.localeCompare(a.createdAt);
+      return c !== 0 ? c : a.id.localeCompare(b.id);
+    });
+    const pick = sameDay[0];
+    await store.put({ ...pick, syncStatus: 'pending' });
+    await tx.done;
+  } else {
+    await tx.done;
+    // 当日メモ全滅 → 削除日を記録（A12: 空ファイル PUT 誘発）
+    await addDeletedMemoDay(dk);
+  }
+}
+
+export async function getPendingMemos(): Promise<Memo[]> {
+  const db = await getDB();
+  return db.getAllFromIndex('memos', 'by-syncStatus', 'pending');
+}
+
+/**
+ * 指定日付の、指定 id のみを synced にする（生成時 id 集合のみ, E3）。
+ */
+export async function markMemosSyncedByDay(
+  _dateKey: string,
+  ids: string[]
+): Promise<void> {
+  const db = await getDB();
+  const tx = db.transaction('memos', 'readwrite');
+  const idSet = new Set(ids);
+  for (const id of idSet) {
+    const m = await tx.store.get(id);
+    if (m) {
+      await tx.store.put({ ...m, syncStatus: 'synced' });
+    }
+  }
+  await tx.done;
+}
+
+// =============================================================================
+// memos-deleted-days (meta KV, A12)
+// =============================================================================
+
+export async function getDeletedMemoDays(): Promise<string[]> {
+  const db = await getDB();
+  const v = (await db.get('meta', MEMOS_DELETED_DAYS_KEY)) as
+    | string[]
+    | undefined;
+  return v ?? [];
+}
+
+export async function addDeletedMemoDay(dateKey: string): Promise<void> {
+  const db = await getDB();
+  const tx = db.transaction('meta', 'readwrite');
+  const cur = ((await tx.store.get(MEMOS_DELETED_DAYS_KEY)) as
+    | string[]
+    | undefined) ?? [];
+  if (!cur.includes(dateKey)) {
+    cur.push(dateKey);
+    await tx.store.put(cur, MEMOS_DELETED_DAYS_KEY);
+  }
+  await tx.done;
+}
+
+export async function removeDeletedMemoDay(dateKey: string): Promise<void> {
+  const db = await getDB();
+  const tx = db.transaction('meta', 'readwrite');
+  const cur = ((await tx.store.get(MEMOS_DELETED_DAYS_KEY)) as
+    | string[]
+    | undefined) ?? [];
+  const next = cur.filter((d) => d !== dateKey);
+  await tx.store.put(next, MEMOS_DELETED_DAYS_KEY);
   await tx.done;
 }

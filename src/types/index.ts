@@ -60,12 +60,34 @@ export interface AppSettings {
   dayRolloverHour: number;
 }
 
+/**
+ * 時系列メモ（観測ログ）。日記（Volume/Page）とは別管理。
+ * IndexedDB の memos ストアと一致させること。
+ */
+export interface Memo {
+  /** UUID (crypto.randomUUID()) */
+  id: string;
+  /** 本文（空文字許容: 空メモは一覧で「（空のメモ）」表示） */
+  content: string;
+  /** 初回書き込み日時 (ISO8601) */
+  createdAt: ISODateString;
+  /** 最終更新日時 */
+  updatedAt: ISODateString;
+  /** GitHub 同期状態 */
+  syncStatus: SyncStatus;
+}
+
 /** エクスポートJSONのフォーマット */
 export interface ExportPayload {
   version: number;
   exportedAt: ISODateString;
   volumes: Volume[];
   pages: Page[];
+  /**
+   * v2+ で追加。観測ログのメモ一覧。
+   * 読み手は旧 v1 互換のため `payload.memos ?? []` でフォールバックすること。
+   */
+  memos: Memo[];
 }
 
 /** カレンダー表示用: 日付のある日リスト */
