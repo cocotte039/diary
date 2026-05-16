@@ -1,9 +1,15 @@
+import { useEffect } from 'react';
 import { HashRouter, Routes, Route, Navigate, useParams } from 'react-router-dom';
 import BookshelfPage from './features/bookshelf/BookshelfPage';
 import SettingsPage from './features/settings/SettingsPage';
 import EditorPage from './features/editor/EditorPage';
 import MemoEditorPage from './features/log/MemoEditorPage';
 import LogListPage from './features/log/LogListPage';
+import {
+  registerOnlineSync,
+  syncPendingPagesBackground,
+  syncPendingMemosBackground,
+} from './lib/github';
 
 /**
  * 旧 `/read/:volumeId/:pageNumber` を新 `/book/:volumeId/:pageNumber` に
@@ -27,6 +33,23 @@ function ReadRedirect() {
  * `/book/:id/:page` に恒久リダイレクトされる。
  */
 export default function App() {
+  // GitHub バックアップの再同期トリガをアプリ起動時に一度だけ配線する。
+  // - registerOnlineSync: online 復帰イベントで pending を再同期（戻り値=解除関数を cleanup へ）
+  // - 起動時フラッシュ: online イベントを取りこぼした場合やオンラインでの
+  //   コールド起動でも、溜まった pending を一掃する。syncPendingXxx は
+  //   GitHub 未設定 / オフラインを内部ガードで no-op 化し、全 pending 走査・
+  //   backoff 付きで冪等のため無条件呼び出しで安全。
+  // 元は WritePage に配線されていたが [M7-T5] WritePage 削除で消失していた。
+  // 削除されうるページでなく App ルートに置くことで再発を防ぐ。
+  // StrictMode(dev) の二重 invoke では add→remove→add で最終 1 リスナーに
+  // 収束し、フラッシュは冪等なので二重発火しても無害。
+  useEffect(() => {
+    const unregister = registerOnlineSync();
+    syncPendingPagesBackground();
+    syncPendingMemosBackground();
+    return unregister;
+  }, []);
+
   return (
     <HashRouter>
       <Routes>

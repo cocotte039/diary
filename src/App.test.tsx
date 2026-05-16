@@ -8,13 +8,16 @@ import {
   useParams,
   useLocation,
 } from 'react-router-dom';
+import App from './App';
 import BookshelfPage from './features/bookshelf/BookshelfPage';
 import EditorPage from './features/editor/EditorPage';
 import SettingsPage from './features/settings/SettingsPage';
+import * as github from './lib/github';
 
 // GitHub 同期は本テストの対象外なのでモック
 vi.mock('./lib/github', () => ({
   syncPendingPagesBackground: vi.fn(),
+  syncPendingMemosBackground: vi.fn(),
   registerOnlineSync: vi.fn(() => () => {}),
   importFromGitHub: vi.fn(),
   syncPendingPages: vi.fn(),
@@ -121,5 +124,33 @@ describe('App routing (M4-T1 / M7-T5)', () => {
       </MemoryRouter>
     );
     expect(screen.getByTestId('location')).toHaveTextContent('/');
+  });
+});
+
+describe('App 起動時 GitHub 再同期配線（registerOnlineSync 復旧）', () => {
+  it('マウントで registerOnlineSync を登録し pages/memos の起動時フラッシュを呼ぶ', async () => {
+    vi.mocked(github.registerOnlineSync).mockClear();
+    vi.mocked(github.syncPendingPagesBackground).mockClear();
+    vi.mocked(github.syncPendingMemosBackground).mockClear();
+
+    render(<App />);
+
+    await waitFor(() => {
+      expect(github.registerOnlineSync).toHaveBeenCalledTimes(1);
+    });
+    expect(github.syncPendingPagesBackground).toHaveBeenCalledTimes(1);
+    expect(github.syncPendingMemosBackground).toHaveBeenCalledTimes(1);
+  });
+
+  it('アンマウントで registerOnlineSync の解除関数を呼ぶ（リスナー解放）', async () => {
+    const unregister = vi.fn();
+    vi.mocked(github.registerOnlineSync).mockReturnValueOnce(unregister);
+
+    const { unmount } = render(<App />);
+    await waitFor(() =>
+      expect(github.registerOnlineSync).toHaveBeenCalled()
+    );
+    unmount();
+    expect(unregister).toHaveBeenCalledTimes(1);
   });
 });
