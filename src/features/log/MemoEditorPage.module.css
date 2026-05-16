@@ -1,0 +1,65 @@
+/*
+ * MemoEditorPage: 罫線なしの素の紙。日記（罫線ノート）と体験を分離するため
+ * notebook.css の罫線クラスは一切使わない。明朝フォントで日記と差別化。
+ * 静けさ: 4 色のみ（--color-bg/text/rule/accent/error）、トランジション ≤200ms、
+ * 保存ボタン/トースト/文字数カウンタなし。
+ */
+.root {
+  position: fixed;
+  inset: 0;
+  width: 100vw;
+  height: 100%;
+  height: 100dvh;
+  display: flex;
+  flex-direction: column;
+}
+
+.header {
+  display: grid;
+  grid-template-columns: 1fr auto;
+  column-gap: 0.5rem;
+}
+.headerLeft {
+  justify-self: start;
+  display: inline-flex;
+  align-items: center;
+}
+.headerRight {
+  justify-self: end;
+  display: inline-flex;
+  align-items: center;
+}
+
+/* 編集時の createdAt 控えめ表示。主張させない（opacity 0.3）。 */
+.createdAt {
+  font-family: var(--font-family-ui);
+  font-size: 0.7rem;
+  color: var(--color-text);
+  opacity: 0.3;
+  font-variant-numeric: tabular-nums;
+}
+
+.surface {
+  flex: 1 1 auto;
+  min-height: 0;
+  overflow-y: auto;
+  display: flex;
+}
+
+.textarea {
+  flex: 1 1 auto;
+  width: 100%;
+  border: none;
+  outline: none;
+  resize: none;
+  background-color: var(--color-bg);
+  color: var(--color-text);
+  /* 明朝系（メモ=素の紙）。日記の Klee One 手書き体と差別化。 */
+  font-family: 'Hiragino Mincho ProN', 'Yu Mincho', 'Noto Serif JP', serif;
+  font-size: var(--font-size);
+  line-height: var(--line-height);
+  letter-spacing: var(--letter-spacing);
+  padding: 1rem max(var(--padding-page), env(safe-area-inset-right)) 1rem
+    max(var(--padding-page), env(safe-area-inset-left));
+  -webkit-tap-highlight-color: transparent;
+}
