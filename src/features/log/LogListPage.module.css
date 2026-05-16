@@ -1,0 +1,67 @@
+/*
+ * LogListPage: 観測ログの日付グルーピング一覧。
+ * 静けさ: 4 色のみ、件数カウンタ/バッジなし。日付見出し・空状態は
+ * opacity を落として主張させない。
+ */
+.root {
+  height: 100dvh;
+  display: flex;
+  flex-direction: column;
+}
+
+.header {
+  /* 共通プロパティは .app-header に集約。 */
+}
+
+.body {
+  flex: 1 1 auto;
+  min-height: 0;
+  overflow-y: auto;
+  padding: 0 max(1rem, env(safe-area-inset-right)) 2rem
+    max(1rem, env(safe-area-inset-left));
+}
+
+.group {
+  /* グループ間の区切りは見出し margin-top のみ（罫線なし＝静けさ）。 */
+}
+
+/* 日付見出し YYYY/MM/DD。控えめ（opacity 0.5）。 */
+.dateHeading {
+  font-family: var(--font-family-ui);
+  font-size: 0.75rem;
+  font-weight: normal;
+  color: var(--color-text);
+  opacity: 0.5;
+  margin: 1.5rem 0 0.25rem;
+}
+
+.row {
+  display: block;
+}
+
+/* 本文プレビュー: 2 行 clamp、明朝（メモ=素の紙、日記と差別化）。 */
+.preview {
+  display: -webkit-box;
+  -webkit-line-clamp: 2;
+  line-clamp: 2;
+  -webkit-box-orient: vertical;
+  overflow: hidden;
+  color: var(--color-text);
+  opacity: 0.85;
+  font-family: 'Hiragino Mincho ProN', 'Yu Mincho', 'Noto Serif JP', serif;
+}
+
+/* 空メモのプレースホルダ（U3/E9）。さらに控えめ。 */
+.emptyMemo {
+  color: var(--color-text);
+  opacity: 0.3;
+  font-family: var(--font-family-ui);
+}
+
+/* 0 件時の空状態（BookshelfPage .empty 作法）。 */
+.empty {
+  opacity: 0.5;
+  text-align: center;
+  margin-top: 4rem;
+  font-family: var(--font-family-ui);
+}

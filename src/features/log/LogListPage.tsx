@@ -1,14 +1,75 @@
+import { useEffect, useState } from 'react';
+import styles from './LogListPage.module.css';
+import { dateKey, getAllMemos } from '../../lib/db';
+import type { Memo } from '../../types';
 import HeaderTabs from '../shared/HeaderTabs';
 
+/** dateKey (YYYY-MM-DD) を見出し用 YYYY/MM/DD に変換（VolumeCard formatRange 同表記）。 */
+function formatHeading(dk: string): string {
+  return dk.replace(/-/g, '/');
+}
+
 /**
- * M3-T3 スタブ。M3-T4 で日付グルーピング一覧として実体化する。
+ * メモ一覧画面（観測ログ）。
+ * getAllMemos → createdAt 降順 → dateKey でグルーピング、日付降順（新しい日が上）。
+ * 静けさ: 件数カウンタ・バッジなし。空状態は控えめなテキストのみ。
  */
 export default function LogListPage() {
+  const [memos, setMemos] = useState<Memo[]>([]);
+  const [ready, setReady] = useState(false);
+  const [reloadKey] = useState(0);
+
+  useEffect(() => {
+    let cancelled = false;
+    (async () => {
+      const all = await getAllMemos();
+      if (cancelled) return;
+      setMemos(all);
+      setReady(true);
+    })();
+    return () => {
+      cancelled = true;
+    };
+  }, [reloadKey]);
+
+  // createdAt 降順にソートし dateKey でグルーピング（挿入順 = 日付降順）。
+  const sorted = [...memos].sort((a, b) =>
+    b.createdAt.localeCompare(a.createdAt)
+  );
+  const groups = new Map<string, Memo[]>();
+  for (const m of sorted) {
+    const dk = dateKey(m.createdAt);
+    const arr = groups.get(dk) ?? [];
+    arr.push(m);
+    groups.set(dk, arr);
+  }
+
   return (
-    <div>
-      <header className="app-header">
+    <div className={styles.root}>
+      <header className={`app-header ${styles.header}`}>
         <HeaderTabs />
       </header>
+
+      <div className={styles.body}>
+        {ready && memos.length === 0 ? (
+          <div className={styles.empty}>まだメモがありません</div>
+        ) : (
+          [...groups.entries()].map(([dk, items]) => (
+            <section key={dk} className={styles.group}>
+              <h2 className={styles.dateHeading}>{formatHeading(dk)}</h2>
+              {items.map((m) => (
+                <div key={m.id} className={styles.row}>
+                  {m.content.trim() === '' ? (
+                    <span className={styles.emptyMemo}>（空のメモ）</span>
+                  ) : (
+                    <span className={styles.preview}>{m.content}</span>
+                  )}
+                </div>
+              ))}
+            </section>
+          ))
+        )}
+      </div>
     </div>
   );
 }
