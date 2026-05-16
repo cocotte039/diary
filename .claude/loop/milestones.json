@@ -42,7 +42,7 @@
       "id": "M2",
       "name": "メモを書ける（FAB→入力画面・暗黙保存）",
       "goal": "本棚右下FABからメモ入力画面を開き本文を書くと暗黙保存され戻れる。",
-      "status": "pending",
+      "status": "completed",
       "verification": "npm run lint && npm run test:run",
       "tasks": [
         {
@@ -50,7 +50,7 @@
           "name": "App.tsx に /log/new・/log/:memoId ルート追加",
           "spec": "specs/m2-t1.md",
           "wave": 1,
-          "status": "pending",
+          "status": "completed",
           "assignee": "build"
         },
         {
@@ -58,7 +58,7 @@
           "name": "useMemoAutoSave（TDD）",
           "spec": "specs/m2-t2.md",
           "wave": 2,
-          "status": "pending",
+          "status": "completed",
           "assignee": "build"
         },
         {
@@ -66,7 +66,7 @@
           "name": "MemoEditorPage 新規/編集兼用（TDD）",
           "spec": "specs/m2-t3.md",
           "wave": 3,
-          "status": "pending",
+          "status": "completed",
           "assignee": "build"
         },
         {
@@ -74,7 +74,7 @@
           "name": "Fab.tsx + BookshelfPage 配置 + padding-bottom",
           "spec": "specs/m2-t4.md",
           "wave": 4,
-          "status": "pending",
+          "status": "completed",
           "assignee": "build"
         }
       ]
@@ -181,7 +181,7 @@
   "fix_queue": [],
   "metadata": {
     "created_at": "2026-05-17T00:00:00Z",
-    "last_updated": "2026-05-17T07:00:00Z",
+    "last_updated": "2026-05-17T07:30:00Z",
     "current_iteration": 1,
     "total_iterations": 1
   }
