@@ -25,12 +25,6 @@
   align-items: baseline;
 }
 
-.title {
-  font-family: var(--font-family);
-  font-size: 1.25rem;
-  margin: 0;
-}
-
 .grid {
   display: grid;
   grid-template-columns: repeat(2, minmax(0, 1fr));

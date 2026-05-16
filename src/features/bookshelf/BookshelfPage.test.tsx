@@ -409,7 +409,12 @@ describe('BookshelfPage auto-create & header (M4-T6)', () => {
   it('does not render the old 書く header link', async () => {
     await ensureActiveVolume();
     renderPage();
-    await screen.findByRole('heading', { name: '本棚' });
+    // M3-T2: ヘッダー h1「本棚」は HeaderTabs に置換された。
+    // 旧 h1 アサーションを HeaderTabs の表示確認に更新（plan/spec 明示の回帰更新）。
+    await screen.findByRole('link', { name: '本棚' });
+    expect(screen.getByRole('link', { name: 'メモ' })).toBeInTheDocument();
+    // h1「本棚」見出しはもう存在しない
+    expect(screen.queryByRole('heading', { name: '本棚' })).toBeNull();
     expect(screen.queryByRole('link', { name: '書く' })).toBeNull();
   });
 

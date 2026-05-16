@@ -13,6 +13,7 @@ import {
 import { PAGES_PER_VOLUME } from '../../lib/constants';
 import type { Page, Volume } from '../../types';
 import VolumeCard from './VolumeCard';
+import HeaderTabs from '../shared/HeaderTabs';
 import BookshelfMenu from './BookshelfMenu';
 import Calendar from './Calendar';
 import Fab from './Fab';
@@ -124,7 +125,7 @@ export default function BookshelfPage() {
   return (
     <div className={styles.root}>
       <header className={`app-header ${styles.header}`}>
-        <h1 className={styles.title}>本棚</h1>
+        <HeaderTabs />
         <BookshelfMenu
           onCreateNew={handleCreateNew}
           onOpenCalendar={() => setShowCalendar(true)}
