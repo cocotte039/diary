@@ -8,6 +8,7 @@ import {
 import { Link, useNavigate, useParams, useLocation } from 'react-router-dom';
 import styles from './MemoEditorPage.module.css';
 import { getMemo } from '../../lib/db';
+import { SWIPE_THRESHOLD_PX } from '../../lib/constants';
 import { useMemoAutoSave } from './useMemoAutoSave';
 
 /**
@@ -53,6 +54,11 @@ export default function MemoEditorPage() {
   const historyGuardInstalledRef = useRef(false);
 
   const textareaRef = useRef<HTMLTextAreaElement>(null);
+
+  // 右スワイプ判定用（EditorPage 同型・コピー実装）。IME 変換中ガード ref。
+  const touchStartXRef = useRef<number | null>(null);
+  const touchStartYRef = useRef<number | null>(null);
+  const isComposingRef = useRef(false);
 
   // 編集時: 既存メモをロード。undefined は /log へ replace（E10）。
   useEffect(() => {
@@ -132,24 +138,57 @@ export default function MemoEditorPage() {
     setContent(e.target.value);
   }, []);
 
-  // 戻るリンク: 既定遷移をキャンセルし flush してから navigate
+  // 共通の戻り処理: flush（直近入力をロストしない, C2）してから navigate。
+  // 戻るリンク click と右スワイプの両方から呼ばれる（dead code なし）。
+  const goBack = useCallback(async () => {
+    try {
+      await flush();
+    } catch {
+      // 保存失敗でも遷移は継続
+    }
+    navigate(backTo);
+  }, [flush, navigate, backTo]);
+
+  // 戻るリンク: 既定遷移をキャンセルし goBack へ委譲
   const handleBack = useCallback(
     (e: React.MouseEvent) => {
       e.preventDefault();
-      void (async () => {
-        try {
-          await flush();
-        } catch {
-          // 保存失敗でも遷移は継続
-        }
-        navigate(backTo);
-      })();
+      void goBack();
     },
-    [flush, navigate, backTo]
+    [goBack]
   );
 
+  // 右エッジスワイプで戻る（EditorPage L291-331 同型のコピー実装）。
+  // textarea は ref で onTouchStart を発火しないため target は root か textarea。
+  const onTouchStart = (e: React.TouchEvent<HTMLDivElement>) => {
+    const t = e.touches[0];
+    touchStartXRef.current = t ? t.clientX : null;
+    touchStartYRef.current = t ? t.clientY : null;
+  };
+  const onTouchEnd = (e: React.TouchEvent<HTMLDivElement>) => {
+    const sx = touchStartXRef.current;
+    const sy = touchStartYRef.current;
+    touchStartXRef.current = null;
+    touchStartYRef.current = null;
+    if (sx == null || sy == null) return;
+    if (isComposingRef.current) return; // M1: IME 変換中は無効
+    const t = e.changedTouches[0];
+    if (!t) return;
+    const dx = t.clientX - sx;
+    const dy = t.clientY - sy;
+    if (Math.abs(dx) < SWIPE_THRESHOLD_PX) return;
+    if (Math.abs(dx) <= Math.abs(dy) * 2) return; // 水平優位 2:1
+    if (dx > 0) void goBack(); // 右スワイプ → 戻る（C2: goBack が flush）
+    // 左スワイプは無反応（メモ 1 画面）
+  };
+
   return (
-    <div className={styles.root} data-testid="memo-editor-page">
+    <div
+      className={styles.root}
+      data-testid="memo-editor-page"
+      onTouchStart={onTouchStart}
+      onTouchEnd={onTouchEnd}
+    >
       <header className={`app-header ${styles.header}`}>
         <div className={styles.headerLeft}>
           <Link
@@ -180,6 +219,12 @@ export default function MemoEditorPage() {
           className={styles.textarea}
           value={content}
           onChange={handleChange}
+          onCompositionStart={() => {
+            isComposingRef.current = true;
+          }}
+          onCompositionEnd={() => {
+            isComposingRef.current = false;
+          }}
           autoComplete="off"
           autoCorrect="off"
           autoCapitalize="off"
