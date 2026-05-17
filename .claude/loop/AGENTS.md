@@ -710,3 +710,24 @@ npm run preview      # ビルド結果のプレビュー
     フラッシュして検証。1 回で十分かはテスト緑後も二重を保持（リスク緩和側）。
 22. **🟡 .header align-items:baseline 採用**: spec m1-t1-4.md / plan.md 裁定
     （Aesthete）通り LogListPage 固有 `.header` にのみ追加。`.app-header` 共通は不変。
+
+## M1 メモ編集を日記と同一体験に（R1, /run Build 実装）— 自律判断記録
+
+- **🟡 罫線ベースライン整合は jsdom 検証不可・実機確認が受入の一部**:
+  M1-T1/T2 で textarea を notebook-surface/notebook-textarea へ同型化したが、
+  「1 行目テキスト下端と 1 本目罫線の整合 / スクロール時の罫線追従
+  （background-attachment:local）/ 空メモ・長文時の罫線表示」は CSS の
+  視覚特性であり vitest（jsdom）では検証不能。spec m1-t2 受入 🟡 のとおり
+  実機/preview 目視が M1 完了の受入の一部として残る（自動テストは
+  className 付与と回帰のみを担保）。
+- **🟡 padding 全委譲（上下左右）の判断**: `.textarea` から padding を完全削除し
+  notebook-surface の `padding:0 var(--padding-page)` へ全委譲。上下 padding を
+  独自再付与すると repeating-linear-gradient 罫線の位相が line-height 整数倍
+  から外れベースラインがずれる（plan C2）。左右 safe-area も notebook 側で
+  吸収し EditorPage と厳密同型化（独自 `env(safe-area-inset-*)` 再付与せず）。
+  これにより日記との完全な体験統一を優先し、メモ固有の余白演出は捨てた。
+- **🟡 M1-T3 はテスト削除でなく仕様追従の反転更新**: テスト削除禁止規約と
+  矛盾しないことを担保するため、notebook クラス不在アサートを存在検証へ
+  反転（R1 仕様変更に伴う正当な追従）。コミットメッセージに明記済み。
+- 結果: MemoEditorPage.test.tsx 14 件・full-suite 229 件・tsc すべて緑。
+  EditorPage.tsx / notebook.css / global.css は 1 文字も変更なし（grep 確認）。
