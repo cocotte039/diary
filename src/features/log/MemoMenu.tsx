@@ -56,6 +56,7 @@ export default function MemoMenu({ onOpenCalendar }: Props) {
           >カレンダー</button>
           <Link
             to="/settings"
+            state={{ from: '/log' }}
             role="menuitem"
             className={styles.item}
             onClick={() => setOpen(false)}
