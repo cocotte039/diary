@@ -656,3 +656,41 @@ npm run preview      # ビルド結果のプレビュー
   - registerOnlineSync online ハンドラ → github.ts:189-190 で
     syncPendingPagesBackground + syncPendingMemosBackground 並列呼出
   - buildExportPayload memos → export.ts:35（M1 前倒し配線, 本番 exportAllData 経由）
+
+### M1 メモ機能 UX 改善（/run 2026-05-17 Build 実装）— 自律判断記録
+
+時系列メモ機能の UX 改善 5 件（FAB上昇 / 自動フォーカス / ゴシック化 /
+タップ背景HL / 右スワイプ戻る）。詳細は `.whiteboard/plan.md`（単一情報源）。
+
+- **🟡 T4 タップハイライト色 = `--color-accent` 採用**: 要件原文は
+  「`--color-rule` 系」だが `--color-rule`=rgba(255,255,255,0.08) は
+  背景 #1c1c20 上で知覚困難。Aesthete 判断で既存 `--color-accent`(#3a3545)
+  を採用（新規色禁止に適合・知覚可能・150ms のみで過剰でない）。plan.md
+  §対立点と判断・spec m1-t4 判断記録どおり推奨案で実装。`.row:active` の
+  `opacity:0.8` を廃止し `background-color:var(--color-accent)`、`.row` に
+  `transition: background-color 150ms ease`（≤200ms 厳守）。
+- **🟡 T5 左スワイプは無反応**: メモは 1 画面のため右スワイプ（戻る）のみ
+  配線し、左スワイプは意図的に無反応（plan.md §見送り事項どおり）。
+  `dx > 0` のみ `goBack()`。
+- **🟡 T5 スワイプ閾値は既存定数 `SWIPE_THRESHOLD_PX`(=50) を流用**:
+  EditorPage と同じ `lib/constants` の定数を import。新規定数を増やさず
+  EditorPage L291-331 のロジックをコピー実装（共通フック抽出は非目標
+  「日記 EditorPage 変更しない」抵触回避のため見送り、plan.md §見送り事項）。
+- **🟡 T2/T5 のコミット時点で C1 テスト 1 件のみ赤を許容**: 旧
+  「自動フォーカスなし」テスト(MemoEditorPage.test.tsx 旧 L117-121)は
+  T2 実装と設計上必ず矛盾（plan.md Critical C1）。plan/spec が
+  「実装先行→T6 でテスト書換により解消」と明示する設計順序のため、
+  T2/T5 各コミットは lint+build green とし、当該 1 テストの赤は T6 コミットで
+  解消（T6 完了時点で対象 3 ファイル 50/50 green）。既存非関連テストの
+  削除・改変はなし（T6 は旧フォーカステスト 1 件の書換のみ）。
+- **配線検証（grep 確認済み・死蓄関数なし）**:
+  - `textareaRef` → MemoEditorPage.tsx textarea の `ref` prop に直結 +
+    自動フォーカス useEffect（`[ready, isNew]`）から `.current` 参照。
+    本番レンダリングパス（App.tsx `/log/new`・`/log/:memoId` ルート）直結。
+  - `onTouchStart`/`onTouchEnd` → MemoEditorPage.tsx return 文最上位
+    `styles.root` div（data-testid="memo-editor-page"）の JSX prop に配線。
+    addEventListener 不使用 → popstate ガード/StrictMode と非干渉。
+  - `goBack` → handleBack（戻るリンク onClick）と onTouchEnd（右スワイプ）の
+    両方から呼出。dead code なし。flush→navigate(backTo) を保持（C2）。
+  - `isComposingRef` → textarea の onCompositionStart/End で切替、onTouchEnd で
+    IME 中ガード参照。

@@ -1,188 +1,31 @@
 {
   "version": "2.0",
   "project": {
-    "name": "diary",
-    "description": "日記とは別管理の時系列メモ（観測ログ）機能を追加。ヘッダータブ切替（本棚/メモ）、本棚右下FAB→メモ入力専用画面、日付グルーピング一覧、長押し削除、GitHub日付別ファイルバックアップ、JSONエクスポート内包。設計原則『静けさ』厳守。"
+    "name": "diary-memo-ux",
+    "description": "観測ログ（メモ）機能の UX 改善（静けさ維持）: FAB位置上昇 / 編集ページ自動フォーカス / ゴシック化 / 一覧タップ背景HL / 右スワイプ戻る"
   },
   "milestones": [
     {
       "id": "M1",
-      "name": "データ基盤（Memo型・DB v3・CRUD）",
-      "goal": "メモを保存・取得・更新・削除でき、既存日記が無破壊で v2→v3 移行される土台。",
+      "name": "メモ機能 UX 改善",
+      "goal": "合意済み5改善を実装し、既存テスト回帰なし・新規テストグリーンで完了",
       "status": "completed",
-      "verification": "npm run lint && npm run test:run",
+      "verification": "npx vitest run src/features/log/MemoEditorPage.test.tsx src/features/log/LogListPage.test.tsx src/features/bookshelf/BookshelfPage.test.tsx && npm run build",
       "tasks": [
-        {
-          "id": "T1.1",
-          "name": "Memo型 / ExportPayload.memos / 定数",
-          "spec": "specs/m1-t1.md",
-          "wave": 1,
-          "status": "completed",
-          "assignee": "build"
-        },
-        {
-          "id": "T1.2",
-          "name": "DBSchema memos + upgrade追加分岐 + dateKey export（TDD）",
-          "spec": "specs/m1-t2.md",
-          "wave": 2,
-          "status": "completed",
-          "assignee": "build"
-        },
-        {
-          "id": "T1.3",
-          "name": "memo CRUD + memos-deleted-days + replaceAllData拡張（TDD）",
-          "spec": "specs/m1-t3.md",
-          "wave": 3,
-          "status": "completed",
-          "assignee": "build"
-        }
-      ]
-    },
-    {
-      "id": "M2",
-      "name": "メモを書ける（FAB→入力画面・暗黙保存）",
-      "goal": "本棚右下FABからメモ入力画面を開き本文を書くと暗黙保存され戻れる。",
-      "status": "completed",
-      "verification": "npm run lint && npm run test:run",
-      "tasks": [
-        {
-          "id": "T2.1",
-          "name": "App.tsx に /log/new・/log/:memoId ルート追加",
-          "spec": "specs/m2-t1.md",
-          "wave": 1,
-          "status": "completed",
-          "assignee": "build"
-        },
-        {
-          "id": "T2.2",
-          "name": "useMemoAutoSave（TDD）",
-          "spec": "specs/m2-t2.md",
-          "wave": 2,
-          "status": "completed",
-          "assignee": "build"
-        },
-        {
-          "id": "T2.3",
-          "name": "MemoEditorPage 新規/編集兼用（TDD）",
-          "spec": "specs/m2-t3.md",
-          "wave": 3,
-          "status": "completed",
-          "assignee": "build"
-        },
-        {
-          "id": "T2.4",
-          "name": "Fab.tsx + BookshelfPage 配置 + padding-bottom",
-          "spec": "specs/m2-t4.md",
-          "wave": 4,
-          "status": "completed",
-          "assignee": "build"
-        }
-      ]
-    },
-    {
-      "id": "M3",
-      "name": "メモを振り返れる・消せる（タブ・一覧・長押し削除）",
-      "goal": "ヘッダータブでメモ一覧へ行き日付ごと時系列で見て、タップ編集・長押し削除できる。",
-      "status": "completed",
-      "verification": "npm run lint && npm run test:run",
-      "tasks": [
-        {
-          "id": "T3.1",
-          "name": "HeaderTabs + CSS + test",
-          "spec": "specs/m3-t1.md",
-          "wave": 1,
-          "status": "completed",
-          "assignee": "build"
-        },
-        {
-          "id": "T3.2",
-          "name": "BookshelfPage h1→HeaderTabs置換（回帰更新）",
-          "spec": "specs/m3-t2.md",
-          "wave": 2,
-          "status": "completed",
-          "assignee": "build"
-        },
-        {
-          "id": "T3.3",
-          "name": "App.tsx に /log=LogListPage ルート",
-          "spec": "specs/m3-t3.md",
-          "wave": 2,
-          "status": "completed",
-          "assignee": "build"
-        },
-        {
-          "id": "T3.4",
-          "name": "LogListPage 日付グルーピング・空状態（TDD）",
-          "spec": "specs/m3-t4.md",
-          "wave": 3,
-          "status": "completed",
-          "assignee": "build"
-        },
-        {
-          "id": "T3.5",
-          "name": "MemoListItem タップ編集・長押し削除（TDD）",
-          "spec": "specs/m3-t5.md",
-          "wave": 4,
-          "status": "completed",
-          "assignee": "build"
-        }
-      ]
-    },
-    {
-      "id": "M4",
-      "name": "メモをバックアップできる（JSON・GitHub日付別）",
-      "goal": "JSONエクスポートにメモが含まれ、GitHubに日付別ファイルで自動バックアップされる。",
-      "status": "completed",
-      "verification": "npm run lint && npm run test:run && npm run build",
-      "tasks": [
-        {
-          "id": "T4.1",
-          "name": "buildExportPayload に memos（TDD）",
-          "spec": "specs/m4-t1.md",
-          "wave": 1,
-          "status": "completed",
-          "assignee": "build"
-        },
-        {
-          "id": "T4.2",
-          "name": "buildMemoFileContent + putMemoFile + syncPendingMemos（TDD）",
-          "spec": "specs/m4-t2.md",
-          "wave": 2,
-          "status": "completed",
-          "assignee": "build"
-        },
-        {
-          "id": "T4.3",
-          "name": "registerOnlineSync 拡張 + useMemoAutoSave 同期配線",
-          "spec": "specs/m4-t3.md",
-          "wave": 3,
-          "status": "completed",
-          "assignee": "build"
-        },
-        {
-          "id": "T4.4",
-          "name": "A12 削除日反映 空PUT（TDD）",
-          "spec": "specs/m4-t4.md",
-          "wave": 4,
-          "status": "completed",
-          "assignee": "build"
-        },
-        {
-          "id": "T4.5",
-          "name": "github.test: BACKUP_PATH_RE非マッチ・memos非破壊",
-          "spec": "specs/m4-t5.md",
-          "wave": 5,
-          "status": "completed",
-          "assignee": "build"
-        }
+        { "id": "T1", "name": "FAB位置上昇", "spec": "specs/m1-t1.md", "wave": 1, "status": "completed", "assignee": "build" },
+        { "id": "T3", "name": "ゴシック化（罫線なし厳守）", "spec": "specs/m1-t3.md", "wave": 1, "status": "completed", "assignee": "build" },
+        { "id": "T4", "name": "一覧タップ背景ハイライト", "spec": "specs/m1-t4.md", "wave": 1, "status": "completed", "assignee": "build" },
+        { "id": "T2", "name": "メモ編集ページ自動フォーカス", "spec": "specs/m1-t2.md", "wave": 2, "status": "completed", "assignee": "build" },
+        { "id": "T5", "name": "右エッジスワイプで戻る", "spec": "specs/m1-t5.md", "wave": 3, "status": "completed", "assignee": "build" },
+        { "id": "T6", "name": "テスト更新・追加（C1解消）", "spec": "specs/m1-t6.md", "wave": 4, "status": "completed", "assignee": "build" }
       ]
     }
   ],
   "fix_queue": [],
   "metadata": {
     "created_at": "2026-05-17T00:00:00Z",
-    "last_updated": "2026-05-17T08:05:00Z",
-    "current_iteration": 1,
-    "total_iterations": 2
+    "last_updated": "2026-05-17T00:00:00Z",
+    "current_iteration": 0,
+    "total_iterations": 0
   }
 }
