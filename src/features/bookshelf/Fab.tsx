@@ -1,23 +1,29 @@
 import { useNavigate } from 'react-router-dom';
 import styles from './BookshelfPage.module.css';
 
+interface Props {
+  /** 戻り先解決用の遷移元パス。既定 '/'（本棚＝従来挙動・完全不変）。 */
+  from?: string;
+}
+
 /**
- * 本棚右下に固定表示する円形 FAB。タップでメモ入力画面 (/log/new) を開く。
+ * 右下に固定表示する円形 FAB。タップでメモ入力画面 (/log/new) を開く。
  *
  * - position: fixed（スクロール非追従）。safe-area-inset を考慮した余白。
  * - 鉛筆 SVG（線画モノクロ, BookshelfMenu のアイコン作法統一: stroke
  *   currentColor / stroke-width 1.5）。
  * - 静けさ: バッジ/件数/アニメ強調なし。press は scale(0.94)+opacity 0.8。
- * - onClick で遷移元 '/' を state.from に渡す（戻り先解決用）。
+ * - onClick で遷移元を state.from に渡す（MemoEditorPage の戻り先解決用）。
+ *   既定 '/'（本棚）、メモ一覧からは from="/log" を渡す。
  */
-export default function Fab() {
+export default function Fab({ from = '/' }: Props) {
   const navigate = useNavigate();
   return (
     <button
       type="button"
       className={styles.fab}
       aria-label="メモを書く"
-      onClick={() => navigate('/log/new', { state: { from: '/' } })}
+      onClick={() => navigate('/log/new', { state: { from } })}
     >
       <svg
         className={styles.fabIcon}
