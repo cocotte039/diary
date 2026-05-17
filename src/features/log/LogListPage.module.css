@@ -35,14 +35,16 @@
   margin: 1.5rem 0 0.25rem;
 }
 
+/* タップ時 accent 背景で控えめ触覚フィードバック（静けさ: 既存色・150ms）。 */
 .row {
   display: block;
   margin: 0.5rem 0;
   cursor: pointer;
   -webkit-tap-highlight-color: transparent;
+  transition: background-color 150ms ease;
 }
 .row:active {
-  opacity: 0.8;
+  background-color: var(--color-accent);
 }
 
 /* 行先頭の HH:MM。控えめ（opacity 0.4）。本文の前にインライン表示。 */
