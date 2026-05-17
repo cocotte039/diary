@@ -39,8 +39,11 @@ B5大学ノートに万年筆で書いていた手書き日記の体験を、布
 - 本棚画面右下に FAB（親指到達域に配置・モノクロ鉛筆アイコン。`bottom: max(3.5rem, calc(env(safe-area-inset-bottom) + 3rem))` で親指リーチを優先）→ メモ入力専用画面へ。暗黙保存（2秒 debounce）
 - メモ入力/編集画面はマウント時に textarea を自動フォーカス（書く所作の摩擦最小化。`focus({ preventScroll: true })`、編集時はカーソルを本文末尾に）。フォントはゴシック（`--font-family-ui`、可読性優先で日記の Klee One 手書き体と差別化）。罫線なし・素の紙（日記=罫線ノートと体験分離）
 - メモ入力/編集画面は左上「戻る」リンクに加え、右スワイプでも戻れる（`|dx| > |dy|*2` かつ 50px 超で発火、IME 中はガード／メモは1画面のため左スワイプは無反応）。いずれも遷移前に自動保存を flush
-- メモ一覧は日付ごとにグルーピングし新しい順に表示（入力欄は持たない）。空メモは生成しない（初回非空入力で初めて作成）
+- メモ一覧は日付ごとにグルーピングし新しい順に表示（入力欄は持たない）。空メモは生成しない（初回非空入力で初めて作成）。各日付グループの `<section>` に `id="memo-date-YYYY-MM-DD"`（ローカル日付基準）を付与
 - 一覧のメモはタップで編集（押下中は `--color-accent` 背景ハイライトで控えめな触覚フィードバック・150ms）、500ms 長押し → confirm で削除（本棚カードと同じ長押し作法）
+- メモ一覧ヘッダー右端にメモ専用ハンバーガーメニュー（`MemoMenu`、本棚 `BookshelfMenu` の複製改変）。項目は「カレンダー」「設定」の2つ（本棚側「新しいノート」は持たない／メモ作成は FAB に分離）。閉じる契機は本棚同型（外部 pointerdown / Escape / 項目クリック）
+- メモ一覧画面右下にも FAB（本棚 `Fab` を `from` prop 化して再利用・既定 `'/'` で本棚は完全不変）→ `/log/new`（`state.from='/log'`）でメモ作成。戻ると一覧へ
+- メニューの「カレンダー」で全画面モーダルのメモ専用カレンダー（`MemoCalendar`、本棚 `Calendar` の複製改変）。日記 `pages` とは別管理で `memos` ストア対象（`getMemoDateSetInMonth`）。メモがある日にドット、その日タップでモーダルを閉じ該当 `#memo-date-YYYY-MM-DD` グループへ瞬間スクロール（二重 `requestAnimationFrame` 後 `scrollIntoView`、空メモ日はドットなし・タップ無反応）。視覚（ドット色/月送り/fade 200ms/overlay）は日記カレンダーと同一
 - GitHub バックアップは日付ごと 1 ファイル `memos/YYYY-MM-DD.md`（当日の全メモを `## HH:MM:SS` 見出し付きで時刻順集約、日記の `volumes/` と別ツリー）。当日全削除時は空内容 PUT で反映
 
 ---
@@ -52,12 +55,12 @@ diary/
 ├─ public/          # manifest.json / icon.svg / (PNG は別PCで生成)
 ├─ src/
 │  ├─ styles/       # global.css (CSS変数 / --header-height / .app-header / .app-header-link), notebook.css (罫線共通)
-│  ├─ lib/          # constants (CHARS_PER_PAGE=1200 は進捗バー目安、LINES_PER_PAPER=60, PAGES_PER_VOLUME=60, DB_VERSION=3, EXPORT_FORMAT_VERSION=2), pagination (splitIntoPages/countPages 他), db (idb v3: volumes/pages/meta/memos + memo CRUD), github (日記 page 同期 + memo 日付別同期), export, pwa
+│  ├─ lib/          # constants (CHARS_PER_PAGE=1200 は進捗バー目安、LINES_PER_PAPER=60, PAGES_PER_VOLUME=60, DB_VERSION=3, EXPORT_FORMAT_VERSION=2), pagination (splitIntoPages/countPages 他), db (idb v3: volumes/pages/meta/memos + memo CRUD, getDateSetInMonth=日記 / getMemoDateSetInMonth=メモ別管理), github (日記 page 同期 + memo 日付別同期), export, pwa
 │  ├─ hooks/        # useDebouncedCallback
 │  ├─ features/
 │  │  ├─ editor/    # EditorPage, useEditorAutoSave, DateIcon
 │  │  ├─ bookshelf/ # BookshelfPage, VolumeCard, BookshelfMenu(+ .module.css), Calendar, Fab
-│  │  ├─ log/       # LogListPage, MemoEditorPage, MemoListItem, useMemoAutoSave（観測ログ）
+│  │  ├─ log/       # LogListPage, MemoEditorPage, MemoListItem, MemoMenu(+ .module.css), MemoCalendar(+ .module.css), useMemoAutoSave（観測ログ）
 │  │  ├─ shared/    # HeaderTabs（本棚/メモ タブ）
 │  │  └─ settings/  # SettingsPage
 │  ├─ types/        # 型定義 (Volume/Page/ExportPayload 他)
