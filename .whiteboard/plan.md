@@ -1,225 +1,163 @@
-# 実装計画: 観測ログ（メモ）機能 UX 改善
+# 実装計画: メモ一覧ページ ハンバーガーメニュー + メモカレンダー + ペン FAB
 
-> 本ファイルは Analyst Lead のみ記入。策定中（分析チーム出力待ち）。
-
-## Goal
-
-PWA日記アプリ「ノート」の観測ログ（メモ）機能の UX を、デザイン原則「静けさ」を維持したまま改善する。
-
-合意済み 5 改善:
-1. FAB（ペンアイコン）位置を中程度上昇（親指リーチ改善）
-2. メモ編集ページ自動フォーカス（新規/編集とも）
-3. ゴシック化（明朝→`--font-family-ui`、罫線追加はしない）
-4. 一覧タップの背景ハイライト（opacity→淡背景、≤200ms）
-5. 右エッジスワイプで戻る追加（左上「戻る」存置）
-
-## Context（実読済み・確信度付き）
-
-- 🔵 FAB CSS: `src/features/bookshelf/BookshelfPage.module.css` `.fab` L139-160。現状 `bottom: max(1.25rem, calc(env(safe-area-inset-bottom) + 0.75rem))`。FAB 本体 `src/features/bookshelf/Fab.tsx`（純表示、navigate('/log/new', {state:{from:'/'}})）
-- 🔵 MemoEditorPage `src/features/log/MemoEditorPage.tsx`: ready/flush/backTo/popstate ガード構造。textarea L160-170（ref 無し）。冒頭 docstring L29「自動フォーカスなし（静けさ）」/ L52-53 StrictMode 二重 pushState ガード ref。flush は useMemoAutoSave 由来
-- 🔵 MemoEditorPage CSS `src/features/log/MemoEditorPage.module.css`: `.textarea` L49-65 明朝 `'Hiragino Mincho ProN','Yu Mincho','Noto Serif JP',serif` L58。docstring L1-6 に明朝言及
-- 🔵 一覧 `src/features/log/MemoListItem.tsx`: Pointer ベース長押し/タップ。`navigate('/log/'+id, {state:{from:'/log'}})`。CSS `LogListPage.module.css` `.row:active{opacity:0.8}` L44-46、`.preview` 明朝 L67
-- 🔵 スワイプ作法 `src/features/editor/EditorPage.tsx` L288-331: onTouchStart/onTouchEnd, `SWIPE_THRESHOLD_PX`(=50, constants.ts L38), 水平優位 `|dx|>|dy|*2`, `isComposingRef` ガード, ルート div に `onTouchStart/onTouchEnd`
-- 🔵 `src/styles/global.css` L20 `--font-family-ui: system-ui,-apple-system,'Hiragino Sans',sans-serif`、L12 `--color-rule: rgba(255,255,255,0.08)`、4色パレット L9-16
-- 🔵 既存テスト: MemoEditorPage.test.tsx / LogListPage.test.tsx / BookshelfPage.test.tsx
+確信度凡例: 🔵確実 / 🟡推測 / 🔴未確定
 
 ## チーム構成
 
-タスク特性: 小規模 UI/UX 改善（CSS 値変更 + 軽量イベント配線）。新規ロジック少、回帰/触覚・認知体験リスクが論点。
-→ 分析チーム 3 名（Pragmatist / Skeptic / Aesthete）並列起動。
+タスク特性: 既存本棚側パターン（BookshelfMenu/Calendar/Fab/モーダル作法）の横展開 + 新規 DOM スクロール挙動。UI/UX 影響大・回帰リスク中・新規ロジック小。
+→ 標準3名（Pragmatist / Skeptic / Aesthete）を並列起動。
+
+## Goal
+
+LogListPage（メモ一覧 = 観測ログ画面）に、本棚側と同作法で以下3機能を追加する:
+1. メモ専用ハンバーガーメニュー（項目=カレンダー / 設定）
+2. メモ専用カレンダー（全画面モーダル, memos ストア対象, 日記 pages とは別管理）。日付タップで /log の該当日付グループへ自動スクロール
+3. メモ作成用ペン FAB（タップで /log/new, 戻り先=/log）
+
+日記側（BookshelfPage / BookshelfMenu / Calendar.tsx / EditorPage）の挙動は不変。「静けさ」原則（4色厳守・色追加なし・transition ≤200ms・バッジ/件数/通知なし）を維持。
+
+## Context（実読確認・確信度付）
+
+- 🔵 `LogListPage.tsx`: header に `<HeaderTabs />` のみ。`groups: Map<string, Memo[]>`（L43-49）を `[...groups.entries()].map(([dk, items]) => <section key={dk}>)`（L61-68）でレンダ。Fab・メニュー・モーダル無し。`useCallback/useEffect/useState` import 済。
+- 🔵 `BookshelfPage.tsx`: `showCalendar` state（L30）、Esc 閉じる useEffect（L75-83）、モーダルオーバーレイ（L152-172, role=dialog/aria-modal/aria-label、`onClick e.target===e.currentTarget` で背景閉じ、close ボタン）、`<Fab />`（L175）。
+- 🔵 `BookshelfMenu.tsx`: `open` state + `rootRef`、pointerdown 外部閉じ + Escape 閉じ useEffect（L19-33）、trigger（aria-haspopup=menu/aria-expanded）、`role="menu"` + `role="menuitem"`、設定は `<Link to="/settings">`。Props=`{onCreateNew, onOpenCalendar}`。
+- 🔵 `Calendar.tsx`: `year/month` state、`getDateSetInMonth(year,month)` で `hitDates:Set<string>`（L21-30）、prev/next 月送り、`onPick(day)` → `findPageByDate` → navigate。ドット `hitDates.has(key)`。key 形式 `YYYY-MM-DD`（zero-pad）。
+- 🔵 `Fab.tsx`: 固定 props 無し。`navigate('/log/new', { state: { from: '/' } })`（L20）固定。SVG 鉛筆。CSS は `BookshelfPage.module.css` の `.fab/.fabIcon`（L140-164, position:fixed, z-index:50）を共用。
+- 🔵 `MemoEditorPage.tsx` L48-51: `fromState = location.state?.from ?? '/'`; `backTo = isNew ? fromState : '/log'`。→ 新規メモの戻り先は遷移元 from で決まる。FAB から `from:'/log'` を渡せば一覧へ戻る。StrictMode 二重 pushState ガード ref 実装済（L53-54）。
+- 🔵 `db.ts`: `dateKey(iso)`（L492-498, ローカル年月日 zero-pad）。`getDateSetInMonth(year,month)`（L535-549, `db.getAll('pages')` をローカル年月フィルタ → `set.add(dateKey(...))`）。`getAllMemos()`（L678-682, `db.getAll('memos')` createdAt 昇順）。memos ストア存在確認済。
+- 🔵 `HeaderTabs.tsx`: header 内 nav のみ。BookshelfPage では header 内に `<HeaderTabs />` + `<BookshelfMenu />` 並置。LogListPage は HeaderTabs のみ → 同様に MemoMenu 並置すればよい。
+- 🔵 `LogListPage.module.css`: `.body` は `overflow-y:auto`（L16-22）。scrollIntoView のスクロールコンテナは `.body`。FAB 用 padding-bottom 無し（本棚 .body は FAB 分の padding-bottom あり L18-19 / メモ側は現状無し → FAB 追加で最下段被り懸念）。
+- 🔵 `BookshelfPage.module.css`: モーダル `.calendarOverlay`（fixed/inset:0/rgba(0,0,0,0.6)/z-index:100/fadeIn 200ms）, `.calendarPanel`（max-width:360px）, `.calendarClose`（44px）。Fab CSS もここに在る → メモ側で再利用するには CSS の所在を決める必要（下記 Skeptic 論点）。
+- 🟡 `.whiteboard/` 直下にアクティブ md 無し（全アーカイブ済）→ アーカイブ作業不要。
+
+## 多視点分析統合
+
+### 合意点（3視点一致）🔵
+- MemoMenu / MemoCalendar は BookshelfMenu / Calendar.tsx の**複製改変**で実装（共通化は分岐増・非目標抵触で却下）。Pragmatist 主導, Skeptic/Aesthete 異論なし。
+- メモカレンダーの視覚は日記カレンダーと**完全同一**（ドット色 `--color-text`/opacity 0.6/3px、月送り、fade-in 200ms、overlay rgba(0,0,0,0.6)）。色/アニメ追加なし=静けさ厳守。
+- Fab.tsx `from?:string`（既定 '/'）追加で本棚完全不変。MemoEditorPage の backTo ロジックは流用（変更不要）。
+- スクロールは `scrollIntoView({behavior:'auto', block:'start'})`（瞬間移動）。`?.` で null 安全。
+- getMemoDateSetInMonth は getDateSetInMonth(db.ts L535-549) と一字一句同型のローカル年月比較（JST 境界ズレ防止）。
+
+### 対立点と裁定
+- **scroll タイミング（rAF 1回 vs 二重 rAF）**: Pragmatist=rAF 1回（最小）, Skeptic=二重 rAF 推奨（state 反映後の描画フレーム保証 + overlay チラつき回避）。
+  → 裁定: **二重 rAF 採用**。理由: 対象 section は常時マウントだが overlay unmount と scroll の視覚順序を安定させる効果があり、コスト微小（数行）でリスク低減。Skeptic の C1 を優先。🟡（実装後テストで 1回で十分なら簡略化可）
+- **空メモ日の無反応実装**: Skeptic=onPick 内 `if(!hitDates.has(key)) return` 明示ガード必須（メモ版は findPageByDate フォールバックが無い）。Aesthete=無反応で正・追加フィードバック禁止。
+  → 裁定: 明示 early return 採用。視覚フィードバックは追加しない（静けさ）。🔵
+- **LogListPage .header の align-items**: Aesthete=baseline 追加で本棚と視覚一致。Pragmatist=言及なし。
+  → 裁定: `align-items: baseline` 追加採用（本棚ヘッダーとの一貫性, 低コスト）。🟡
+
+### 採用しない案（見送り）
+- Calendar/BookshelfMenu の props 兼用・共通化リファクタ（分岐増・非目標「日記側不変」抵触）🔵
+- Fab CSS の共通 CSS 切り出し / Fab.tsx の bookshelf→shared 移動（スコープ外。技術的負債としてのみ記録）🔵
+- モーダル focus trap / body スクロールロック（本棚未実装 = 本棚同水準に留める。新規実装は一貫性崩れ + スコープ膨張）🔵
+- ドット無し日セルの opacity 低下（日記カレンダーと挙動差 = 一貫性崩れ）🔵
+- per-date ルート新設（合意済非目標、単一ページ + scroll で実現）🔵
 
 ---
 
-## 分析統合（3視点）
+## マイルストーン分割（垂直スライス, Wave 付）
 
-### 合意点
-- 全 5 変更は「静けさ」4色・≤200ms・通知/バッジ無しを維持（Aesthete 🔵）。新規色追加なし。
-- FAB・ゴシック化・フォーカスは ROI 高、低リスク（Pragmatist）。
-- スワイプは EditorPage ロジックをコピー実装（共通化はしない＝非目標「日記 EditorPage 変更しない」抵触回避、2 箇所目で抽象化が定石）（Pragmatist 🔵）。
+### Wave 0: 基盤（独立・並行可）
+- **T0-1** 🔵 db.ts: `getMemoDateSetInMonth(year, month)` 追加。getDateSetInMonth L535-549 をコピーし `db.getAll('pages')`→`db.getAll('memos')`、`p.createdAt`→`m.createdAt` のみ変更。スキーマ変更なし。
+  - テスト: db レイヤテストがあれば同型追加。なければ MemoCalendar 経由で間接検証。
+- **T0-2** 🔵 Fab.tsx: `interface Props { from?: string }` 追加、`Fab({ from = '/' })`、`navigate('/log/new', { state: { from } })`。CSS import 現状維持。
+  - テスト: Fab 単体（引数なし→state.from==='/'、from='/log'→'/log'）。BookshelfPage 既存 FAB テスト緑維持。
 
-### 対立点と判断
-- **ゴシック化のコンセプト喪失**（Aesthete 🟡「明朝＝素の紙」情緒喪失 vs 可読性）: ユーザー協議で確定済 + 観測ログは素早い記録/参照用途で可読性優先が妥当。日記(Klee One)との体験分離は sans でも保たれる。→ **採用**。docstring は「素の紙（ゴシック・可読性優先）」へ趣旨更新。
-- **タップハイライト色** = `--color-rule`(薄すぎ Aesthete 🟡) vs `--color-accent`。→ Aesthete 推奨の **`--color-accent`(#3a3545)** 採用（新規色禁止に適合、知覚可能、press 中 150ms のみで強すぎない）。要件原文の「`--color-rule` 系」より知覚性を優先（判断根拠: 背景 #1c1c20 上で rule rgba .08 は不可視に近い）。
-- **編集時カーソル位置**（Skeptic M4）: `focus()` 単独はブラウザ依存 → 編集時は末尾 `setSelectionRange(len,len)`。新規は空で不要。→ **採用**。
+### Wave 1: メニュー + メモ作成導線（ユーザーが「メモ画面からメニューを開き設定へ行ける / ペンでメモ作成できる」）
+- **T1-1** 🔵 MemoMenu.tsx 新規: BookshelfMenu.tsx を複製。open/rootRef/外部pointerdown/Escape useEffect（cleanup 必須）流用。menu 内項目を「カレンダー(button, onOpenCalendar)」「設定(Link to=/settings, onClick で setOpen(false))」の2つに削減。Props=`{ onOpenCalendar: () => void }`。trigger aria-haspopup/aria-expanded/aria-label 踏襲。
+- **T1-2** 🔵 MemoMenu.module.css 新規: BookshelfMenu.module.css 複製（54行・改変なし）。
+- **T1-3** 🔵 LogListPage.tsx: header に `<MemoMenu onOpenCalendar={() => setShowCalendar(true)} />` 並置（HeaderTabs の隣）。`<Fab from="/log" />` を root 直下末尾に配置（BookshelfPage L175 と同位置作法）。`showCalendar` state 追加（この Wave では open ハンドラのみ配線、モーダル本体は Wave2）。
+- **T1-4** 🔵 LogListPage.module.css: `.header` に `align-items: baseline` 追加。`.body` の padding-bottom を BookshelfPage.module.css L18-19 同値（`calc(max(1.25rem, env(safe-area-inset-bottom)+0.75rem)+52px+1rem)`）へ変更（FAB 被り防止）。
+  - Wave1 完了時点で動くもの: メモ画面のメニュー開閉・設定遷移・ペン FAB でのメモ作成（戻り先/log）。カレンダー項目は押せるが中身は Wave2。
+  - テスト: MemoMenu 開閉（trigger click / 外部 pointerdown / Escape / 設定 Link → /settings）。Fab from='/log' 配線。
 
-### Critical（必ず対策タスク化）
-- **C1**: `MemoEditorPage.test.tsx` L117-121「自動フォーカスなし」テストが実装と矛盾し確実に失敗 → テスト書き換えタスク（T6）必須。
-- **C2**: スワイプ戻り時 flush 前 navigate で入力ロスト → `await flush()` 後に navigate（handleBack と同パターン、T5 で対応）。
-
----
-
-## 実装計画 — マイルストーン M1（単一）
-
-小規模 UI/UX 改善。CSS 独立タスク（T1/T3/T4）→ TSX タスク（T2/T5）→ テスト（T6）。
-T2/T5 は同一ファイル `MemoEditorPage.tsx` のため連続実装し競合回避。UI/CSS 値変更は実装先行、テスト可能なフォーカス/スワイプ挙動は実装後 T6 でテスト更新（既存テスト矛盾解消含む）。
-
-### T1. FAB位置上昇 🔵 ROI高
-- 変更: `src/features/bookshelf/BookshelfPage.module.css` `.fab`(L142)
-  `bottom: max(1.25rem, calc(env(safe-area-inset-bottom) + 0.75rem))`
-  → `bottom: max(3.5rem, calc(env(safe-area-inset-bottom) + 3rem))`
-- コメント: L135-138 ブロックに位置調整意図を 1 行追記（親指リーチ）。
-- 受入条件:
-  - [ ] 🔵 `.fab` の bottom が新値
-  - [ ] 🔵 `right`/`width`/`height`/色/transition 不変（静けさ維持）
-  - [ ] 🔵 `BookshelfPage.test.tsx` FAB テスト(L492-517: aria-label/遷移) グリーン維持
-- テスト方針: CSS 値のみ、専用テスト追加不要（既存遷移テストで回帰検知）。
-- リスク: m3（重なり）= bookshelf に A2HS バナー無し、実害低。
-
-### T2. メモ編集ページ自動フォーカス 🔵 ROI高
-- 変更: `src/features/log/MemoEditorPage.tsx`
-  - `const textareaRef = useRef<HTMLTextAreaElement>(null);` 追加
-  - textarea(L160-170) に `ref={textareaRef}`
-  - 新規 useEffect 追加（既存ロード effect とは分離）:
-    ```ts
-    useEffect(() => {
-      if (!ready) return;
-      const ta = textareaRef.current;
-      if (!ta) return;
-      ta.focus({ preventScroll: true });          // M3: スクロール飛び抑制
-      if (!isNew && content.length > 0) {           // M4: 編集時カーソル末尾
-        ta.setSelectionRange(content.length, content.length);
-      }
-    }, [ready, isNew]);                              // content 依存にしない（入力毎再フォーカス防止）
-    ```
-  - docstring L29「自動フォーカスなし（マウント時 focus しない, 静けさ）」→「ready 後 textarea を自動フォーカス（書く所作の摩擦最小化）。編集時はカーソル末尾」
-- 関数シグネチャ: 追加 effect のみ、公開 API 変更なし。
-- Key Links（本番配線）: `MemoEditorPage` は `App.tsx` ルート `/log/new`・`/log/:memoId` に配線済（既存）。textareaRef は同コンポーネント内 textarea に直結（dead code なし）。
-- 受入条件:
-  - [ ] 🔵 /log/new 描画後 textarea が `document.activeElement`
-  - [ ] 🔵 /log/:id 描画・ロード後 textarea がフォーカス、カーソルが content 末尾
-  - [ ] 🟡 StrictMode 二重 effect でエラー無し（focus 冪等）
-  - [ ] 🔵 docstring が実態と一致
-- テスト方針: T6 で既存「自動フォーカスなし」テストを「ready 後フォーカスされる（新規/編集・編集はカーソル末尾）」へ書換。
-- リスク: M3（要件受容・preventScroll 対策済）、M4（末尾カーソル対策済）。
-
-### T3. ゴシック化（罫線追加なし＝非目標厳守）🔵 ROI高
-- 変更:
-  - `src/features/log/MemoEditorPage.module.css` `.textarea`(L58)
-    `font-family: 'Hiragino Mincho ProN','Yu Mincho','Noto Serif JP',serif;`
-    → `font-family: var(--font-family-ui);`
-    L57 コメント「明朝系（メモ=素の紙）。日記の Klee One…」→「ゴシック（可読性優先）。日記の Klee One 手書き体と差別化」
-  - 同ファイル docstring L1-6「明朝フォントで日記と差別化」→「ゴシック（可読性優先）で日記と差別化」
-  - `src/features/log/LogListPage.module.css` `.preview`(L67) 同様に `var(--font-family-ui)`、L58 コメント更新
-  - `src/features/log/MemoEditorPage.tsx` docstring L28「明朝でない」言及なし（罫線記述のみ）→ 変更不要（確認: L28 は罫線文。フォント言及は CSS 側のみ）
-- 受入条件:
-  - [ ] 🔵 `.textarea`/`.preview` が `var(--font-family-ui)`
-  - [ ] 🔵 罫線クラス追加なし（非目標厳守、`MemoEditorPage.test.tsx` L137-141 グリーン維持）
-  - [ ] 🔵 `font-size`/`line-height`/`letter-spacing` 不変
-  - [ ] 🔵 関連コメント/docstring が実態一致
-- テスト方針: フォント名 assert するテスト無し（全 3 テスト確認済）→ 専用テスト不要、既存グリーン維持で十分。
-- リスク: m2（字幅差で clamp 改行位置僅差、機能影響なし・許容）。
-
-### T4. 一覧タップ背景ハイライト 🔵 ROI中
-- 変更: `src/features/log/LogListPage.module.css`
-  - `.row`(L38-43) に追加: `transition: background-color 150ms ease;`
-  - `.row:active`(L44-46) `opacity: 0.8;` → `background-color: var(--color-accent);`
-  - L25 付近コメントに「タップ時 accent 背景で控えめ触覚フィードバック（静けさ: 既存色・150ms）」
-- 受入条件:
-  - [ ] 🔵 `.row:active` が `background-color: var(--color-accent)`、opacity 指定削除
-  - [ ] 🔵 `.row` に transition ≤200ms（150ms）
-  - [ ] 🔵 新規色なし（既存 `--color-accent` 使用）
-  - [ ] 🔵 `LogListPage.test.tsx` タップ遷移/長押しテスト グリーン維持（:active は click/pointer に非依存）
-- テスト方針: CSS 値、専用テスト不要。既存タップ遷移テストで回帰検知。
-- 注記: `border-radius` 追加は任意（Aesthete 提案）。最小変更優先で **background のみ**採用、border-radius は見送り（スコープ最小化）。
-
-### T5. 右エッジスワイプで戻る 🟡 ROI中
-- 変更: `src/features/log/MemoEditorPage.tsx`
-  - ref 追加: `touchStartXRef`/`touchStartYRef`（`useRef<number|null>(null)`）、`isComposingRef`（`useRef(false)`）
-  - 既存 `handleBack` の async 部（flush→navigate）を共通関数化:
-    ```ts
-    const goBack = useCallback(async () => {
-      try { await flush(); } catch { /* 保存失敗でも遷移継続 */ }
-      navigate(backTo);
-    }, [flush, navigate, backTo]);
-    const handleBack = useCallback((e: React.MouseEvent) => {
-      e.preventDefault(); void goBack();
-    }, [goBack]);
-    ```
-  - textarea に `onCompositionStart={() => { isComposingRef.current = true; }}`
-    `onCompositionEnd={() => { isComposingRef.current = false; }}`
-  - `styles.root` div（L135）に `onTouchStart`/`onTouchEnd`（EditorPage L291-331 同型）:
-    ```ts
-    const onTouchStart = (e: React.TouchEvent<HTMLDivElement>) => {
-      const t = e.touches[0];
-      touchStartXRef.current = t ? t.clientX : null;
-      touchStartYRef.current = t ? t.clientY : null;
-    };
-    const onTouchEnd = (e: React.TouchEvent<HTMLDivElement>) => {
-      const sx = touchStartXRef.current, sy = touchStartYRef.current;
-      touchStartXRef.current = null; touchStartYRef.current = null;
-      if (sx == null || sy == null) return;
-      if (isComposingRef.current) return;                 // M1: IME 中無効
-      const t = e.changedTouches[0]; if (!t) return;
-      const dx = t.clientX - sx, dy = t.clientY - sy;
-      if (Math.abs(dx) < SWIPE_THRESHOLD_PX) return;
-      if (Math.abs(dx) <= Math.abs(dy) * 2) return;       // 水平優位 2:1
-      if (dx > 0) void goBack();                           // 右スワイプ→戻る（C2: goBack が flush）
-      // 左スワイプは無反応（メモ1画面）
-    };
-    ```
-  - import: `SWIPE_THRESHOLD_PX` from `../../lib/constants`
-- 関数シグネチャ: `goBack: () => Promise<void>` 追加。`handleBack` は `goBack` 委譲に変更（外部 API 不変）。
-- Key Links（本番配線）: `onTouchStart`/`onTouchEnd` は `styles.root` div（return 文の最上位要素、テストで data-testid="memo-editor-page"）に JSX prop 配線 → 本番レンダリングパスに直結。`goBack` は handleBack（戻るリンク onClick）と onTouchEnd の両方から呼ばれ dead code 無し。
-- 受入条件:
-  - [ ] 🔵 右スワイプ（dx>SWIPE_THRESHOLD_PX, 水平優位2:1）で `flush()` 後 `navigate(backTo)`
-  - [ ] 🔵 戻るリンク click も従来通り flush→navigate（goBack 経由・挙動不変）
-  - [ ] 🔵 IME 変換中（isComposingRef true）はスワイプ無反応（M1）
-  - [ ] 🔵 左スワイプ無反応
-  - [ ] 🔵 水平閾値未満/縦優位スワイプ無反応（縦スクロール干渉なし）
-  - [ ] 🟡 既存 popstate ガード/StrictMode と非干渉（touch は JSX prop、addEventListener 不使用）
-- テスト方針（T6 に集約）: MemoEditorPage.test.tsx に touch イベント発火テスト追加。JSDOM touch は `createEvent` + defineProperty で touches/changedTouches を強制（LogListPage.test の firePointer 作法を touch 用に応用）。ケース: 右スワイプ→backTo 遷移+保存 / 縦優位→無反応 / IME 中→無反応 / 既存戻るリンク回帰。
-- リスク: M2（テキスト選択ドラッグ競合）= EditorPage 実績 + 50px/2:1 閾値 + goBack が flush で入力保護 → 追加ガード不要（過剰回避）。
-
-### T6. テスト更新・追加（C1 解消含む）🔵 ROI高（回帰防止）
-- 変更: `src/features/log/MemoEditorPage.test.tsx`
-  - L117-121「マウント時 textarea が document.activeElement でない」を**削除**し、以下へ置換:
-    - 「/log/new で ready 後 textarea が自動フォーカスされる」（`document.activeElement === ta`）
-    - 「/log/:id（既存）で ready 後 textarea がフォーカスされカーソルが content 末尾」（`ta.selectionStart === ta.value.length`）
-  - スワイプテスト追加（T5 テスト方針参照）: 右スワイプ戻り+保存 / 縦優位無反応 / IME 中無反応 / 戻るリンク回帰維持
-- 受入条件:
-  - [ ] 🔵 旧「自動フォーカスなし」テスト除去（実装と矛盾解消）
-  - [ ] 🔵 新フォーカステスト（新規/編集）グリーン
-  - [ ] 🔵 スワイプ全ケースグリーン
-  - [ ] 🔵 既存他テスト（addMemo/flush/不正id/罫線なし/createdAt）全グリーン
-- テスト方針: 既存 `renderAt` ヘルパ流用。touch は createEvent + defineProperty。fake timers 不使用（既存同様実時間 + AUTOSAVE_DEBOUNCE_MS+3000 タイムアウト）。
+### Wave 2: メモカレンダー + 日付スクロール（ユーザーが「カレンダーからメモのある日へ瞬間移動できる」）
+- **T2-1** 🔵 MemoCalendar.tsx 新規: Calendar.tsx を複製。year/month state・prev/next・cells 構築・JST 安全 key 生成・ドット表示を流用。`getDateSetInMonth`→`getMemoDateSetInMonth`。`onPick(day)` を `findPageByDate→navigate` 削除し `Props={ onPick: (dateKey: string) => void }` 化。**onPick 内で `if (!hitDates.has(key)) return;` early return**（空メモ日無反応・Skeptic C/合意）。Calendar の useNavigate import 除去。
+- **T2-2** 🔵 MemoCalendar.module.css 新規: Calendar.module.css 複製（61行・改変なし、ドット視覚同一）。
+- **T2-3** 🔵 LogListPage.tsx: 各日付 `<section>` に `id={`memo-date-${dk}`}` 付与（L62）。`showCalendar &&` のモーダルオーバーレイを BookshelfPage L152-172 複製作法で追加（role=dialog/aria-modal/aria-label="カレンダー"/背景 click 閉じ/close ボタン）。中身は `<MemoCalendar onPick={scrollToDate} />`。
+- **T2-4** 🟡 LogListPage.tsx: `scrollToDate` useCallback 追加:
+  ```tsx
+  const scrollToDate = useCallback((dk: string) => {
+    setShowCalendar(false);
+    requestAnimationFrame(() =>
+      requestAnimationFrame(() =>
+        document.getElementById(`memo-date-${dk}`)
+          ?.scrollIntoView({ block: 'start', behavior: 'auto' })
+      )
+    );
+  }, []);
+  ```
+  Escape でモーダル閉じる useEffect も BookshelfPage L75-83 同型で追加（cleanup 必須）。
+- **T2-5** 🔵 LogListPage.module.css: BookshelfPage.module.css の `.calendarOverlay/.calendarPanel/.calendarClose/@keyframes fadeIn`（L86-132）をクラス名込みで複製（z-index:100 維持）。任意で section に `scroll-margin-top: 0.5rem`（上端詰まり回避, 静けさ範囲内）。
+  - Wave2 完了時点で動くもの: メニュー→カレンダー→メモのある日タップ→モーダル閉→該当日付グループへ瞬間スクロール。空メモ日は無反応。
+  - テスト: ドット日 click→モーダル閉+scrollIntoView(該当id) 呼出。ドット無し日 click→無反応。JST 境界シードでドット日と section id 一致。月境界(1↔12月)送り。
 
 ---
 
-## エッジケース対応一覧
+## テスト計画
 
-| ケース | 対応タスク | 方針 |
+### 共通セットアップ
+- 🔵 全 LogListPage 系テストに `Element.prototype.scrollIntoView = vi.fn()` を beforeEach 設定（jsdom 未実装対策）。
+- 🔵 既存 LogListPage.test.tsx の wipeDB/seedMemos/replaceAllData 作法・MemoryRouter 構成を踏襲。github mock 踏襲。
+
+### 新規/更新テスト
+| 対象 | ケース |
+|---|---|
+| Fab.test（新規 or 既存拡張） | 引数なし→state.from='/'; from='/log'→state.from='/log' 🔵 |
+| BookshelfPage.test | 既存 FAB 遷移テスト緑維持（非回帰）🔵 |
+| LogListPage.test | MemoMenu trigger click で開く / 外部 pointerdown で閉じる / Escape で閉じる / 設定 Link→/settings 🔵 |
+| LogListPage.test | Fab 表示・from='/log' 配線（/log/new 遷移 state 確認）🔵 |
+| LogListPage.test | カレンダー項目 click→モーダル open（role=dialog 出現）/ 背景 click・Escape・close ボタンで閉じる 🔵 |
+| LogListPage.test | ドットのある日 click→モーダル閉+scrollIntoView が `#memo-date-YYYY-MM-DD` で呼出 🟡 |
+| LogListPage.test | ドット無し日 click→scrollIntoView 未呼出・モーダル開いたまま（無反応）🔵 |
+| LogListPage.test | JST 境界シード（UTC 2026-05-16T00:00:00Z 等, 既存 L117-138 流用）でカレンダードット日と section id が一致 🔵 |
+| MemoCalendar.test（任意） | 月境界 prev(1月→前年12月)/next(12月→翌年1月)・ドット表示が getMemoDateSetInMonth 反映 🟡 |
+
+---
+
+## エッジケース対応マトリクス
+
+| エッジ | 対応 | 確信度 |
 |---|---|---|
-| IME 中スワイプ誤遷移 | T5 | `isComposingRef` ガード（onCompositionStart/End）🔵 |
-| textarea 選択操作×スワイプ競合 | T5 | 50px 閾値+水平優位2:1+goBack flush で保護、追加ガード無し 🟡 |
-| フォーカス時スクロール飛び | T2 | `focus({preventScroll:true})` 🔵 |
-| StrictMode 二重 effect | T2/T5 | focus 冪等・touch は JSX prop で二重登録なし 🔵 |
-| 編集時カーソル先頭飛び | T2 | `!isNew && content.length>0` で末尾 setSelectionRange 🔵 |
-| スワイプ flush 前 navigate 入力ロスト | T5 | `goBack` で `await flush()` 後 navigate（C2）🔵 |
-| FAB 上昇の重なり | T1 | bookshelf にバナー無し、実害低（m3）🔵 |
-| 明朝→sans clamp 改行位置僅差 | T3 | 機能影響なし、許容（m2）🟡 |
-
-## 見送り事項
-- スワイプロジック共通化（フック抽出）: 2 箇所目だが EditorPage 挙動差大 + 非目標抵触リスク。コピー実装。
-- `.row` border-radius 追加: スコープ最小化、background のみ。
-- 左スワイプ動作: メモ 1 画面、無反応が正。
-- 保存/キャンセル明示 UI、罫線追加、新規色: 非目標厳守。
-
-## 検証コマンド
-- 型/Lint: `npm run build`（tsc）/ `npm run lint`（存在すれば）
-- テスト: `npm test`（vitest）— 特に `src/features/log/MemoEditorPage.test.tsx`・`LogListPage.test.tsx`・`src/features/bookshelf/BookshelfPage.test.tsx` 全グリーン
-- 単体: `npx vitest run src/features/log/MemoEditorPage.test.tsx`
-- 手動（実機/エミュ推奨）: FAB 親指到達 / 編集ページ即フォーカス（新規・編集でカーソル末尾）/ ゴシック表示 / 一覧タップ背景沈み / 右スワイプ戻り（IME 中無反応・入力保存確認）
+| モーダル閉鎖×スクロール競合 | 二重 rAF で state 反映後フレームに scroll 遅延（Skeptic C1） | 🟡 |
+| 対象 section 不在（empty/ready=false/reload 中） | `?.scrollIntoView()` オプショナルチェイン null 安全（Skeptic C2） | 🔵 |
+| StrictMode 二重リスナ | useEffect add/removeEventListener 対称（BookshelfMenu/Page 同型）。scroll は useCallback+rAF で useEffect 非依存 | 🔵 |
+| 空メモ日タップ | onPick 内 `if(!hitDates.has(key)) return`。視覚フィードバック追加なし | 🔵 |
+| 月境界(1↔12月) | Calendar.tsx prev/next の year 繰上下げロジック流用（実績あり） | 🔵 |
+| JST 深夜境界 dateKey ズレ | getMemoDateSetInMonth を getDateSetInMonth と同型ローカル比較。dateKey 共通関数で section id と一致 | 🔵 |
+| IME 変換中 Escape | メニュー/モーダルは textarea 非保持→IME 文脈なし。対応不要 | 🔵 |
+| a11y | role=menu/menuitem/dialog/aria-modal/aria-label 本棚同水準。focus trap/scroll lock は本棚同様未実装で揃える | 🔵 |
+| 本棚 Fab 非回帰 | `<Fab/>` 引数なし→from='/' で現状完全同一。回帰テストで担保 | 🔵 |
+| FAB 最下段被り | LogListPage .body padding-bottom を本棚同値へ（T1-4） | 🔵 |
+| z-index 競合 | overlay 100 > FAB 50（モーダル中 FAB 背後で正）。menu 50 と FAB 50 は領域非重複 | 🔵 |
 
 ---
 
-## Plan Check（自己レビュー 1 回目）
+## ロールバック
 
-1. 完全性: 合意 5 改善 → T1-T5、回帰対策 → T6。全受入条件カバー。✅
-2. 実行可能性: 各タスクに変更ファイル・行番号・関数シグネチャ・差分コード明記。曖昧さなし。✅
-3. 依存整合性: CSS(T1/T3/T4)独立、T2→T5 同ファイル連続、T6 は T2/T5 後。矛盾なし。✅
-4. リスク対応: Critical C1→T6、C2→T5 goBack。Major M1/M3/M4 各タスクで対策明記。✅
-5. テスト方針: 各タスクにテスト方針記載。CSS は既存回帰検知、挙動は T6 で明示。✅
-6. スコープ逸脱: 見送り事項で非目標明記、border-radius/共通化を意図的除外。逸脱なし。✅
+- 🔵 全変更は加算的（新規ファイル + 既存への追記）。リスク高い順の戻し単位:
+  - Wave2 のみ revert: MemoCalendar*.{tsx,css} 削除、LogListPage の showCalendar モーダル/scrollToDate/section id/Escape useEffect・LogListPage.module.css モーダル CSS を除去 → Wave1（メニュー+FAB）は維持可能。
+  - Wave1 revert: MemoMenu*.{tsx,css} 削除、LogListPage の MemoMenu/Fab 配線・.header/.body CSS を戻す。
+  - T0-2 revert: Fab.tsx props 削除（既定挙動 '/' に戻る）。本棚影響なし（元々 '/' 固定だったため）。
+  - T0-1 revert: getMemoDateSetInMonth 削除（他から未参照なら無害）。
+- 🔵 DB スキーマ変更なし → データ移行/ロールバック不要。
+- 🔵 各 Wave 末でテスト緑を確認してから次 Wave へ（破壊的変更なし）。
 
-→ 全項目合格。未解決事項なし。実装フェーズ移行可。
+---
 
+## 技術的負債メモ（今回スコープ外・将来対応）
+- 🟡 Fab.tsx が `bookshelf/` 配下のまま & CSS が BookshelfPage.module.css に同居。`shared/` への移動 + 専用 CSS 化は別タスク（今回は import 現状維持で機能実現を優先）。
+
+---
+
+## Plan Check（自己レビュー）
+
+1. 完全性: メニュー/設定/カレンダー/別管理/日付スクロール/ペンFAB/Fab再利用/新db関数 → 全合意要件に Wave タスク対応済 🔵
+2. 実行可能性: 各タスクに対象ファイル・関数・行番号・差分内容を具体記述 🔵
+3. 依存整合性: Wave0(独立)→Wave1(T0-2依存)→Wave2(T0-1依存)。垂直スライスで各 Wave 単独動作 🔵
+4. リスク対応: Skeptic Critical C1(二重rAF)/C2(?.null安全) を T2-4/エッジ表に反映 🔵
+5. テスト方針: 各 Wave にテスト記述 + テスト計画表 + scrollIntoView モック方針明記 🔵
+6. スコープ逸脱: 見送り案を明示列挙、共通化/移動/focus trap を除外しスコープ厳守 🔵
+
+→ 全項目合格。未解決事項なし。確信度 🟡 残（scroll タイミング rAF 回数）は実装後テストで確定可・計画上はリスク緩和側（二重rAF）で確定。

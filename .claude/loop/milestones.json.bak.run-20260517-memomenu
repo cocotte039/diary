@@ -1,0 +1,31 @@
+{
+  "version": "2.0",
+  "project": {
+    "name": "diary-memo-ux",
+    "description": "観測ログ（メモ）機能の UX 改善（静けさ維持）: FAB位置上昇 / 編集ページ自動フォーカス / ゴシック化 / 一覧タップ背景HL / 右スワイプ戻る"
+  },
+  "milestones": [
+    {
+      "id": "M1",
+      "name": "メモ機能 UX 改善",
+      "goal": "合意済み5改善を実装し、既存テスト回帰なし・新規テストグリーンで完了",
+      "status": "completed",
+      "verification": "npx vitest run src/features/log/MemoEditorPage.test.tsx src/features/log/LogListPage.test.tsx src/features/bookshelf/BookshelfPage.test.tsx && npm run build",
+      "tasks": [
+        { "id": "T1", "name": "FAB位置上昇", "spec": "specs/m1-t1.md", "wave": 1, "status": "completed", "assignee": "build" },
+        { "id": "T3", "name": "ゴシック化（罫線なし厳守）", "spec": "specs/m1-t3.md", "wave": 1, "status": "completed", "assignee": "build" },
+        { "id": "T4", "name": "一覧タップ背景ハイライト", "spec": "specs/m1-t4.md", "wave": 1, "status": "completed", "assignee": "build" },
+        { "id": "T2", "name": "メモ編集ページ自動フォーカス", "spec": "specs/m1-t2.md", "wave": 2, "status": "completed", "assignee": "build" },
+        { "id": "T5", "name": "右エッジスワイプで戻る", "spec": "specs/m1-t5.md", "wave": 3, "status": "completed", "assignee": "build" },
+        { "id": "T6", "name": "テスト更新・追加（C1解消）", "spec": "specs/m1-t6.md", "wave": 4, "status": "completed", "assignee": "build" }
+      ]
+    }
+  ],
+  "fix_queue": [],
+  "metadata": {
+    "created_at": "2026-05-17T00:00:00Z",
+    "last_updated": "2026-05-17T00:00:00Z",
+    "current_iteration": 0,
+    "total_iterations": 0
+  }
+}

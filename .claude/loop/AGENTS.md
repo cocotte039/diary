@@ -694,3 +694,19 @@ npm run preview      # ビルド結果のプレビュー
     両方から呼出。dead code なし。flush→navigate(backTo) を保持（C2）。
   - `isComposingRef` → textarea の onCompositionStart/End で切替、onTouchEnd で
     IME 中ガード参照。
+
+## 実装時に追加した判断（2026-05-17 M1 メモメニュー/カレンダー/FAB）
+
+20. **🟡 Wave1→2 連続実装（T1-3 起点）**: tsconfig `noUnusedLocals:true` のため
+    T1-3 単独だと `showCalendar` 宣言のみ（モーダル本体は T2-3）で tsc エラー。
+    spec m1-t1-3.md の 🟡 注記「Wave1 単独で tsc を通すため showCalendar 未使用なら
+    T2-3 を同セッションで連続実装し解消」に従い、LogListPage の T1-3/T2-3/T2-4
+    変更を 1 つの編集で実装。コミットは T1-3 で LogListPage 一括（Wave1→2連続を
+    メッセージ明記）、T2-3/T2-4 は CSS/接続確認として完了化。機能は垂直スライス
+    で各 Wave 動作可能なまま（加算的変更）。
+21. **🟡 二重 rAF 採用**: spec m1-t2-4.md / plan.md 裁定（Skeptic C1）通り
+    requestAnimationFrame 二重ネストで scrollToDate を実装。テストは
+    `Element.prototype.scrollIntoView = vi.fn()` モックで requestAnimationFrame を
+    フラッシュして検証。1 回で十分かはテスト緑後も二重を保持（リスク緩和側）。
+22. **🟡 .header align-items:baseline 採用**: spec m1-t1-4.md / plan.md 裁定
+    （Aesthete）通り LogListPage 固有 `.header` にのみ追加。`.app-header` 共通は不変。
