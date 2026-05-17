@@ -43,20 +43,20 @@
       "id": "M4",
       "name": "本棚⇔メモ一覧 親指スワイプ切替（R4）",
       "goal": "ユーザーが親指の左右スワイプで本棚とメモ一覧を切り替えられる",
-      "status": "pending",
+      "status": "completed",
       "verification": "npx vitest run src/hooks src/features/bookshelf/BookshelfPage.test.tsx src/features/log/LogListPage.test.tsx",
       "tasks": [
-        { "id": "T1", "name": "新規 src/hooks/useSwipeNavigation.ts 作成", "spec": "specs/m4-t1.md", "wave": 1, "status": "pending", "assignee": "build" },
-        { "id": "T2", "name": "BookshelfPage 左スワイプ→/log 配線", "spec": "specs/m4-t2.md", "wave": 2, "status": "pending", "assignee": "build" },
-        { "id": "T3", "name": "LogListPage 右スワイプ→/ 配線", "spec": "specs/m4-t3.md", "wave": 2, "status": "pending", "assignee": "build" },
-        { "id": "T4", "name": "swipe テスト追加（hook単体+2画面）", "spec": "specs/m4-t4.md", "wave": 3, "status": "pending", "assignee": "build" }
+        { "id": "T1", "name": "新規 src/hooks/useSwipeNavigation.ts 作成", "spec": "specs/m4-t1.md", "wave": 1, "status": "completed", "assignee": "build" },
+        { "id": "T2", "name": "BookshelfPage 左スワイプ→/log 配線", "spec": "specs/m4-t2.md", "wave": 2, "status": "completed", "assignee": "build" },
+        { "id": "T3", "name": "LogListPage 右スワイプ→/ 配線", "spec": "specs/m4-t3.md", "wave": 2, "status": "completed", "assignee": "build" },
+        { "id": "T4", "name": "swipe テスト追加（hook単体+2画面）", "spec": "specs/m4-t4.md", "wave": 3, "status": "completed", "assignee": "build" }
       ]
     }
   ],
   "fix_queue": [],
   "metadata": {
     "created_at": "2026-05-18T00:00:00Z",
-    "last_updated": "2026-05-17T22:07:55Z",
+    "last_updated": "2026-05-17T22:16:35Z",
     "current_iteration": 0,
     "total_iterations": 0
   }

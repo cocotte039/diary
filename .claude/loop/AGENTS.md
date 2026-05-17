@@ -731,3 +731,38 @@ npm run preview      # ビルド結果のプレビュー
   反転（R1 仕様変更に伴う正当な追従）。コミットメッセージに明記済み。
 - 結果: MemoEditorPage.test.tsx 14 件・full-suite 229 件・tsc すべて緑。
   EditorPage.tsx / notebook.css / global.css は 1 文字も変更なし（grep 確認）。
+
+## M4 本棚⇔メモ一覧 親指スワイプ切替（R4, /run Build 実装）— 自律判断記録
+
+- **🟡 EditorPage 判定ロジックを「import 抽出」せず「コピー流用」した判断**:
+  `useSwipeNavigation` の dx/dy 判定構造（|dx|<SWIPE_THRESHOLD_PX 棄却 /
+  |dx|<=|dy|*2 縦優位棄却 / dx 符号で左右分岐）は EditorPage.tsx
+  L291-331 と同型だが、EditorPage を共通フックへリファクタする選択は採らず
+  コピーした。理由＝**日記 side（EditorPage/MemoEditorPage）不変制約**。
+  共通化のため EditorPage を新フックへ差し替えると日記側のスワイプ実装に
+  手が入り、回帰リスクと「1 文字も変更しない」制約に抵触する。抽出
+  リファクタは日記 side も対象に含む別マイルストーンの判断事項とし、本 M4
+  ではコピーで体験を一致させることを優先（grep で EditorPage/
+  MemoEditorPage を import していないことを実証済み）。
+- **🟡 IME composition をフック責務外として未配線にした判断**: EditorPage は
+  `isComposingRef` で IME 変換中のスワイプ発火を抑止しているが、
+  `useSwipeNavigation` はこれを扱わない。本棚／メモ一覧には入力欄（textarea）
+  が無く composition イベントの発生源が存在しないため、フックに
+  isComposing 引数や監視を持たせるのは過剰設計。EditorPage 固有事情
+  （textarea 上スワイプ）として切り離し、流用は判定構造のみに限定（spec
+  m4-t1 の方針どおり）。一覧に将来入力欄が増える場合は opts に
+  disabled 経由で抑止する拡張余地を残してある。
+- **🟡 静けさ維持＝瞬間遷移**: スワイプアニメ／インジケータ／トーストは
+  追加せず navigate のみ（design 原則「静けさ」）。HeaderTabs は併存維持し、
+  スワイプは補助導線。方向メンタルモデルは HeaderTabs の並び（本棚=左 /
+  メモ=右）に一致させ、本棚で左スワイプ→/log、メモ一覧で右スワイプ→/。
+- **🟢 テストの root 取得は container.querySelector('div')**: 仕様上 root div に
+  data-testid を足さない（静的設計維持）ため、render の container 先頭 div
+  ＝ページ root（LocationProbe は null 返却）を対象に MemoEditorPage.test
+  の fireTouch 作法（createEvent + touches/changedTouches を defineProperty
+  で強制）を厳密流用。
+- 結果: 対象 51 件（hook 5 + Bookshelf + LogList）・full-suite 238 件・
+  tsc 0 すべて緑。EditorPage.tsx / MemoEditorPage.tsx は 1 文字も変更なし
+  （git diff 確認）。新規定数なし（SWIPE_THRESHOLD_PX 再利用）。
+  本番配線は BookshelfPage.tsx / LogListPage.tsx の 2 箇所が import・spread
+  していることを grep（テスト除外）で実証＝死蓄なし。
