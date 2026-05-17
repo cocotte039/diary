@@ -1,5 +1,5 @@
 import { useEffect, useState } from 'react';
-import { Link } from 'react-router-dom';
+import { Link, useLocation } from 'react-router-dom';
 import styles from './SettingsPage.module.css';
 import { exportAllData } from '../../lib/export';
 import {
@@ -29,6 +29,9 @@ type SectionStatus = { msg: string; error?: boolean } | null;
  *  - 破壊的操作（削除）は confirm() で明示確認
  */
 export default function SettingsPage() {
+  // 設定を開いた元画面（BookshelfMenu='/' / MemoMenu='/log'）。
+  // 直接URL/リロード時は state なし → 本棚 '/' フォールバック（仕様・許容）。
+  const from = (useLocation().state as { from?: string } | null)?.from ?? '/';
   const [token, setToken] = useState('');
   const [ownerRepo, setOwnerRepo] = useState('');
   const [pending, setPending] = useState<number>(0);
@@ -250,7 +253,7 @@ export default function SettingsPage() {
     <div className={styles.root}>
       <header className={`app-header ${styles.header}`}>
         <h1 className={styles.title}>設定</h1>
-        <Link to="/" className="app-header-link">本棚</Link>
+        <Link to={from} className="app-header-link" aria-label="設定を閉じる">閉じる</Link>
       </header>
 
       <div className={styles.body}>
