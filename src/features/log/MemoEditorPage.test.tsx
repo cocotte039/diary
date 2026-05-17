@@ -1,5 +1,12 @@
 import { afterEach, beforeEach, describe, expect, it } from 'vitest';
-import { render, screen, waitFor, fireEvent, act } from '@testing-library/react';
+import {
+  render,
+  screen,
+  waitFor,
+  fireEvent,
+  createEvent,
+  act,
+} from '@testing-library/react';
 import { MemoryRouter, Routes, Route, useLocation } from 'react-router-dom';
 import {
   _resetDBForTests,
@@ -114,10 +121,20 @@ describe('MemoEditorPage (M2-T3)', () => {
     });
   });
 
-  it('マウント時 textarea が document.activeElement でない（自動フォーカスなし）', async () => {
+  it('/log/new で ready 後 textarea が自動フォーカスされる', async () => {
     renderAt('/log/new');
     const ta = await screen.findByRole('textbox');
-    expect(document.activeElement).not.toBe(ta);
+    await waitFor(() => expect(document.activeElement).toBe(ta));
+  });
+
+  it('/log/:id（既存）で ready 後 textarea がフォーカスされカーソルが content 末尾', async () => {
+    const m = await addMemo('既存メモ本文');
+    renderAt(`/log/${m.id}`);
+    const ta = (await screen.findByRole('textbox')) as HTMLTextAreaElement;
+    await waitFor(() => expect(ta.value).toBe('既存メモ本文'));
+    await waitFor(() => expect(document.activeElement).toBe(ta));
+    expect(ta.selectionStart).toBe(ta.value.length);
+    expect(ta.selectionEnd).toBe(ta.value.length);
   });
 
   it('編集時はヘッダーに createdAt が控えめ表示される', async () => {
@@ -138,5 +155,88 @@ describe('MemoEditorPage (M2-T3)', () => {
     renderAt('/log/new');
     const ta = await screen.findByRole('textbox');
     expect(ta.className).not.toMatch(/notebook-textarea|notebook-surface/);
+  });
+});
+
+/**
+ * M1-T5 右エッジスワイプで戻る。
+ * JSDOM の fireEvent.touchStart/End は touches/changedTouches を渡さないため
+ * createEvent + defineProperty で強制してから dispatch する
+ * （LogListPage.test の firePointer 作法を touch 用に応用）。
+ */
+describe('MemoEditorPage 右スワイプで戻る (M1-T5)', () => {
+  function fireTouch(
+    el: Element,
+    kind: 'touchStart' | 'touchEnd',
+    clientX: number,
+    clientY: number
+  ) {
+    const ev = createEvent[kind](el);
+    const point = { clientX, clientY } as Touch;
+    const list = [point] as unknown as TouchList;
+    Object.defineProperty(ev, 'touches', { get: () => list });
+    Object.defineProperty(ev, 'changedTouches', { get: () => list });
+    fireEvent(el, ev);
+  }
+
+  function swipe(
+    el: Element,
+    from: [number, number],
+    to: [number, number]
+  ) {
+    fireTouch(el, 'touchStart', from[0], from[1]);
+    fireTouch(el, 'touchEnd', to[0], to[1]);
+  }
+
+  it('右スワイプ（水平優位）で flush 後 backTo へ遷移し入力が保存される', async () => {
+    let path = '';
+    renderAt('/log/new', (p) => (path = p));
+    const ta = await screen.findByRole('textbox');
+    fireEvent.change(ta, { target: { value: 'スワイプ前の入力' } });
+    const root = screen.getByTestId('memo-editor-page');
+    await act(async () => {
+      swipe(root, [10, 100], [120, 110]); // dx=110, dy=10 → 水平優位 2:1
+    });
+    await waitFor(() => expect(path).toBe('/'));
+    await waitFor(async () => {
+      const memos = await getAllMemos();
+      expect(memos).toHaveLength(1);
+      expect(memos[0].content).toBe('スワイプ前の入力');
+    });
+  });
+
+  it('縦優位スワイプは無反応（遷移しない）', async () => {
+    let path = '';
+    renderAt('/log/new', (p) => (path = p));
+    await screen.findByRole('textbox');
+    const root = screen.getByTestId('memo-editor-page');
+    swipe(root, [10, 10], [40, 120]); // dx=30, dy=110 → 縦優位
+    await new Promise((r) => setTimeout(r, 100));
+    expect(path).toBe('/log/new');
+  });
+
+  it('IME 変換中の右スワイプは無反応', async () => {
+    let path = '';
+    renderAt('/log/new', (p) => (path = p));
+    const ta = await screen.findByRole('textbox');
+    fireEvent.compositionStart(ta);
+    const root = screen.getByTestId('memo-editor-page');
+    swipe(root, [10, 100], [120, 110]); // 水平優位だが IME 中
+    await new Promise((r) => setTimeout(r, 100));
+    expect(path).toBe('/log/new');
+  });
+
+  it('戻るリンク click は従来通り flush→navigate（goBack 委譲・回帰維持）', async () => {
+    let path = '';
+    renderAt('/log/new', (p) => (path = p));
+    const ta = await screen.findByRole('textbox');
+    fireEvent.change(ta, { target: { value: 'リンクで戻る' } });
+    fireEvent.click(screen.getByRole('link', { name: '戻る' }));
+    await waitFor(() => expect(path).toBe('/'));
+    await waitFor(async () => {
+      const memos = await getAllMemos();
+      expect(memos).toHaveLength(1);
+      expect(memos[0].content).toBe('リンクで戻る');
+    });
   });
 });
