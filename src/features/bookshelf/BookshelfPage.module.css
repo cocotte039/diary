@@ -135,11 +135,12 @@
  * M2-T4: 右下固定 FAB（メモを書く）。
  * 静けさ: 4 色のみ（bg=--color-accent, border=--color-rule, アイコン=--color-text）、
  * トランジション ≤200ms（press 150ms）、バッジ/件数なし。
+ * M1-T1: bottom を中程度上昇させ片手（親指）リーチを改善。
  */
 .fab {
   position: fixed;
   right: max(1rem, calc(env(safe-area-inset-right) + 0.5rem));
-  bottom: max(1.25rem, calc(env(safe-area-inset-bottom) + 0.75rem));
+  bottom: max(3.5rem, calc(env(safe-area-inset-bottom) + 3rem));
   width: 52px;
   height: 52px;
   border-radius: 50%;
