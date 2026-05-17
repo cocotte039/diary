@@ -1,5 +1,7 @@
 import { useCallback, useEffect, useState } from 'react';
+import { useNavigate } from 'react-router-dom';
 import styles from './LogListPage.module.css';
+import { useSwipeNavigation } from '../../hooks/useSwipeNavigation';
 import { dateKey, getAllMemos } from '../../lib/db';
 import type { Memo } from '../../types';
 import HeaderTabs from '../shared/HeaderTabs';
@@ -26,6 +28,11 @@ export default function LogListPage() {
   const [ready, setReady] = useState(false);
   const [reloadKey, setReloadKey] = useState(0);
   const [showCalendar, setShowCalendar] = useState(false);
+  const navigate = useNavigate();
+  const swipe = useSwipeNavigation({
+    onSwipeRight: () => navigate('/'),
+    disabled: showCalendar,
+  });
 
   // 削除後の再ロード（DB 状態を正として読み直す）。
   const reload = useCallback(() => setReloadKey((k) => k + 1), []);
@@ -83,7 +90,7 @@ export default function LogListPage() {
   }
 
   return (
-    <div className={styles.root}>
+    <div className={styles.root} {...swipe}>
       <header className={`app-header ${styles.header}`}>
         <HeaderTabs />
         <MemoMenu onOpenCalendar={() => setShowCalendar(true)} />
