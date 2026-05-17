@@ -1,6 +1,7 @@
 /*
  * MemoEditorPage: 罫線なしの素の紙。日記（罫線ノート）と体験を分離するため
- * notebook.css の罫線クラスは一切使わない。明朝フォントで日記と差別化。
+ * notebook.css の罫線クラスは一切使わない。ゴシック（可読性優先）で
+ * 日記の Klee One 手書き体と差別化。
  * 静けさ: 4 色のみ（--color-bg/text/rule/accent/error）、トランジション ≤200ms、
  * 保存ボタン/トースト/文字数カウンタなし。
  */
@@ -54,8 +55,8 @@
   resize: none;
   background-color: var(--color-bg);
   color: var(--color-text);
-  /* 明朝系（メモ=素の紙）。日記の Klee One 手書き体と差別化。 */
-  font-family: 'Hiragino Mincho ProN', 'Yu Mincho', 'Noto Serif JP', serif;
+  /* ゴシック（可読性優先）。日記の Klee One 手書き体と差別化。 */
+  font-family: var(--font-family-ui);
   font-size: var(--font-size);
   line-height: var(--line-height);
   letter-spacing: var(--letter-spacing);
