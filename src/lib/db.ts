@@ -548,6 +548,27 @@ export async function getDateSetInMonth(
   return set;
 }
 
+/**
+ * ある年月 (year, month 1-12) のうち、メモが存在する日 (YYYY-MM-DD) 集合を返す。
+ * getDateSetInMonth と一字一句同型のローカル年月比較（JST 境界時刻のズレ解消）。
+ * 対象ストアのみ pages → memos に差し替える（メモは日記とは別管理）。
+ */
+export async function getMemoDateSetInMonth(
+  year: number,
+  month: number
+): Promise<Set<string>> {
+  const db = await getDB();
+  const memos = await db.getAll('memos');
+  const set = new Set<string>();
+  for (const m of memos) {
+    const d = new Date(m.createdAt);
+    if (d.getFullYear() === year && d.getMonth() + 1 === month) {
+      set.add(dateKey(m.createdAt));
+    }
+  }
+  return set;
+}
+
 // =============================================================================
 // 同期状態 (T3.1)
 // =============================================================================
