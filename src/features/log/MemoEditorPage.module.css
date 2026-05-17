@@ -1,7 +1,9 @@
 /*
- * MemoEditorPage: 罫線なしの素の紙。日記（罫線ノート）と体験を分離するため
- * notebook.css の罫線クラスは一切使わない。ゴシック（可読性優先）で
- * 日記の Klee One 手書き体と差別化。
+ * MemoEditorPage: ユーザー要望により日記と体験統一（Klee One＋罫線）。
+ * textarea は notebook-surface / notebook-textarea を流用し、font/罫線/border/
+ * outline/resize/padding は notebook.css へ委譲（独自再付与しない＝罫線
+ * ベースライン整合 C2）。自由高さは維持（メモにページ概念は導入しない、
+ * .surface でスクロール）。
  * 静けさ: 4 色のみ（--color-bg/text/rule/accent/error）、トランジション ≤200ms、
  * 保存ボタン/トースト/文字数カウンタなし。
  */
@@ -47,20 +49,17 @@
   display: flex;
 }
 
+/*
+ * notebook-surface / notebook-textarea へ委譲済み: font 一式・border・outline・
+ * resize・padding（上下左右すべて → notebook の padding:0 var(--padding-page)。
+ * 独自再付与禁止＝罫線ベースライン位相ずれ防止 C2）。
+ * 残置は MemoEditorPage 固有レイアウト（flex/width）と bg/color（notebook と
+ * 同値・無害）のみ。
+ */
 .textarea {
   flex: 1 1 auto;
   width: 100%;
-  border: none;
-  outline: none;
-  resize: none;
   background-color: var(--color-bg);
   color: var(--color-text);
-  /* ゴシック（可読性優先）。日記の Klee One 手書き体と差別化。 */
-  font-family: var(--font-family-ui);
-  font-size: var(--font-size);
-  line-height: var(--line-height);
-  letter-spacing: var(--letter-spacing);
-  padding: 1rem max(var(--padding-page), env(safe-area-inset-right)) 1rem
-    max(var(--padding-page), env(safe-area-inset-left));
   -webkit-tap-highlight-color: transparent;
 }
