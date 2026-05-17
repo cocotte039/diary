@@ -1,5 +1,7 @@
 import { useCallback, useEffect, useState } from 'react';
+import { useNavigate } from 'react-router-dom';
 import styles from './BookshelfPage.module.css';
+import { useSwipeNavigation } from '../../hooks/useSwipeNavigation';
 import {
   deleteVolume,
   ensureActiveVolume,
@@ -28,6 +30,11 @@ export default function BookshelfPage() {
     () => new Map()
   );
   const [showCalendar, setShowCalendar] = useState(false);
+  const navigate = useNavigate();
+  const swipe = useSwipeNavigation({
+    onSwipeLeft: () => navigate('/log'),
+    disabled: showCalendar,
+  });
   // reload 時にトリガーするカウンタ（新冊作成後の再読み込み用）
   const [reloadKey, setReloadKey] = useState(0);
 
@@ -123,7 +130,7 @@ export default function BookshelfPage() {
   }
 
   return (
-    <div className={styles.root}>
+    <div className={styles.root} {...swipe}>
       <header className={`app-header ${styles.header}`}>
         <HeaderTabs />
         <BookshelfMenu
