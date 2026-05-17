@@ -338,3 +338,195 @@ describe('LogListPage MemoListItem (M3-T5)', () => {
     confirmSpy.mockRestore();
   });
 });
+
+/**
+ * M1-T3-1: MemoMenu / ペン FAB / MemoCalendar モーダル / 日付スクロール。
+ * 既存テストは無変更（本 describe を追記のみ）。
+ * scrollIntoView は jsdom 未実装のため vi.fn() モック。requestAnimationFrame は
+ * 二重 rAF を同期実行させて scrollToDate の getElementById 経路を検証。
+ */
+describe('LogListPage MemoMenu/FAB/Calendar (M1)', () => {
+  let scrollSpy: ReturnType<typeof vi.fn>;
+  const origRaf = window.requestAnimationFrame;
+
+  beforeEach(() => {
+    scrollSpy = vi.fn();
+    Element.prototype.scrollIntoView = scrollSpy;
+    // 二重 rAF を同期的にフラッシュ（state 反映後フレーム相当をテストで再現）。
+    window.requestAnimationFrame = ((cb: FrameRequestCallback) => {
+      cb(0);
+      return 0;
+    }) as typeof window.requestAnimationFrame;
+  });
+  afterEach(() => {
+    window.requestAnimationFrame = origRaf;
+  });
+
+  function LocationProbe({
+    onChange,
+  }: {
+    onChange: (p: string, s: unknown) => void;
+  }) {
+    const loc = useLocation();
+    onChange(loc.pathname, loc.state);
+    return null;
+  }
+
+  function renderApp(initial = '/log') {
+    let path = '';
+    let state: unknown = null;
+    const utils = render(
+      <MemoryRouter initialEntries={[initial]}>
+        <LocationProbe
+          onChange={(p, s) => {
+            path = p;
+            state = s;
+          }}
+        />
+        <Routes>
+          <Route path="/log" element={<LogListPage />} />
+          <Route path="/log/new" element={<div data-testid="memo-new" />} />
+          <Route path="/settings" element={<div data-testid="settings" />} />
+        </Routes>
+      </MemoryRouter>
+    );
+    return { ...utils, getPath: () => path, getState: () => state };
+  }
+
+  it('MemoMenu trigger click で開き、外部 pointerdown / Escape で閉じる', async () => {
+    renderApp();
+    await screen.findByText('まだメモがありません');
+    const trigger = screen.getByRole('button', { name: 'メニューを開く' });
+
+    fireEvent.click(trigger);
+    expect(screen.getByRole('menu')).toBeInTheDocument();
+
+    // 外部 pointerdown で閉じる
+    fireEvent.pointerDown(document.body);
+    await waitFor(() => expect(screen.queryByRole('menu')).toBeNull());
+
+    // 再度開いて Escape で閉じる
+    fireEvent.click(trigger);
+    expect(screen.getByRole('menu')).toBeInTheDocument();
+    fireEvent.keyDown(document, { key: 'Escape' });
+    await waitFor(() => expect(screen.queryByRole('menu')).toBeNull());
+  });
+
+  it('メニュー「設定」で /settings へ遷移しメニューが閉じる', async () => {
+    const { getPath } = renderApp();
+    await screen.findByText('まだメモがありません');
+    fireEvent.click(screen.getByRole('button', { name: 'メニューを開く' }));
+    fireEvent.click(screen.getByRole('menuitem', { name: '設定' }));
+    await waitFor(() => expect(getPath()).toBe('/settings'));
+    expect(screen.getByTestId('settings')).toBeInTheDocument();
+  });
+
+  it('ペン FAB タップで /log/new へ state.from="/log"', async () => {
+    const { getPath, getState } = renderApp();
+    await screen.findByText('まだメモがありません');
+    fireEvent.click(screen.getByRole('button', { name: 'メモを書く' }));
+    await waitFor(() => expect(getPath()).toBe('/log/new'));
+    expect((getState() as { from?: string } | null)?.from).toBe('/log');
+    expect(screen.getByTestId('memo-new')).toBeInTheDocument();
+  });
+
+  it('カレンダー項目→モーダル open、背景 click / × / Escape で閉じる', async () => {
+    renderApp();
+    await screen.findByText('まだメモがありません');
+
+    // 背景クリックで閉じる
+    fireEvent.click(screen.getByRole('button', { name: 'メニューを開く' }));
+    fireEvent.click(screen.getByRole('menuitem', { name: 'カレンダー' }));
+    const overlay = await screen.findByRole('dialog', { name: 'カレンダー' });
+    fireEvent.click(overlay);
+    await waitFor(() => expect(screen.queryByRole('dialog')).toBeNull());
+
+    // × ボタンで閉じる
+    fireEvent.click(screen.getByRole('button', { name: 'メニューを開く' }));
+    fireEvent.click(screen.getByRole('menuitem', { name: 'カレンダー' }));
+    await screen.findByRole('dialog', { name: 'カレンダー' });
+    fireEvent.click(
+      screen.getByRole('button', { name: 'カレンダーを閉じる' })
+    );
+    await waitFor(() => expect(screen.queryByRole('dialog')).toBeNull());
+
+    // Escape で閉じる
+    fireEvent.click(screen.getByRole('button', { name: 'メニューを開く' }));
+    fireEvent.click(screen.getByRole('menuitem', { name: 'カレンダー' }));
+    await screen.findByRole('dialog', { name: 'カレンダー' });
+    fireEvent.keyDown(document, { key: 'Escape' });
+    await waitFor(() => expect(screen.queryByRole('dialog')).toBeNull());
+  });
+
+  it('ドット日 click → モーダル閉 + scrollIntoView が該当 section で呼出（JST境界）', async () => {
+    // UTC 深夜だが JST(+9) ローカルでは 2026-05-16。dateKey と section id 一致を確認。
+    await seedMemos([
+      {
+        id: 's1',
+        content: 'boundary memo',
+        createdAt: '2026-05-16T00:00:00.000Z',
+        updatedAt: '2026-05-16T00:00:00.000Z',
+        syncStatus: 'pending',
+      },
+    ]);
+    renderApp();
+    await screen.findByText('boundary memo');
+
+    const d = new Date('2026-05-16T00:00:00.000Z');
+    const y = d.getFullYear();
+    const mo = d.getMonth() + 1;
+    const day = d.getDate();
+    const dk = `${y}-${String(mo).padStart(2, '0')}-${String(day).padStart(2, '0')}`;
+
+    // section id がローカル日付ベースで付与されている
+    const section = document.getElementById(`memo-date-${dk}`);
+    expect(section).not.toBeNull();
+
+    fireEvent.click(screen.getByRole('button', { name: 'メニューを開く' }));
+    fireEvent.click(screen.getByRole('menuitem', { name: 'カレンダー' }));
+    await screen.findByRole('dialog', { name: 'カレンダー' });
+
+    // カレンダーの該当日セル（ドットあり）をクリック
+    const cell = await screen.findByRole('button', {
+      name: `${y}年${mo}月${day}日`,
+    });
+    fireEvent.click(cell);
+
+    await waitFor(() => expect(screen.queryByRole('dialog')).toBeNull());
+    expect(scrollSpy).toHaveBeenCalledTimes(1);
+    expect(scrollSpy.mock.instances[0]).toBe(section);
+  });
+
+  it('ドット無し日 click → scrollIntoView 未呼出・モーダル開維持（無反応）', async () => {
+    // 5/16 にのみメモ。5/16 以外（例: 1日）はドット無し。
+    await seedMemos([
+      {
+        id: 's2',
+        content: 'only one day',
+        createdAt: '2026-05-16T05:00:00.000Z',
+        updatedAt: '2026-05-16T05:00:00.000Z',
+        syncStatus: 'pending',
+      },
+    ]);
+    renderApp();
+    await screen.findByText('only one day');
+
+    const d = new Date('2026-05-16T05:00:00.000Z');
+    const y = d.getFullYear();
+    const mo = d.getMonth() + 1;
+
+    fireEvent.click(screen.getByRole('button', { name: 'メニューを開く' }));
+    fireEvent.click(screen.getByRole('menuitem', { name: 'カレンダー' }));
+    await screen.findByRole('dialog', { name: 'カレンダー' });
+
+    // 1 日（メモ無し）をクリック → 無反応
+    const emptyCell = await screen.findByRole('button', {
+      name: `${y}年${mo}月1日`,
+    });
+    fireEvent.click(emptyCell);
+
+    await new Promise((r) => setTimeout(r, 50));
+    expect(scrollSpy).not.toHaveBeenCalled();
+    expect(screen.getByRole('dialog', { name: 'カレンダー' })).toBeInTheDocument();
+  });
+});
