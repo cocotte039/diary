@@ -71,7 +71,7 @@
   font-variant-numeric: tabular-nums;
 }
 
-/* 本文プレビュー: 2 行 clamp、ゴシック（可読性優先、日記の手書き体と差別化）。 */
+/* 本文プレビュー: 2 行 clamp、日記と同一の手書き体（ユーザー要望により世界観統一）。 */
 .preview {
   display: -webkit-box;
   -webkit-line-clamp: 2;
@@ -80,14 +80,12 @@
   overflow: hidden;
   color: var(--color-text);
   opacity: 0.85;
-  font-family: var(--font-family-ui);
 }
 
 /* 空メモのプレースホルダ（U3/E9）。さらに控えめ。 */
 .emptyMemo {
   color: var(--color-text);
   opacity: 0.3;
-  font-family: var(--font-family-ui);
 }
 
 /* 0 件時の空状態（BookshelfPage .empty 作法）。 */
