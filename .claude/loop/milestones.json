@@ -1,121 +1,63 @@
 {
   "version": "2.0",
   "project": {
-    "name": "diary-memo-menu-calendar-fab",
-    "description": "メモ一覧ページ(LogListPage)にメモ専用ハンバーガーメニュー(カレンダー/設定)・メモ専用カレンダーモーダル(memos対象, 別管理, 日付タップで該当日へ瞬間スクロール)・ペンFAB(/log/new, 戻り先/log)を本棚側と同作法で追加。日記側不変・静けさ原則維持。"
+    "name": "diary UX 改善",
+    "description": "メモを日記と同一体験(Klee One+罫線)に / メモ一覧本文を手書き体に / 設定を「閉じる」で元画面復帰 / 本棚⇔メモ一覧 親指スワイプ切替"
   },
   "milestones": [
     {
-      "id": "M1",
-      "name": "メモ一覧 メニュー+カレンダー+ペンFAB",
-      "goal": "LogListPage に MemoMenu / MemoCalendar モーダル / ペンFAB を追加し、カレンダー日付タップで該当日付グループへ瞬間スクロール。日記側(BookshelfPage/BookshelfMenu/Calendar/EditorPage)非回帰。",
+      "id": "M2",
+      "name": "メモ一覧本文を手書き体に（R2）",
+      "goal": "ユーザーが一覧でメモ本文を日記と同じ手書き体で読める",
       "status": "completed",
-      "verification": "npx tsc --noEmit && npx vitest run",
+      "verification": "npx vitest run src/features/log/LogListPage.test.tsx",
       "tasks": [
-        {
-          "id": "T0-1",
-          "name": "db: getMemoDateSetInMonth 追加",
-          "spec": "specs/m1-t0-1.md",
-          "wave": 0,
-          "status": "completed",
-          "assignee": "build"
-        },
-        {
-          "id": "T0-2",
-          "name": "Fab: from prop 化(既定'/')",
-          "spec": "specs/m1-t0-2.md",
-          "wave": 0,
-          "status": "completed",
-          "assignee": "build"
-        },
-        {
-          "id": "T1-1",
-          "name": "MemoMenu.tsx 新規(カレンダー/設定)",
-          "spec": "specs/m1-t1-1.md",
-          "wave": 1,
-          "status": "completed",
-          "assignee": "build"
-        },
-        {
-          "id": "T1-2",
-          "name": "MemoMenu.module.css 新規",
-          "spec": "specs/m1-t1-2.md",
-          "wave": 1,
-          "status": "completed",
-          "assignee": "build"
-        },
-        {
-          "id": "T1-3",
-          "name": "LogListPage: MemoMenu+Fab配線+showCalendar state",
-          "spec": "specs/m1-t1-3.md",
-          "wave": 1,
-          "status": "completed",
-          "assignee": "build"
-        },
-        {
-          "id": "T1-4",
-          "name": "LogListPage.module.css: header/body調整",
-          "spec": "specs/m1-t1-4.md",
-          "wave": 1,
-          "status": "completed",
-          "assignee": "build"
-        },
-        {
-          "id": "T2-1",
-          "name": "MemoCalendar.tsx 新規(onPick/空日無反応)",
-          "spec": "specs/m1-t2-1.md",
-          "wave": 2,
-          "status": "completed",
-          "assignee": "build"
-        },
-        {
-          "id": "T2-2",
-          "name": "MemoCalendar.module.css 新規",
-          "spec": "specs/m1-t2-2.md",
-          "wave": 2,
-          "status": "completed",
-          "assignee": "build"
-        },
-        {
-          "id": "T2-3",
-          "name": "LogListPage: section id付与+カレンダーモーダル",
-          "spec": "specs/m1-t2-3.md",
-          "wave": 2,
-          "status": "completed",
-          "assignee": "build"
-        },
-        {
-          "id": "T2-4",
-          "name": "LogListPage: scrollToDate(二重rAF)+Esc閉じ",
-          "spec": "specs/m1-t2-4.md",
-          "wave": 2,
-          "status": "completed",
-          "assignee": "build"
-        },
-        {
-          "id": "T2-5",
-          "name": "LogListPage.module.css: モーダルCSS複製",
-          "spec": "specs/m1-t2-5.md",
-          "wave": 2,
-          "status": "completed",
-          "assignee": "build"
-        },
-        {
-          "id": "T3-1",
-          "name": "テスト: Fab/MemoMenu/MemoCalendar/LogListPage 追加更新",
-          "spec": "specs/m1-t3-1.md",
-          "wave": 3,
-          "status": "completed",
-          "assignee": "build"
-        }
+        { "id": "T1", "name": "LogListPage.module.css .preview/.emptyMemo の font-family 削除", "spec": "specs/m2-t1.md", "wave": 1, "status": "completed", "assignee": "build" }
+      ]
+    },
+    {
+      "id": "M3",
+      "name": "設定を「閉じる」で元画面へ（R3）",
+      "goal": "ユーザーが設定を開いた元画面（本棚/メモ一覧）へ直接戻れる",
+      "status": "completed",
+      "verification": "npx vitest run src/features/settings src/features/bookshelf/BookshelfPage.test.tsx src/features/log/LogListPage.test.tsx",
+      "tasks": [
+        { "id": "T1", "name": "BookshelfMenu 設定Linkに state={{from:'/'}}", "spec": "specs/m3-t1.md", "wave": 1, "status": "completed", "assignee": "build" },
+        { "id": "T2", "name": "MemoMenu 設定Linkに state={{from:'/log'}}", "spec": "specs/m3-t2.md", "wave": 1, "status": "completed", "assignee": "build" },
+        { "id": "T3", "name": "SettingsPage useLocation→「閉じる」リンク化+テスト", "spec": "specs/m3-t3.md", "wave": 2, "status": "completed", "assignee": "build" }
+      ]
+    },
+    {
+      "id": "M1",
+      "name": "メモ編集を日記と同一体験に（R1）",
+      "goal": "ユーザーがメモを日記と同じ手書き体＋罫線で書ける",
+      "status": "pending",
+      "verification": "npx vitest run src/features/log/MemoEditorPage.test.tsx",
+      "tasks": [
+        { "id": "T1", "name": "MemoEditorPage.tsx textarea に notebook-surface/notebook-textarea 付与+意図コメント更新", "spec": "specs/m1-t1.md", "wave": 1, "status": "pending", "assignee": "build" },
+        { "id": "T2", "name": "MemoEditorPage.module.css .textarea 独自指定を notebook へ委譲（減算）", "spec": "specs/m1-t2.md", "wave": 1, "status": "pending", "assignee": "build" },
+        { "id": "T3", "name": "MemoEditorPage.test.tsx notebook クラス不在テストを反転更新", "spec": "specs/m1-t3.md", "wave": 2, "status": "pending", "assignee": "build" }
+      ]
+    },
+    {
+      "id": "M4",
+      "name": "本棚⇔メモ一覧 親指スワイプ切替（R4）",
+      "goal": "ユーザーが親指の左右スワイプで本棚とメモ一覧を切り替えられる",
+      "status": "pending",
+      "verification": "npx vitest run src/hooks src/features/bookshelf/BookshelfPage.test.tsx src/features/log/LogListPage.test.tsx",
+      "tasks": [
+        { "id": "T1", "name": "新規 src/hooks/useSwipeNavigation.ts 作成", "spec": "specs/m4-t1.md", "wave": 1, "status": "pending", "assignee": "build" },
+        { "id": "T2", "name": "BookshelfPage 左スワイプ→/log 配線", "spec": "specs/m4-t2.md", "wave": 2, "status": "pending", "assignee": "build" },
+        { "id": "T3", "name": "LogListPage 右スワイプ→/ 配線", "spec": "specs/m4-t3.md", "wave": 2, "status": "pending", "assignee": "build" },
+        { "id": "T4", "name": "swipe テスト追加（hook単体+2画面）", "spec": "specs/m4-t4.md", "wave": 3, "status": "pending", "assignee": "build" }
       ]
     }
   ],
   "fix_queue": [],
   "metadata": {
-    "created_at": "2026-05-17T03:51:28Z",
-    "last_updated": "2026-05-17T00:00:00Z",
-    "current_iteration": 1,
-    "total_iterations": 1
+    "created_at": "2026-05-18T00:00:00Z",
+    "last_updated": "2026-05-17T22:02:53Z",
+    "current_iteration": 0,
+    "total_iterations": 0
   }
 }
