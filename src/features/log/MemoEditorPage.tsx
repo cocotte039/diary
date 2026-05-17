@@ -26,7 +26,7 @@ export function formatCreatedAt(iso: string): string {
  * MemoEditorPage: 新規(/log/new)・編集(/log/:memoId) 兼用のメモ入力画面。
  *
  * - 罫線なしプレーン textarea（日記=罫線ノート / メモ=素の紙で体験分離）。
- * - 自動フォーカスなし（マウント時 focus しない, 静けさ）。
+ * - ready 後 textarea を自動フォーカス（書く所作の摩擦最小化）。編集時はカーソル末尾。
  * - 暗黙保存（useMemoAutoSave, 2 秒 debounce）。保存ボタン/トースト/件数なし。
  * - 編集時は getMemo で content をロード。undefined（削除済み/不正 id）は
  *   /log へ replace 遷移（幽霊メモ回避, E10）。
@@ -51,6 +51,8 @@ export default function MemoEditorPage() {
 
   // StrictMode 二重 pushState を防ぐ ref（EditorPage 同型）
   const historyGuardInstalledRef = useRef(false);
+
+  const textareaRef = useRef<HTMLTextAreaElement>(null);
 
   // 編集時: 既存メモをロード。undefined は /log へ replace（E10）。
   useEffect(() => {
@@ -79,6 +81,21 @@ export default function MemoEditorPage() {
       cancelled = true;
     };
   }, [memoId, navigate]);
+
+  // ready 後に textarea を自動フォーカス（書く所作の摩擦最小化）。
+  // 編集時はカーソルを content 末尾へ。content 依存にしない
+  // （入力毎の再フォーカス防止）。
+  useEffect(() => {
+    if (!ready) return;
+    const ta = textareaRef.current;
+    if (!ta) return;
+    ta.focus({ preventScroll: true }); // M3: スクロール飛び抑制
+    if (!isNew && content.length > 0) {
+      // M4: 編集時カーソル末尾
+      ta.setSelectionRange(content.length, content.length);
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [ready, isNew]);
 
   const onCreated = useCallback(
     (id: string) => {
@@ -158,6 +175,7 @@ export default function MemoEditorPage() {
 
       <div className={styles.surface}>
         <textarea
+          ref={textareaRef}
           data-testid="memo-textarea"
           className={styles.textarea}
           value={content}
