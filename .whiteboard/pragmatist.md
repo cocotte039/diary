@@ -1,104 +1,54 @@
-# Pragmatist 分析（実用性・最短経路・再利用）
+# Pragmatist 分析（実用性・最短経路・情報構造）
 
-確信度: 🔵確実 / 🟡推測 / 🔴未確定
+## 要件別分析
 
-## 1. 新規 vs 再利用の線引き
+### R1 メモ編集を Klee One + 日記罫線に
+- 🔵 最短経路: textarea の className を `notebook-surface notebook-textarea ${styles.textarea}` にする（EditorPage.tsx L391 と同パターン）。`.notebook-surface` が font-family/line-height/罫線/左右padding/背景を全て持つので、`styles.textarea` の独自指定（font-family/font-size/line-height/letter-spacing/padding）は削除する。
+- 🔵 残すべき styles.textarea プロパティ: `flex:1 1 auto; width:100%; background-color/color`（surface flex 用）、`-webkit-tap-highlight-color:transparent`。border/outline/resize は notebook-textarea が持つので削除可。
+- 🟡 罫線ベースライン整合の難所: notebook.css は `padding: 0 var(--padding-page)`（上下0）＋`background-position:0 0`＋`background-attachment:local`。メモは `.surface`(overflow-y:auto) が外側スクロール、textarea は内側で flex 伸長。EditorPage は textarea 自身 `notebook-surface` 付きで .surface スクロール → 同型にすれば罫線は文字と同期する（background-attachment:local が effect）。独自 padding:1rem を捨て上下0にすると1行目から罫線基準で揃う。
+- 🟡 自由高さ維持: `var(--page-height-px)`(60行min-height) を入れないので、textarea は flex:1 1 auto で .surface 高さに追従。短文時は textarea が surface いっぱい＝罫線が画面全体に出る（EditorPage と同じ挙動、要件「自由高さ維持」と矛盾せず＝ページ概念を入れないだけ）。スクロールは内容超過時のみ.surface が処理。
+- 🔵 推定変更: MemoEditorPage.tsx 1行（className）、MemoEditorPage.module.css ~10行削減。テスト L157 の更新必須（後述）。
 
-### MemoMenu（新規 .tsx + .module.css）
-🔵 BookshelfMenu を MemoMenu として複製改変が最短かつ安全。
-- 理由: BookshelfMenu の props は `{onCreateNew, onOpenCalendar}`。メモ側は項目「カレンダー / 設定」のみで onCreateNew 不要。props が異なるため共通化すると条件分岐が増え可読性低下。
-- CSS: `BookshelfMenu.module.css` は項目構造に依存しない汎用スタイル。複製でよい（54行と小さい）。共通 CSS 化は過剰。
-- 差分: BookshelfMenu からトリガー/open/外部pointerdown/Escape ロジックをそのままコピーし、menu 内を「カレンダー(button)」「設定(Link to=/settings)」の2項目に削減。
+### R2 メモ一覧本文フォント
+- 🔵 最短: LogListPage.module.css の `.preview` `.emptyMemo` から `font-family: var(--font-family-ui);` 行のみ削除 → global の body 継承(--font-family=Klee One)。`.empty`(0件メッセージ)はメタUIなので要件外＝判断保留（要件は preview/emptyMemo のみ明記、empty は --font-family-ui 維持が一貫＝R2'と同列）。
+- 🔵 `.dateHeading`/`.time` は --font-family-ui 維持（R2' 合意）＝変更なし。
+- 🔵 推定変更: 2行削除のみ。最小。
 
-### MemoCalendar（新規 .tsx + .module.css）
-🔵 Calendar.tsx は本質的に「日記用」（findPageByDate→/read 遷移が密結合, L49-55）。props で兼用は分岐が深くなる。複製改変が最短。
-- 流用: year/month state, prev/next, cells 構築, ドット表示, JST 安全な key 生成は完全流用。
-- 改変点: `getDateSetInMonth` → `getMemoDateSetInMonth`、`onPick` を `findPageByDate→navigate` から `onPick?.(dateKey)` コールバックに置換（親 LogListPage が scroll 担当）。
-- CSS: `Calendar.module.css`（61行）複製。ドット色/サイズは同一で流用（Aesthete 整合）。
-- 🟡 兼用案の評価: Calendar に `mode: 'page'|'memo'` + `onPickDate?` を足す案も可能だが、findPageByDate/navigate の有無で実質別物。非目標「日記側 Calendar.tsx 不変」とも整合するため複製が正解。
+### R3 設定「閉じる」
+- 🔵 SettingsPage.tsx: `useLocation` を react-router-dom から追加 import。`const from = (useLocation().state as {from?:string}|null)?.from ?? '/';` を計算。`<Link to="/" className="app-header-link">本棚</Link>` を `<Link to={from} className="app-header-link" aria-label="設定を閉じる">閉じる</Link>` に。
+- 🔵 BookshelfMenu.tsx L63 `<Link to="/settings" ...>` に `state={{ from: '/' }}` 追加。MemoMenu.tsx L57 同様に `state={{ from: '/log' }}`。
+- 🟡 「閉じる」実装は navigate(-1) でなく明示 to={from}（履歴汚染回避・直接遷移要件「直接戻れる」に忠実）。リンクのままで十分（onClick 不要）。
+- 🔵 推定変更: 3ファイル各1-3行。
 
-## 2. Fab.tsx の from prop 化（最小差分）
+### R4 本棚⇔メモ スワイプ共通フック
+- 🔵 新規 src/hooks/useSwipeNavigation.ts。API 案:
+  `useSwipeNavigation({ onSwipeLeft?: ()=>void; onSwipeRight?: ()=>void; disabled?: boolean }) => { onTouchStart, onTouchEnd }`
+  内部: touchStartX/Y ref、isComposing は不要（一覧画面に IME 入力欄なし）だが要件で IME ガード流用指定 → document.activeElement や composition 監視は過剰。一覧にtextareaなし＝IME 発生せず。要件「IME ガード流用」は EditorPage ロジック流用の意で、実害なし。安全側で isComposing ref を内部に持ち onComposition 監視は省略（一覧に入力欄ゼロ）。→ 判断: IME ガードは「ロジック構造の流用」に留め、一覧では実質 no-op で可（Skeptic 確認事項）。
+- 🔵 判定ロジックは EditorPage L316-331 をコピー流用（|dx|<SWIPE_THRESHOLD_PX 棄却、|dx|<=|dy|*2 棄却、dx<0=左/dx>0=右）。EditorPage 自体は不変（共通化で巻き込まない＝EditorPage はコピー元のまま据置、フックへ移行しない）。
+- 🔵 BookshelfPage: `const swipe = useSwipeNavigation({ onSwipeLeft: ()=>navigate('/log'), disabled: showCalendar });` を root div に `{...swipe}` で展開。useNavigate 追加 import。
+- 🔵 LogListPage: `useSwipeNavigation({ onSwipeRight: ()=>navigate('/'), disabled: showCalendar })`。useNavigate 追加。
+- 🔵 死蓄防止: フックは BookshelfPage.tsx / LogListPage.tsx の2箇所で実呼出（grep 検証可）。
+- 🔵 推定変更: 新規フック ~40行、Bookshelf/LogList 各 ~4行。
 
-🔵 最小差分:
-```tsx
-interface Props { from?: string }
-export default function Fab({ from = '/' }: Props) {
-  ...
-  onClick={() => navigate('/log/new', { state: { from } })}
-}
-```
-- BookshelfPage: `<Fab />` のまま（from 未指定 → 既定 '/'）→ 本棚完全不変。🔵
-- LogListPage: `<Fab from="/log" />`。
-- MemoEditorPage L48-51 は `location.state?.from ?? '/'` を読むだけ。from='/log' 渡しで新規メモ保存後 /log へ戻る（既存ロジック流用、変更不要）。🔵
+## マイルストーン分割評価
+- M1 メモ罫線+フォント（R1）: 独立、垂直スライス「ユーザーがメモを日記と同じ見た目で書ける」。テスト更新含む。
+- M2 メモ一覧フォント（R2）: 独立、最小。「一覧本文が手書き体になる」。
+- M3 設定閉じる（R3）: 独立。「設定から元画面へ戻れる」。3ファイル横断だが小。
+- M4 スワイプ切替（R4）: 独立、最大。「親指で本棚⇔メモ切替できる」。
+- 🔵 4 つは相互依存なし＝並列実装可。推奨順は ROI/リスク順: M2(最小) → M3 → M1 → M4(最大・回帰要注意)。ただし全て独立なので順不同で可。各 M が垂直スライスとして単独で動作・コミット可能。M1+M2 はメモ視覚統一として連続実装が自然（テスト整合まとめやすい）。
 
-## 3. getMemoDateSetInMonth 最小実装
+## 推奨実装方針
+1. notebook クラス流用は className 追加＋module.css 減算（増やさず削る＝静けさ・最小差分）
+2. 共通フックは EditorPage を据置きコピー流用（EditorPage 不変制約を破らない最短）
+3. R3 はリンク to={from} で十分（onClick/navigate ロジック不要）
+4. テスト L157 は R1 と論理的に矛盾＝「notebook クラスを持つ」検証へ書換（削除でなく更新＝規約準拠）
 
-🔵 db.ts に getDateSetInMonth（L535-549）同型で追加。スキーマ変更なし:
-```ts
-export async function getMemoDateSetInMonth(
-  year: number, month: number
-): Promise<Set<string>> {
-  const db = await getDB();
-  const memos = await db.getAll('memos');
-  const set = new Set<string>();
-  for (const m of memos) {
-    const d = new Date(m.createdAt);
-    if (d.getFullYear() === year && d.getMonth() + 1 === month) {
-      set.add(dateKey(m.createdAt));
-    }
-  }
-  return set;
-}
-```
-- 🟡 getAllMemos 再利用案（sort 込み）より db.getAll 直叩きが getDateSetInMonth と完全対称で読みやすい。sort 不要（Set 化のため順序無関係）。getDateSetInMonth 同型を優先。
+## リスク・懸念（Pragmatist 観点）
+- 🟡 R1 で .surface の overflow-y:auto と textarea の flex:1 1 auto。短文で罫線が全面に出る挙動は EditorPage と同一なので新規リスク低。ただし MemoEditorPage の .surface は `display:flex` で textarea を伸ばす設計＝ height:auto でなく flex 伸長。EditorPage は textarea に min-height(--page-height-px) があり構造差。メモは min-height 入れない→ textarea が surface に flex で 100% フィット → スクロールは内容>surface 時のみ。問題なし（むしろシンプル）。
+- 🟡 R4 IME ガード: 一覧画面に入力欄なし＝実害ゼロ。フック内で composition 監視を実装すると過剰。構造流用に留める。
+- 🟢 R3 リロード時 state 喪失は '/' フォールバックで安全（仕様内）。
 
-## 4. CSS の所在判断
-
-🔵 Fab CSS（`.fab/.fabIcon`）は `BookshelfPage.module.css` L140-164 に在る。Fab.tsx は `import styles from './BookshelfPage.module.css'`。
-- 判断: Fab.tsx は CSS import を変えず現状維持（BookshelfPage.module.css の .fab を引き続き使用）。LogListPage で `<Fab from="/log" />` するだけなら CSS 移動不要。**過剰リファクタ回避**。🔵
-- 🟡 ただし「Fab が bookshelf ディレクトリ配下」という構造的違和感は残る。今回はスコープ外（移動は別タスク）。plan に技術的負債としてメモ。
-- メモ側 .body に FAB 分の padding-bottom 追加が必要（LogListPage.module.css L16-22 は未確保 → 最下段被り）。本棚 .body L18-19 と同じ calc を移植。🔵
-
-## 5. scrollIntoView 最小形
-
-🔵 各 section に `id={`memo-date-${dk}`}` を付与（LogListPage.tsx L62）。
-🟡 onPick ハンドラ:
-```tsx
-const scrollToDate = useCallback((dk: string) => {
-  setShowCalendar(false);
-  requestAnimationFrame(() => {
-    document.getElementById(`memo-date-${dk}`)
-      ?.scrollIntoView({ block: 'start', behavior: 'auto' });
-  });
-}, []);
-```
-- behavior:'auto'（瞬間移動, 要件指定）。?. で null 安全。
-- 🟡 rAF 1回で足りるか要検証（モーダル unmount 後のレイアウト確定タイミング）。Skeptic 判断に委ねる。
-
-## 6. 変更ファイル一覧・推定行数・実装順序
-
-| # | ファイル | 種別 | 推定行数 |
-|---|---|---|---|
-| 1 | src/lib/db.ts | 関数追加 | +15 |
-| 2 | src/features/bookshelf/Fab.tsx | props 追加 | +3/-1 |
-| 3 | src/features/log/MemoMenu.tsx | 新規 | ~55 |
-| 4 | src/features/log/MemoMenu.module.css | 新規(複製) | ~54 |
-| 5 | src/features/log/MemoCalendar.tsx | 新規 | ~75 |
-| 6 | src/features/log/MemoCalendar.module.css | 新規(複製) | ~61 |
-| 7 | src/features/log/LogListPage.tsx | 改変 | +40 |
-| 8 | src/features/log/LogListPage.module.css | 改変(モーダル+fab padding) | +50 |
-
-推奨実装順序（依存順, 垂直スライス）:
-1. db.getMemoDateSetInMonth（独立・先行）
-2. Fab from prop（独立・本棚不変確認）
-3. MemoMenu + css（設定 Link は単独完結）
-4. LogListPage に MemoMenu + Fab 配線（ここで「メニュー/設定/メモ作成」が動く = Wave1 完結）
-5. MemoCalendar + css（getMemoDateSetInMonth 依存）
-6. LogListPage に showCalendar モーダル + scrollToDate + section id（ここで「カレンダー→スクロール」が動く = Wave2 完結）
-
-## やり過ぎ防止
-
-- Calendar/BookshelfMenu の共通化リファクタは**やらない**（分岐増・非目標抵触）。
-- Fab CSS の共通 CSS 切り出しは**やらない**（今回スコープ外, import 現状維持）。
-- per-date ルートは**作らない**（単一ページ + scroll で実現, 合意済非目標）。
-- body スクロールロック等の新規 a11y 強化は本棚に無いため**やらない**（Skeptic が必要と判断すれば別）。
+## 確信度サマリ
+- 🔵 R1 className 方式 / R2 行削除 / R3 リンク方式 / R4 フック2箇所配線・EditorPage据置
+- 🟡 R1 罫線ベースライン実機確認要（CSS のみ jsdom 検証不可）/ R4 IME ガード省略可否
+- 🔴 なし
