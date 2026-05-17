@@ -151,10 +151,11 @@ describe('MemoEditorPage (M2-T3)', () => {
     expect(screen.queryByTestId('memo-created-at')).toBeNull();
   });
 
-  it('罫線 notebook クラスを textarea に付けない（メモは素の紙）', async () => {
+  it('textarea が notebook クラスを持つ（日記と同一体験）', async () => {
     renderAt('/log/new');
     const ta = await screen.findByRole('textbox');
-    expect(ta.className).not.toMatch(/notebook-textarea|notebook-surface/);
+    expect(ta.className).toMatch(/notebook-surface/);
+    expect(ta.className).toMatch(/notebook-textarea/);
   });
 });
 
