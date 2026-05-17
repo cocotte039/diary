@@ -35,13 +35,14 @@ B5大学ノートに万年筆で書いていた手書き日記の体験を、布
 ### 観測ログ（時系列メモ）
 
 - 日記とは IndexedDB ストア単位で完全分離（`memos` ストア、`DB_VERSION=3`）。1メモ＝「本文＋自動時刻のみ」
-- ヘッダーに「本棚 / メモ」タブを置き相互遷移（選択強調は opacity のみ・色は不変）
+- ヘッダーに「本棚 / メモ」タブを置き相互遷移（選択強調は opacity のみ・色は不変）。加えて本棚/メモ一覧画面では左右スワイプでも切替可能（親指片手操作。本棚で左スワイプ→メモ一覧、メモ一覧で右スワイプ→本棚。共通フック `useSwipeNavigation`、`|dx| > |dy|*2` かつ 50px 超で発火、カレンダーモーダル表示中は無効。タブと併存・遷移アニメなしの瞬間遷移）
 - 本棚画面右下に FAB（親指到達域に配置・モノクロ鉛筆アイコン。`bottom: max(3.5rem, calc(env(safe-area-inset-bottom) + 3rem))` で親指リーチを優先）→ メモ入力専用画面へ。暗黙保存（2秒 debounce）
-- メモ入力/編集画面はマウント時に textarea を自動フォーカス（書く所作の摩擦最小化。`focus({ preventScroll: true })`、編集時はカーソルを本文末尾に）。フォントはゴシック（`--font-family-ui`、可読性優先で日記の Klee One 手書き体と差別化）。罫線なし・素の紙（日記=罫線ノートと体験分離）
+- メモ入力/編集画面はマウント時に textarea を自動フォーカス（書く所作の摩擦最小化。`focus({ preventScroll: true })`、編集時はカーソルを本文末尾に）。フォント・罫線は日記と統一（`notebook-surface notebook-textarea` 流用で Klee One 手書き体＋罫線背景。ユーザー要望により日記との世界観を統一）。ただし日記の 60 行ページ概念は持ち込まず `.surface` の自由高さスクロールを維持（メモにページ概念なし）
 - メモ入力/編集画面は左上「戻る」リンクに加え、右スワイプでも戻れる（`|dx| > |dy|*2` かつ 50px 超で発火、IME 中はガード／メモは1画面のため左スワイプは無反応）。いずれも遷移前に自動保存を flush
 - メモ一覧は日付ごとにグルーピングし新しい順に表示（入力欄は持たない）。空メモは生成しない（初回非空入力で初めて作成）。各日付グループの `<section>` に `id="memo-date-YYYY-MM-DD"`（ローカル日付基準）を付与
-- 一覧のメモはタップで編集（押下中は `--color-accent` 背景ハイライトで控えめな触覚フィードバック・150ms）、500ms 長押し → confirm で削除（本棚カードと同じ長押し作法）
+- 一覧のメモはタップで編集（押下中は `--color-accent` 背景ハイライトで控えめな触覚フィードバック・150ms）、500ms 長押し → confirm で削除（本棚カードと同じ長押し作法）。本文プレビュー（`.preview`/空メモ `.emptyMemo`）は日記と同じ Klee One 手書き体（`font-family` 指定を外し global 継承）。日付見出し・時刻などメタ情報は `--font-family-ui` 維持（情報階層を保つ）
 - メモ一覧ヘッダー右端にメモ専用ハンバーガーメニュー（`MemoMenu`、本棚 `BookshelfMenu` の複製改変）。項目は「カレンダー」「設定」の2つ（本棚側「新しいノート」は持たない／メモ作成は FAB に分離）。閉じる契機は本棚同型（外部 pointerdown / Escape / 項目クリック）
+- 設定画面ヘッダー右端は「閉じる」リンク。設定を開いた元画面へ直接戻る（`BookshelfMenu`→本棚 `/`、`MemoMenu`→メモ一覧 `/log` を `Link` の `state.from` で伝播。直接 URL/リロードで state 喪失時は `/` にフォールバック）
 - メモ一覧画面右下にも FAB（本棚 `Fab` を `from` prop 化して再利用・既定 `'/'` で本棚は完全不変）→ `/log/new`（`state.from='/log'`）でメモ作成。戻ると一覧へ
 - メニューの「カレンダー」で全画面モーダルのメモ専用カレンダー（`MemoCalendar`、本棚 `Calendar` の複製改変）。日記 `pages` とは別管理で `memos` ストア対象（`getMemoDateSetInMonth`）。メモがある日にドット、その日タップでモーダルを閉じ該当 `#memo-date-YYYY-MM-DD` グループへ瞬間スクロール（二重 `requestAnimationFrame` 後 `scrollIntoView`、空メモ日はドットなし・タップ無反応）。視覚（ドット色/月送り/fade 200ms/overlay）は日記カレンダーと同一
 - GitHub バックアップは日付ごと 1 ファイル `memos/YYYY-MM-DD.md`（当日の全メモを `## HH:MM:SS` 見出し付きで時刻順集約、日記の `volumes/` と別ツリー）。当日全削除時は空内容 PUT で反映
@@ -56,7 +57,7 @@ diary/
 ├─ src/
 │  ├─ styles/       # global.css (CSS変数 / --header-height / .app-header / .app-header-link), notebook.css (罫線共通)
 │  ├─ lib/          # constants (CHARS_PER_PAGE=1200 は進捗バー目安、LINES_PER_PAPER=60, PAGES_PER_VOLUME=60, DB_VERSION=3, EXPORT_FORMAT_VERSION=2), pagination (splitIntoPages/countPages 他), db (idb v3: volumes/pages/meta/memos + memo CRUD, getDateSetInMonth=日記 / getMemoDateSetInMonth=メモ別管理), github (日記 page 同期 + memo 日付別同期), export, pwa
-│  ├─ hooks/        # useDebouncedCallback
+│  ├─ hooks/        # useDebouncedCallback, useSwipeNavigation（本棚⇔メモ一覧 左右スワイプ切替・EditorPage 判定をコピー流用）
 │  ├─ features/
 │  │  ├─ editor/    # EditorPage, useEditorAutoSave, DateIcon
 │  │  ├─ bookshelf/ # BookshelfPage, VolumeCard, BookshelfMenu(+ .module.css), Calendar, Fab
