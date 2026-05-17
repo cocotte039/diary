@@ -62,6 +62,7 @@ export default function BookshelfMenu({ onCreateNew, onOpenCalendar }: Props) {
           >カレンダー</button>
           <Link
             to="/settings"
+            state={{ from: '/' }}
             role="menuitem"
             className={styles.item}
             onClick={() => setOpen(false)}
