@@ -516,3 +516,82 @@ describe('BookshelfPage FAB (M2-T4)', () => {
     expect(screen.getByTestId('memo-new')).toBeTruthy();
   });
 });
+
+/**
+ * M4-T4: 左スワイプで /log（メモ一覧）へ遷移。
+ * MemoEditorPage.test.tsx の fireTouch 作法（createEvent +
+ * touches/changedTouches を defineProperty で強制）に厳密に倣う。
+ */
+describe('BookshelfPage 左スワイプ→/log (M4-T4)', () => {
+  function fireTouch(
+    el: Element,
+    kind: 'touchStart' | 'touchEnd',
+    clientX: number,
+    clientY: number
+  ) {
+    const ev = createEvent[kind](el);
+    const point = { clientX, clientY } as Touch;
+    const list = [point] as unknown as TouchList;
+    Object.defineProperty(ev, 'touches', { get: () => list });
+    Object.defineProperty(ev, 'changedTouches', { get: () => list });
+    fireEvent(el, ev);
+  }
+
+  function swipe(
+    el: Element,
+    from: [number, number],
+    to: [number, number]
+  ) {
+    fireTouch(el, 'touchStart', from[0], from[1]);
+    fireTouch(el, 'touchEnd', to[0], to[1]);
+  }
+
+  function LocationProbe({ onChange }: { onChange: (p: string) => void }) {
+    const loc = useLocation();
+    onChange(loc.pathname);
+    return null;
+  }
+
+  it('水平左スワイプで navigate(/log)', async () => {
+    await ensureActiveVolume();
+    let path = '';
+    const { container } = render(
+      <MemoryRouter initialEntries={['/']}>
+        <LocationProbe onChange={(p) => (path = p)} />
+        <Routes>
+          <Route path="/" element={<BookshelfPage />} />
+          <Route path="/log" element={<div data-testid="log-list" />} />
+        </Routes>
+      </MemoryRouter>
+    );
+    await screen.findByRole('link', { name: /ノート 1/ });
+    const root = container.querySelector('div');
+    expect(root).not.toBeNull();
+    swipe(root as Element, [200, 100], [40, 110]); // dx=-160, dy=10 → 水平左
+    await waitFor(() => expect(path).toBe('/log'));
+    expect(screen.getByTestId('log-list')).toBeTruthy();
+  });
+
+  it('showCalendar 表示中は左スワイプ無反応', async () => {
+    await ensureActiveVolume();
+    let path = '';
+    const { container } = render(
+      <MemoryRouter initialEntries={['/']}>
+        <LocationProbe onChange={(p) => (path = p)} />
+        <Routes>
+          <Route path="/" element={<BookshelfPage />} />
+          <Route path="/log" element={<div data-testid="log-list" />} />
+        </Routes>
+      </MemoryRouter>
+    );
+    await screen.findByRole('link', { name: /ノート 1/ });
+    fireEvent.click(screen.getByRole('button', { name: 'メニューを開く' }));
+    fireEvent.click(screen.getByRole('menuitem', { name: 'カレンダー' }));
+    await screen.findByRole('dialog', { name: 'カレンダー' });
+    const root = container.querySelector('div');
+    swipe(root as Element, [200, 100], [40, 110]);
+    await new Promise((r) => setTimeout(r, 50));
+    expect(path).toBe('/');
+    expect(screen.queryByTestId('log-list')).toBeNull();
+  });
+});

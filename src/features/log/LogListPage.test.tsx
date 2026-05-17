@@ -530,3 +530,79 @@ describe('LogListPage MemoMenu/FAB/Calendar (M1)', () => {
     expect(screen.getByRole('dialog', { name: 'カレンダー' })).toBeInTheDocument();
   });
 });
+
+/**
+ * M4-T4: 右スワイプで /（本棚）へ遷移。
+ * MemoEditorPage.test.tsx の fireTouch 作法に厳密に倣う。
+ */
+describe('LogListPage 右スワイプ→/ (M4-T4)', () => {
+  function fireTouch(
+    el: Element,
+    kind: 'touchStart' | 'touchEnd',
+    clientX: number,
+    clientY: number
+  ) {
+    const ev = createEvent[kind](el);
+    const point = { clientX, clientY } as Touch;
+    const list = [point] as unknown as TouchList;
+    Object.defineProperty(ev, 'touches', { get: () => list });
+    Object.defineProperty(ev, 'changedTouches', { get: () => list });
+    fireEvent(el, ev);
+  }
+
+  function swipe(
+    el: Element,
+    from: [number, number],
+    to: [number, number]
+  ) {
+    fireTouch(el, 'touchStart', from[0], from[1]);
+    fireTouch(el, 'touchEnd', to[0], to[1]);
+  }
+
+  function LocationProbe({ onChange }: { onChange: (p: string) => void }) {
+    const loc = useLocation();
+    onChange(loc.pathname);
+    return null;
+  }
+
+  it('水平右スワイプで navigate(/)', async () => {
+    let path = '';
+    const { container } = render(
+      <MemoryRouter initialEntries={['/log']}>
+        <LocationProbe onChange={(p) => (path = p)} />
+        <Routes>
+          <Route path="/log" element={<LogListPage />} />
+          <Route path="/" element={<div data-testid="bookshelf" />} />
+        </Routes>
+      </MemoryRouter>
+    );
+    await screen.findByText('まだメモがありません');
+    const root = container.querySelector('div');
+    expect(root).not.toBeNull();
+    swipe(root as Element, [40, 100], [200, 110]); // dx=+160, dy=10 → 水平右
+    await waitFor(() => expect(path).toBe('/'));
+    expect(screen.getByTestId('bookshelf')).toBeTruthy();
+  });
+
+  it('showCalendar 表示中は右スワイプ無反応', async () => {
+    let path = '';
+    const { container } = render(
+      <MemoryRouter initialEntries={['/log']}>
+        <LocationProbe onChange={(p) => (path = p)} />
+        <Routes>
+          <Route path="/log" element={<LogListPage />} />
+          <Route path="/" element={<div data-testid="bookshelf" />} />
+        </Routes>
+      </MemoryRouter>
+    );
+    await screen.findByText('まだメモがありません');
+    fireEvent.click(screen.getByRole('button', { name: 'メニューを開く' }));
+    fireEvent.click(screen.getByRole('menuitem', { name: 'カレンダー' }));
+    await screen.findByRole('dialog', { name: 'カレンダー' });
+    const root = container.querySelector('div');
+    swipe(root as Element, [40, 100], [200, 110]);
+    await new Promise((r) => setTimeout(r, 50));
+    expect(path).toBe('/log');
+    expect(screen.queryByTestId('bookshelf')).toBeNull();
+  });
+});
