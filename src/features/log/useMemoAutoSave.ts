@@ -20,11 +20,21 @@ import { AUTOSAVE_DEBOUNCE_MS } from '../../lib/constants';
  * - lastSavedRef で同一内容の冗長保存を抑止（冪等）。
  * - flush() を await すると debounce を待たず即時保存する（戻る/popstate から）。
  * - unmount でタイマー解除（pending は破棄）。
+ *
+ * データロス防止（backup 不具合修正・日記と同型）:
+ * - enabled=false（ロード前）は保存予約・ベースライン化・背面 flush を一切行わない
+ *   （ロード中の空 content で既存メモを上書き＝ワイプしないため）。日記が volumeId の
+ *   null ゲートで実現しているのと等価の制御を、メモは enabled 引数で行う。
+ * - 既存メモ読込（enabled かつ memoId 変化）時の content を「保存済み」ベースラインとして
+ *   lastSavedRef に焼き付け、読むだけ離脱で無変更 updateMemo（GitHub 無駄同期）を防ぐ。
+ * - visibilitychange(hidden)/pagehide（背面化・ロック・タブ破棄）で doSave を発火し、
+ *   debounce 未発火分の末尾入力をロストしない（enabled ガード付き）。
  */
 export function useMemoAutoSave(
   memoId: string | null,
   content: string,
-  onCreated: (id: string) => void
+  onCreated: (id: string) => void,
+  enabled: boolean = true
 ): { flush: () => Promise<void> } {
   const lastSavedRef = useRef<{ id: string | null; content: string }>({
     id: null,
@@ -43,6 +53,11 @@ export function useMemoAutoSave(
   const timerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   const onCreatedRef = useRef(onCreated);
   onCreatedRef.current = onCreated;
+  // 背面 flush から参照する最新 enabled。ロード前(false)の発火を弾く。
+  const enabledRef = useRef(enabled);
+  enabledRef.current = enabled;
+  // ベースライン化済みの memoId（sentinel=undefined で初回 effect を必ず通す）。
+  const baselineKeyRef = useRef<string | null | undefined>(undefined);
 
   const doSave = useCallback(async (): Promise<void> => {
     // 初回 addMemo 進行中なら完了を待ち、id 確定後に updateMemo 経路へ。
@@ -95,6 +110,20 @@ export function useMemoAutoSave(
   // content / memoId の変化で pending を更新し debounce タイマーを張り直す
   useEffect(() => {
     pendingRef.current = { memoId, content };
+    // ロード前(enabled=false)は何もしない（空 content で既存メモを上書きしない）。
+    if (!enabled) return;
+    const key = memoId; // null=新規
+    if (baselineKeyRef.current !== key) {
+      baselineKeyRef.current = key;
+      if (memoId !== null) {
+        // 既存メモ読込: 表示中内容を保存済みベースライン化（読むだけ離脱で
+        // 無変更 updateMemo＝GitHub 無駄同期を防ぐ）。タイマーは下で通常どおり
+        // 張るが、debounce 発火時 doSave は同値ガードで no-op になる
+        // （日記 useEditorAutoSave と同型のタイミング中立化）。
+        lastSavedRef.current = { id: memoId, content };
+      }
+      // 新規(memoId=null): 初期ベースライン {id:null,content:''} を維持。
+    }
     // 未作成かつ空入力はタイマーすら張らない（静止）
     if ((memoId ?? createdIdRef.current) === null && content.trim() === '') {
       return;
@@ -103,7 +132,7 @@ export function useMemoAutoSave(
     timerRef.current = setTimeout(() => {
       void doSave();
     }, AUTOSAVE_DEBOUNCE_MS);
-  }, [memoId, content, doSave]);
+  }, [memoId, content, enabled, doSave]);
 
   // unmount でタイマー解除（pending は破棄; flush はユーザー側で呼ぶ設計）
   useEffect(() => {
@@ -111,6 +140,25 @@ export function useMemoAutoSave(
       if (timerRef.current) clearTimeout(timerRef.current);
     };
   }, []);
+
+  // 背面化・画面ロック・タブ破棄で未保存末尾をロストしないよう保存する（日記と同型）。
+  // enabled=false（ロード前）は発火しない＝ワイプ防止。doSave は同値ガードで無変更 no-op。
+  useEffect(() => {
+    const run = () => {
+      if (!enabledRef.current) return;
+      void doSave();
+    };
+    const onHide = () => run();
+    const onVisibility = () => {
+      if (document.visibilityState === 'hidden') run();
+    };
+    document.addEventListener('visibilitychange', onVisibility);
+    window.addEventListener('pagehide', onHide);
+    return () => {
+      document.removeEventListener('visibilitychange', onVisibility);
+      window.removeEventListener('pagehide', onHide);
+    };
+  }, [doSave]);
 
   const flush = useCallback(async (): Promise<void> => {
     if (timerRef.current) {

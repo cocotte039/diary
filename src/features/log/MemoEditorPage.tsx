@@ -112,12 +112,9 @@ export default function MemoEditorPage() {
     [navigate]
   );
 
-  // autosave 配線（本番コードパス）。ready 前は null content で no-op。
-  const { flush } = useMemoAutoSave(
-    memoId,
-    ready ? content : '',
-    onCreated
-  );
+  // autosave 配線（本番コードパス）。ready 前は enabled=false でフック側が一切保存しない
+  // （ロード中の空 content で既存メモを上書きしない／背面化 flush も発火しない）。
+  const { flush } = useMemoAutoSave(memoId, content, onCreated, ready);
 
   // popstate ガード（Android 戻る等）: flush → backTo へ replace 遷移
   useEffect(() => {

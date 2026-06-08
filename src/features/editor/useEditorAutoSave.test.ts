@@ -1,6 +1,11 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import { renderHook, act } from '@testing-library/react';
-import { _resetDBForTests, ensureActiveVolume, getPage } from '../../lib/db';
+import {
+  _resetDBForTests,
+  ensureActiveVolume,
+  getPage,
+  savePage,
+} from '../../lib/db';
 import { DB_NAME, AUTOSAVE_DEBOUNCE_MS } from '../../lib/constants';
 import { useEditorAutoSave } from './useEditorAutoSave';
 
@@ -134,6 +139,53 @@ describe('useEditorAutoSave (M4-T4)', () => {
     });
     const secondUpdatedAt = (await getPage(v.id, 1))?.updatedAt;
     expect(secondUpdatedAt).toBe(firstUpdatedAt);
+  });
+
+  it('読込時の内容はベースライン化され、無変更なら flush しても保存しない（updatedAt 不変）', async () => {
+    const v = await ensureActiveVolume();
+    const before = await savePage(v.id, 1, 'loaded');
+    const { result } = renderHook(() => useEditorAutoSave(v.id, 1, 'loaded'));
+    // 編集せず flush（本棚リンク/背面化で読むだけ離脱した状況）
+    await act(async () => {
+      await result.current.flush();
+    });
+    const after = await getPage(v.id, 1);
+    expect(after?.updatedAt).toBe(before.updatedAt);
+  });
+
+  it('pagehide で pending の末尾入力を保存する（背面化データロス防止）', async () => {
+    const v = await ensureActiveVolume();
+    await savePage(v.id, 1, 'loaded');
+    const { rerender } = renderHook(
+      ({ text }: { text: string }) => useEditorAutoSave(v.id, 1, text),
+      { initialProps: { text: 'loaded' } }
+    );
+    rerender({ text: 'loaded + tail' });
+    // debounce 未経過のまま背面化
+    await act(async () => {
+      window.dispatchEvent(new Event('pagehide'));
+      await vi.advanceTimersByTimeAsync(10);
+    });
+    expect((await getPage(v.id, 1))?.content).toBe('loaded + tail');
+  });
+
+  it('visibilitychange(hidden) で pending の末尾入力を保存する', async () => {
+    const v = await ensureActiveVolume();
+    await savePage(v.id, 1, 'base');
+    const { rerender } = renderHook(
+      ({ text }: { text: string }) => useEditorAutoSave(v.id, 1, text),
+      { initialProps: { text: 'base' } }
+    );
+    rerender({ text: 'base edited' });
+    const spy = vi
+      .spyOn(document, 'visibilityState', 'get')
+      .mockReturnValue('hidden');
+    await act(async () => {
+      document.dispatchEvent(new Event('visibilitychange'));
+      await vi.advanceTimersByTimeAsync(10);
+    });
+    spy.mockRestore();
+    expect((await getPage(v.id, 1))?.content).toBe('base edited');
   });
 
   it('calls syncPendingPagesBackground after save', async () => {

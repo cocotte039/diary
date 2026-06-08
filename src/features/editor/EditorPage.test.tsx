@@ -150,6 +150,8 @@ describe('EditorPage back button guard (popstate → 本棚)', () => {
     const v = await ensureActiveVolume();
     renderAt(`/book/${v.id}/1`);
     const textarea = (await screen.findByLabelText('日記本文')) as HTMLTextAreaElement;
+    // ページ読込完了（ready→autosave 有効化＝textarea 自動フォーカス）を待ってから入力。
+    await waitFor(() => expect(document.activeElement).toBe(textarea));
     fireEvent.change(textarea, { target: { value: 'draft-before-back' } });
     act(() => {
       window.dispatchEvent(new PopStateEvent('popstate'));
@@ -157,6 +159,24 @@ describe('EditorPage back button guard (popstate → 本棚)', () => {
     await waitFor(async () => {
       const saved = await getPage(v.id, 1);
       expect(saved?.content).toBe('draft-before-back');
+    });
+  });
+
+  it('本棚リンク click で flush 後に / へ遷移し、直近入力が保存される', async () => {
+    const v = await ensureActiveVolume();
+    let pathname = '';
+    renderWithLocationProbe(`/book/${v.id}/1`, (p) => { pathname = p; });
+    const textarea = (await screen.findByLabelText('日記本文')) as HTMLTextAreaElement;
+    // ページ読込完了（ready→autosave 有効化＝textarea 自動フォーカス）を待ってから入力。
+    await waitFor(() => expect(document.activeElement).toBe(textarea));
+    fireEvent.change(textarea, { target: { value: 'tail-before-home' } });
+    await act(async () => {
+      fireEvent.click(screen.getByRole('link', { name: '本棚に戻る' }));
+    });
+    await waitFor(() => expect(pathname).toBe('/'));
+    await waitFor(async () => {
+      const saved = await getPage(v.id, 1);
+      expect(saved?.content).toBe('tail-before-home');
     });
   });
 
@@ -226,6 +246,8 @@ describe('EditorPage page navigation buttons (M5-T1)', () => {
       pathname = p;
     });
     const textarea = (await screen.findByLabelText('日記本文')) as HTMLTextAreaElement;
+    // ページ読込完了（ready→autosave 有効化＝textarea 自動フォーカス）を待ってから入力。
+    await waitFor(() => expect(document.activeElement).toBe(textarea));
     fireEvent.change(textarea, { target: { value: 'unsaved draft' } });
     fireEvent.click(screen.getByRole('button', { name: '次のページ' }));
     await waitFor(() => expect(pathname).toBe(`/book/${v.id}/2`));

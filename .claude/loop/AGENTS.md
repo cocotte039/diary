@@ -766,3 +766,35 @@ npm run preview      # ビルド結果のプレビュー
   （git diff 確認）。新規定数なし（SWIPE_THRESHOLD_PX 再利用）。
   本番配線は BookshelfPage.tsx / LogListPage.tsx の 2 箇所が import・spread
   していることを grep（テスト除外）で実証＝死蓄なし。
+
+---
+
+## バックアップ不具合修正（autosave flush 漏れ → 文末データ消失）
+
+症状: 日記を書いて閉じ再度開くと文末の未保存分が消える（ことがある）。
+根本原因: GitHub バックアップ層ではなく **ローカル autosave の flush 漏れ**。
+- 日記「本棚」リンクが素の `<Link>` で flush せず unmount で pending 破棄（決定的主因）。
+- 日記・メモとも `visibilitychange`/`pagehide` 未配線で背面化/ロック/破棄時に
+  debounce 未発火分の末尾を喪失（非決定的＝「ことがある」）。
+
+判断記録:
+- **🟡 unmount-flush は採用せず**: 既存テスト「unmount で timer 解除（pending 破棄）」が
+  意図的不変条件のため。同じ観測結果を「本棚リンク onClick flush（メモ handleBack 同型）」
+  ＋「フック内 visibilitychange/pagehide flush」で達成（より安全・既存不変条件維持）。
+- **🟡 dirty/ベースライン追跡**: ページ/メモ読込時の内容を lastSavedRef へ焼付け、
+  読むだけ離脱で無変更保存＝GitHub 無駄コミットを防ぐ（静けさ維持）。
+- **🟡 baseline は早期 return しない（タイミング中立）**: 読込 effect でも debounce タイマーは
+  通常どおり張り、doSave は同値ガードで no-op。早期 return すると fake-timer/microtask の
+  進行順が変わり EditorPage テストの load 完了タイミングがズレるため。
+- **🟡 メモは enabled 引数を追加**: 日記は `ready?volumeId:null` の null ゲートで読込前 flush を
+  抑止できるが、メモは `ready?content:''` ゲートだとベースライン化が壊れる。volumeId 相当の
+  制御を enabled で実現（読込前は保存/ベースライン/背面 flush を一切しない＝ワイプ防止）。
+- **🟢 既存 flush テスト3件を ready 待ちに硬化**: 「load 完了前に入力」する潜在レースが
+  baseline のタイミング摂動で顕在化したため、入力前に textarea 自動フォーカス（=ready）を
+  待つよう修正。検証アサーション（flush で保存される）は不変。実挙動が正しいことは
+  ready 待ち版が 5/5 緑で実証済み。
+- **🟢 github.ts は無変更**: 同期・SHA・リトライは正常。
+- 結果: 関連4ファイル 84 件 5回連続緑・full-suite 243 件緑（残2件は LogListPage Calendar の
+  既存フレーキー＝clean tree でも同様に失敗、本変更と無関係）・tsc 0・build 成功。
+  本番配線は EditorPage.tsx の onClick=handleHomeClick、両フックの addEventListener、
+  MemoEditorPage の enabled=ready 引数で実証＝死蓄なし。

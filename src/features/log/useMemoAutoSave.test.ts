@@ -184,6 +184,48 @@ describe('useMemoAutoSave (M2-T2)', () => {
     expect(syncPendingMemosBackground).toHaveBeenCalled();
   });
 
+  it('既存メモ読込はベースライン化し、無変更 flush で updateMemo しない（updatedAt 不変）', async () => {
+    const m = await addMemo('seed');
+    const onCreated = vi.fn();
+    const { result } = renderHook(() =>
+      useMemoAutoSave(m.id, 'seed', onCreated)
+    );
+    await act(async () => {
+      await result.current.flush();
+    });
+    const after = await getMemo(m.id);
+    expect(after?.updatedAt).toBe(m.updatedAt);
+    expect(onCreated).not.toHaveBeenCalled();
+  });
+
+  it('pagehide で pending の末尾入力を保存する（メモ更新・背面化データロス防止）', async () => {
+    const m = await addMemo('seed');
+    const onCreated = vi.fn();
+    const { rerender } = renderHook(
+      ({ content }: { content: string }) =>
+        useMemoAutoSave(m.id, content, onCreated),
+      { initialProps: { content: 'seed' } }
+    );
+    rerender({ content: 'seed + tail' });
+    await act(async () => {
+      window.dispatchEvent(new Event('pagehide'));
+      await vi.advanceTimersByTimeAsync(10);
+    });
+    expect((await getMemo(m.id))?.content).toBe('seed + tail');
+  });
+
+  it('enabled=false の間は背面化 flush で保存しない（ロード中ワイプ防止）', async () => {
+    const m = await addMemo('seed');
+    const onCreated = vi.fn();
+    // ロード前を模擬: enabled=false, content='' で背面化
+    renderHook(() => useMemoAutoSave(m.id, '', onCreated, false));
+    await act(async () => {
+      window.dispatchEvent(new Event('pagehide'));
+      await vi.advanceTimersByTimeAsync(10);
+    });
+    expect((await getMemo(m.id))?.content).toBe('seed');
+  });
+
   it('unmount で timer 解除（保存予約が発火しない）', async () => {
     const onCreated = vi.fn();
     const { rerender, unmount } = renderHook(

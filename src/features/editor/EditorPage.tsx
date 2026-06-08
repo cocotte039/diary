@@ -282,6 +282,29 @@ export default function EditorPage() {
     });
   }, [dayRolloverHour]);
 
+  /**
+   * 「本棚」リンク: 既定遷移をキャンセルし、flush（直近入力をロストしない）後に
+   * 本棚 (`/`) へ navigate する。MemoEditorPage の goBack と同型。
+   * goPage / popstate と異なり素の <Link> だったため未保存末尾が消えていた
+   * （backup 不具合の主因）。flush は無変更時 no-op なので読むだけ離脱でも無害。
+   */
+  const goHome = useCallback(async () => {
+    try {
+      await flush();
+    } catch {
+      // 保存失敗でも遷移は継続
+    }
+    navigate('/');
+  }, [flush, navigate]);
+
+  const handleHomeClick = useCallback(
+    (e: React.MouseEvent) => {
+      e.preventDefault();
+      void goHome();
+    },
+    [goHome]
+  );
+
   const canGoPrev = current > 1;
   const canGoNext = current < PAGES_PER_VOLUME;
 
@@ -339,7 +362,14 @@ export default function EditorPage() {
     >
       <header className={`app-header ${styles.header}`}>
         <div className={styles.headerLeft}>
-          <Link to="/" aria-label="本棚に戻る" className="app-header-link">本棚</Link>
+          <Link
+            to="/"
+            aria-label="本棚に戻る"
+            className="app-header-link"
+            onClick={handleHomeClick}
+          >
+            本棚
+          </Link>
         </div>
         <div className={styles.pageCluster}>
           <button
